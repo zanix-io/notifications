@@ -23,11 +23,11 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Run tests
-        run: deno test --allow-all
-
       - name: Run Deno task build 
         run: deno task build-handlebars
+
+      - name: Run tests
+        run: deno test --allow-all
 
       - name: Publish to Deno
         run: deno publish
