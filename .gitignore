@@ -35,6 +35,3 @@ node_modules
 
 # Test coverage reports
 /coverage/
-
-# Handlebars compiled files
-src/modules/templates/handlebars/**/*.js
