@@ -1,0 +1,496 @@
+export const snapshot = {};
+
+snapshot[`Handlebars runtime should return correct welcome template content 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome Email</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Welcome, Astronaut!</h1>
+      <div class="content">Greetings, Space Explorer!<br><br>
+    We’re thrilled to have you aboard Zanix, your mission control 
+    for an out-of-this-world experience. 🚀<br>
+    Prepare to explore new features, discover exciting tools, 
+    and launch your journey to the stars with us.<br>
+    Your adventure starts now - we promise it will be stellar!</div>
+
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>'
+`;
+
+snapshot[`Handlebars runtime should return correct password changed template content 1`] = `
+\`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Changed</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Password Successfully Changed</h1>
+      <div class="content"><p>We wanted to let you know that your password has been successfully changed.</p>
+    <p>If you didn't make this change, please contact support immediately.</p>
+    <p>For security reasons, please do not share your password with anyone. 
+    If you need assistance, feel free to reach out to us.</p></div>
+
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>\`
+`;
+
+snapshot[`Handlebars runtime should return correct generic template content 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zanix Template</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Zanix Notifications Library</h1>
+      <div class="content"><p>We are excited to introduce the <strong>Zanix Notifications</strong> 
+    library, a powerful tool for sending pre-defined messages and notifications 
+    across your Zanix ecosystem.</p>
+    <p>This library simplifies communication across your platform, 
+    ensuring your messages are delivered effectively and efficiently.</p>
+    <p>Get started with the Zanix Notifications library today and 
+    streamline your notification workflow.</p>
+</div>
+
+      
+    </div>
+  </body> 
+</html>'
+`;
+
+snapshot[`Handlebars runtime should return correct password recovery template content 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Recovery</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Password Recovery Request</h1>
+      <div class="content"><p>We have received a request to reset your password. Use the following code to proceed:</p></div>
+          <span class="button">123456</span>
+
+        <p class="message">This OTP is valid for 5 minutes. If you did not request this change, please ignore this email.
+
+      For additional security, please do not share this OTP with anyone.</p>
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>'
+`;
+
+snapshot[`Handlebars runtime should return correct login-otp template content 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login OTP</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Your code for Login</h1>
+      <div class="content"> <p>We received a login request for your account. To complete your login, please use the One-Time Password (OTP) below:</p></div>
+          <span class="button">123456</span>
+
+        <p class="message">This OTP is valid for 5 minutes. If you did not request this login, please disregard this email.
+
+      For additional security, please do not share this OTP with anyone.</p>
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>'
+`;
+
+snapshot[`Handlebars runtime should return correct styles 1`] = `
+'<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zanix Template</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container, p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+.container {
+  background-color: #000;
+}</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Your code for Login</h1>
+      <div class="content"> <p>We received a login request for your account. To complete your login, please use the One-Time Password (OTP) below:</p></div>
+
+        <p class="message">This OTP is valid for 0 minutes. If you did not request this login, please disregard this email.
+
+      For additional security, please do not share this OTP with anyone.</p>
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>'
+`;

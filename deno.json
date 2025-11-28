@@ -1,0 +1,86 @@
+{
+  "name": "@zanix/notifications",
+  "version": "0.1.0",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true
+  },
+  "lint": {
+    "rules": {
+      "tags": [
+        "recommended",
+        "jsr"
+      ],
+      "include": [
+        "eqeqeq",
+        "default-param-last",
+        "camelcase",
+        "no-await-in-loop",
+        "no-const-assign",
+        "no-eval",
+        "no-non-null-asserted-optional-chain",
+        "no-non-null-assertion",
+        "no-self-compare",
+        "no-sync-fn-in-async-fn",
+        "no-throw-literal",
+        "no-useless-rename"
+      ],
+      "exclude": ["no-slow-types"]
+    },
+    "exclude": [
+      "src/modules/templates/handlebars/**/*.js",
+      ".dist"
+    ],
+    "plugins": [
+      "jsr:@zanix/utils/linter/deno-zanix-plugin"
+    ],
+    "report": "pretty"
+  },
+  "fmt": {
+    "exclude": [
+      "src/modules/templates/handlebars/**/*.js",
+      ".dist"
+    ],
+    "proseWrap": "always",
+    "indentWidth": 2,
+    "singleQuote": true,
+    "lineWidth": 100,
+    "useTabs": false,
+    "semiColons": false
+  },
+  "imports": {
+    "zod": "npm:zod@^4.1.13",
+    "@zanix/types": "jsr:@zanix/utils@2.*/types",
+    "@std/testing": "jsr:@std/testing@1.0.16",
+    "@std/path": "jsr:@std/path@0.224",
+    "handlebars": "npm:handlebars@^4.7.8",
+    "@zanix/server": "jsr:@zanix/server@1.*",
+    "@zanix/workers": "jsr:@zanix/utils@2.*/workers",
+    "typings/": "./src/typings/",
+    "utils/": "./src/utils/",
+    "modules/": "./src/modules/"
+  },
+  "exports": {
+    ".": "./mod.ts",
+    "./core": "./src/modules/core.ts"
+  },
+  "nodeModulesDir": "auto",
+  "publish": {
+    "exclude": [
+      ".github",
+      "src/@tests"
+    ]
+  },
+  "test": {
+    "include": [
+      "src/@tests/**/*.test.ts"
+    ]
+  },
+  "tasks": {
+    "build-handlebars": "deno run -A ./src/modules/templates/handlebars/compiler.ts"
+  },
+  "zanix": {
+    "project": "library",
+    "hash": "pn287r"
+  }
+}

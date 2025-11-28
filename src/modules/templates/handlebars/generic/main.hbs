@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="{{html.lang}}">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{html.title}}</title>
+  <style>{{styles.css}}</style>
+  </head>
+  <body>
+    <div class="{{styles.containerClass}}">
+      <h1 class="{{styles.titleClass}}">{{title}}</h1>
+      <div class="{{styles.contentClass}}">{{{content}}}</div>
+      {{#if buttonText}}
+        {{#if buttonLink}}
+          <a href="{{buttonLink}}" class="{{styles.buttonClass}}">{{buttonText}}</a>
+        {{else}}
+          <span class="{{styles.buttonClass}}">{{buttonText}}</span>
+        {{/if}}
+      {{/if}}
+
+      {{#if message}}
+        <p class="{{styles.messageClass}}">{{message}}</p>
+      {{/if}}
+      
+      {{#if footer}}
+        <div class="{{styles.footerClass}}">{{{footer}}}</div> 
+      {{/if}} 
+    </div>
+  </body> 
+</html>
