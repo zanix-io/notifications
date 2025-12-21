@@ -3,8 +3,8 @@ import type { NotifyMessage } from 'typings/general.ts'
 import type { ConnectorOptions } from '@zanix/server'
 
 import { smtpResponseCode } from 'utils/constants.ts'
-import { decoder, encoder } from 'utils/encoders.ts'
 import { ZanixNotifierConnector } from '../base.ts'
+import { decoder, encoder } from '@zanix/helpers'
 
 /**
  * SMTP client for sending emails.

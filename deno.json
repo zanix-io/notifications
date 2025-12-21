@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
@@ -55,6 +55,7 @@
     "@std/path": "jsr:@std/path@0.224",
     "handlebars": "npm:handlebars@^4.7.8",
     "@zanix/server": "jsr:@zanix/server@1.*",
+    "@zanix/helpers": "jsr:@zanix/utils@2.*/helpers",
     "@zanix/workers": "jsr:@zanix/utils@2.*/workers",
     "typings/": "./src/typings/",
     "utils/": "./src/utils/",

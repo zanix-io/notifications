@@ -11,16 +11,16 @@ Deno.test({
   sanitizeResources: false,
   name: 'Send an email using NotifierProvider',
   fn: async () => {
-    Deno.env.set('SMTP_PORT', 'your port')
-    Deno.env.set('SMTP_HOST', 'your host')
-    Deno.env.set('SMTP_USER', 'your user')
-    Deno.env.set('SMTP_PASSWORD', 'your smtp password')
+    Deno.env.set('SMTP_PORT', '')
+    Deno.env.set('SMTP_HOST', '')
+    Deno.env.set('SMTP_USER', '')
+    Deno.env.set('SMTP_PASSWORD', '')
+    const subject = '' // Set a valid email
 
+    await import('jsr:@zanix/asyncmq@0.3.*/core')
     await import('../../modules/email/defs.ts')
 
     const provider = new NotifierProvider()
-
-    const subject = 'pepito@email.com' // Set a valid email
 
     await new Promise((resolve) => {
       provider.sendMessage('email', {

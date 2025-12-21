@@ -10,7 +10,6 @@ import type {
 import templates from 'modules/templates/transactional/mod.ts'
 import { ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
-import { WorkerManager } from '@zanix/workers'
 
 /**
  * NotifierProvider class for handling the dispatch of different types of notifications.
@@ -93,15 +92,15 @@ export class NotifierProvider extends ZanixProvider {
       return msg
     })
 
-    //TODO: use this.worker when available
-    const worker = new WorkerManager()
-    return worker.task(sendBackgroundMessage, {
+    const task = this.worker.executeGeneralTask(sendBackgroundMessage, {
       metaUrl: import.meta.url,
-      autoClose: true,
-      onFinish: (response) => {
+      callback: (response) => {
         callbacks.forEach((callback) => callback(response))
       },
-    }).invoke(messages)
+      timeout: 10000 * messages.length,
+    })
+
+    return task(messages)
   }
 }
 
