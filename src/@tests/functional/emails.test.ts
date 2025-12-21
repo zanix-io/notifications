@@ -17,7 +17,6 @@ Deno.test({
     Deno.env.set('SMTP_PASSWORD', '')
     const subject = '' // Set a valid email
 
-    await import('jsr:@zanix/asyncmq@0.3.*/core')
     await import('../../modules/email/defs.ts')
 
     const provider = new NotifierProvider()
@@ -29,7 +28,7 @@ Deno.test({
         subject: 'Welcome to Zanix',
         body: { template: 'welcome', data: { buttonText: 'Click here' } },
       }, {
-        useWorker: {
+        useOneTimeWorker: {
           callback: () => {
             resolve(true)
           },
@@ -41,7 +40,7 @@ Deno.test({
         subject: 'Login to Zanix',
         body: { template: 'login-otp' },
       }, {
-        useWorker: true,
+        useOneTimeWorker: true,
       })
 
       provider['onDestroy']() // this execute queues

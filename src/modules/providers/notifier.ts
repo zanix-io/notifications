@@ -10,6 +10,7 @@ import type {
 import templates from 'modules/templates/transactional/mod.ts'
 import { ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
+import { WorkerManager } from '@zanix/workers'
 
 /**
  * NotifierProvider class for handling the dispatch of different types of notifications.
@@ -48,18 +49,18 @@ export class NotifierProvider extends ZanixProvider {
    * @param {Notifiers} notifier - The notifier type used to select the appropriate notification client.
    * @param {NotifyMessageWithTemplate} message - The message payload to be sent.
    * @param {MessageContent<T>} [message.body] - Body content of the message (HTML, plain text or a template with JSON data)
-   * @param {boolean} [options.useWorker] - If true, the message will be processed by a worker.
+   * @param {boolean} [options.useOneTimeWorker] - When enabled, a temporary Web Worker is created to process the message and is terminated once the task completes.
    * @returns {Promise<void>} Resolves when the message has been sent.
    */
   public async sendMessage<T extends DefaultTemplates>(
     notifier: Notifiers,
     message: NotifyMessageWithTemplate<T>,
-    options: { useWorker?: WithWorker } = {},
+    options: { useOneTimeWorker?: WithWorker } = {},
   ): Promise<void> {
-    const { useWorker } = options
-    if (useWorker) {
+    const { useOneTimeWorker } = options
+    if (useOneTimeWorker) {
       this.#queue.push({
-        callback: typeof useWorker !== 'boolean' ? useWorker.callback : undefined,
+        callback: typeof useOneTimeWorker !== 'boolean' ? useOneTimeWorker.callback : undefined,
         notifier,
         message,
       })
@@ -86,21 +87,24 @@ export class NotifierProvider extends ZanixProvider {
   }
 
   protected override onDestroy(): void {
+    if (!this.#queue.length) return
+
     const callbacks: TaskCallback[] = []
     const messages = this.#queue.map(({ callback, ...msg }) => {
       if (callback) callbacks.push(callback)
       return msg
     })
 
-    const task = this.worker.executeGeneralTask(sendBackgroundMessage, {
+    // One Time Worker
+    const worker = new WorkerManager()
+    return worker.task(sendBackgroundMessage, {
       metaUrl: import.meta.url,
-      callback: (response) => {
+      autoClose: true,
+      onFinish: (response) => {
         callbacks.forEach((callback) => callback(response))
       },
       timeout: 10000 * messages.length,
-    })
-
-    return task(messages)
+    }).invoke(messages)
   }
 }
 
