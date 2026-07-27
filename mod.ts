@@ -78,6 +78,10 @@ export type {
   WhatsappTemplateMessage,
 } from 'typings/whatsapp.ts'
 
-export { TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
+export {
+  DATABASE_TEMPLATES_ENV,
+  isDatabaseTemplatesDisabled,
+  TEMPLATES_MODEL_ENV,
+} from 'modules/templates/provider.ts'
 
 export type { TemplateSource, ZanixTemplateAttrs } from 'typings/templates-db.ts'

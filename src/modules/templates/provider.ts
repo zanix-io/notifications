@@ -15,6 +15,31 @@ import { CODE_SOURCE, planTemplateSync } from './db/sync.ts'
 /** Env var naming the `ZanixTemplate` model — presence enables database-backed template resolution (see `resolve()`). Absent, behavior is unchanged from the pure code-registry path. */
 export const TEMPLATES_MODEL_ENV = 'TEMPLATES_MODEL_NAME'
 
+/**
+ * Env var that, set to `'true'`, enables database-backed templates under the default model name
+ * (`'zanix-templates'`) without having to name it explicitly via `TEMPLATES_MODEL_NAME` — see
+ * `templates/core.ts`. Never overrides `TEMPLATES_MODEL_NAME` if that's already set (including to
+ * an explicit empty string, a valid opt-out). Deliberately NOT tied to any database connector's
+ * own configuration (e.g. `MONGO_URI`) — this package has no reason to know that variable exists;
+ * enabling the feature always requires this explicit opt-in, in every app, full or standalone.
+ *
+ * Set to `'false'` instead, it's a kill switch — mirrors `@zanix/datamaster`'s own
+ * `DATABASE_SEEDERS === 'false'` convention: it disables database-backed templates entirely, even
+ * when `TEMPLATES_MODEL_NAME` is explicitly set to something (see `isDatabaseTemplatesDisabled()`),
+ * for the same reason a deployment might want a single environment-level override that wins over
+ * whatever an individual app happened to configure.
+ */
+export const DATABASE_TEMPLATES_ENV = 'DATABASE_TEMPLATES'
+
+/**
+ * Whether `DATABASE_TEMPLATES=false` is explicitly disabling database-backed templates — checked
+ * both at boot (`templates/core.ts`'s `registerModel()` gate) and at every `resolve()` call, so
+ * the kill switch takes effect regardless of whether `TEMPLATES_MODEL_NAME` is also set.
+ */
+export function isDatabaseTemplatesDisabled(): boolean {
+  return Deno.env.get(DATABASE_TEMPLATES_ENV) === 'false'
+}
+
 type TemplateRegistry = Record<string, (data: never) => Promise<string>>
 
 /** Picks the in-memory template registry that matches a given notifier channel. */
@@ -176,7 +201,8 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
   /**
    * Resolves `zanixTemplate` for `channel` against the database (if `TEMPLATES_MODEL_NAME` is
-   * set and a matching, active record exists) or the in-memory code registry otherwise.
+   * set, `DATABASE_TEMPLATES` isn't explicitly `'false'`, and a matching, active record exists) or
+   * the in-memory code registry otherwise.
    *
    * Any failure on the database path — the connector not actually being configured, a sync error,
    * an invalid `hbs` record, etc. — is caught and logged as a warning, falling back to the code
@@ -196,7 +222,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     const modelName = Deno.env.get(TEMPLATES_MODEL_ENV)
     const registry = templatesFor(channel)
 
-    if (modelName) {
+    if (modelName && !isDatabaseTemplatesDisabled()) {
       try {
         const Model = await this.#ensureSynced(modelName)
         const record = await Model.findOne({ channel, name, active: true }).lean()

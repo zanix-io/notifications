@@ -58,7 +58,12 @@ const html = await execTemplate('email/generic', { title: 'Hi', content: 'Welcom
 By default, every template above is rendered purely from code — nothing is read from a database.
 Setting the `TEMPLATES_MODEL_NAME` environment variable (see
 [Environment Variables](./environment-variables.md#database-backed-templates)) switches
-`TemplateProvider` (used internally by `NotifierProvider`) to a hybrid mode instead:
+`TemplateProvider` (used internally by `NotifierProvider`) to a hybrid mode instead. If you don't
+need a custom model name, `DATABASE_TEMPLATES=true` enables the same hybrid mode under the default
+name (`zanix-templates`) without setting `TEMPLATES_MODEL_NAME` yourself. `DATABASE_TEMPLATES=false`
+is the opposite: a kill switch that disables database-backed templates entirely, even if
+`TEMPLATES_MODEL_NAME` is explicitly set — the same convention as `@zanix/datamaster`'s
+`DATABASE_SEEDERS`.
 
 - On first use, every code template (the ones listed under
   [Built-in templates](#built-in-templates)) is seeded into a `ZanixTemplate` collection, one

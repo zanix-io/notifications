@@ -35,12 +35,12 @@
     "jsr:@std/testing@1.0.16": "1.0.16",
     "jsr:@zanix/datamaster@0": "0.7.0",
     "jsr:@zanix/datamaster@0.7": "0.7.0",
-    "jsr:@zanix/server@*": "2.0.3",
-    "jsr:@zanix/server@2": "2.0.3",
-    "jsr:@zanix/server@^2.0.3": "2.0.3",
-    "jsr:@zanix/utils@*": "2.4.1",
-    "jsr:@zanix/utils@2": "2.4.1",
-    "jsr:@zanix/utils@2.4": "2.4.1",
+    "jsr:@zanix/server@*": "2.0.4",
+    "jsr:@zanix/server@2": "2.0.4",
+    "jsr:@zanix/server@^2.0.4": "2.0.4",
+    "jsr:@zanix/utils@*": "2.4.2",
+    "jsr:@zanix/utils@2": "2.4.2",
+    "jsr:@zanix/utils@2.4": "2.4.2",
     "npm:@types/node@*": "24.2.0",
     "npm:amqplib@0.10": "0.10.9",
     "npm:esbuild@0.20.2": "0.20.2",
@@ -199,20 +199,20 @@
         "npm:redis"
       ]
     },
-    "@zanix/server@2.0.3": {
-      "integrity": "2ab668c577bc214e6aa0a15cc181e1250e5325d8a2d6c826a17c629e8a6362ba",
+    "@zanix/server@2.0.4": {
+      "integrity": "6f3b3db72359502aa15c0a595b17e358200d29004a63a68d7ba0ca5b493a1f61",
       "dependencies": [
         "jsr:@std/http",
         "jsr:@std/path@0.224",
-        "jsr:@zanix/server@^2.0.3",
+        "jsr:@zanix/server@^2.0.4",
         "jsr:@zanix/utils@2",
         "jsr:@zanix/utils@2.4",
         "npm:graphql",
         "npm:redis"
       ]
     },
-    "@zanix/utils@2.4.1": {
-      "integrity": "32b7b863ea412f95b0b04eb208138452f4948cc09b59e9af8bf7cad620cb5a27",
+    "@zanix/utils@2.4.2": {
+      "integrity": "a947bddfe740e37a0392b9a605f40c56e60cfc85ec7fc1e245b7b5cbe7d05648",
       "dependencies": [
         "jsr:@luca/esbuild-deno-loader",
         "jsr:@std/fmt@0.224",

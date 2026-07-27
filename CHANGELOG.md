@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-26
+
+### Added
+
+- `DATABASE_TEMPLATES=false` now acts as a kill switch, disabling database-backed templates entirely
+  even when `TEMPLATES_MODEL_NAME` is explicitly set — previously it had no effect at all unless
+  `TEMPLATES_MODEL_NAME` was already unset. Checked both at boot (`registerModel()`'s gate) and on
+  every `resolve()` call. Matches `@zanix/datamaster`'s own `DATABASE_SEEDERS === 'false'`
+  convention: a single environment-level override that wins over whatever an individual app
+  configured. New export: `isDatabaseTemplatesDisabled()`.
+
 ## [0.2.1] - 2026-07-26
 
 ### Fixed
@@ -45,6 +56,10 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
   [Templates](./docs/templates.md#database-backed-templates), including the `name`/`hash` field
   distinction and multi-instance behavior. New exports: `TEMPLATES_MODEL_ENV`, `TemplateSource`,
   `ZanixTemplateAttrs`. Requires `@zanix/datamaster@0.6.0`+.
+- `DATABASE_TEMPLATES` environment variable — set to `true` to enable database-backed templates
+  under the default model name (`zanix-templates`) without naming it explicitly via
+  `TEMPLATES_MODEL_NAME`. Always an explicit opt-in, in a full app or a standalone one. New export:
+  `DATABASE_TEMPLATES_ENV`.
 - `@zanix/datamaster` added as a real dependency (like `@zanix/server`, no longer avoided via
   structural duck-typing) — `TemplateProvider` is now typed directly against its
   `ZanixMongoConnector`/`AdaptedModel`, since the database-backed templates feature already required

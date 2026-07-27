@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import {
+  DATABASE_TEMPLATES_ENV,
   resetTemplateProviderState,
   TemplateProvider,
   TEMPLATES_MODEL_ENV,
@@ -93,6 +94,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
       await fn()
     } finally {
       Deno.env.delete(TEMPLATES_MODEL_ENV)
+      Deno.env.delete(DATABASE_TEMPLATES_ENV)
     }
   })
 }
@@ -123,6 +125,35 @@ templateTest(
     const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
 
     assertStringIncludes(content, 'Click here')
+  },
+)
+
+templateTest(
+  'TemplateProvider: resolve() falls back to code when DATABASE_TEMPLATES=false, even though TEMPLATES_MODEL_NAME is explicitly set',
+  async () => {
+    const { model } = fakeTemplateModel([{
+      channel: 'sms',
+      name: 'invoice-created',
+      hbs: 'Invoice #{{invoiceId}} for {{amount}} is ready',
+      source: 'database',
+      active: true,
+      version: 1,
+      hash: 'hash-1',
+    }])
+    const provider = freshProvider()
+    withDatabaseEnabled(provider, model)
+    // The kill switch — mirrors `@zanix/datamaster`'s own `DATABASE_SEEDERS === 'false'`
+    // convention — must win over an explicitly-set `TEMPLATES_MODEL_NAME`, not just an absent one.
+    Deno.env.set(DATABASE_TEMPLATES_ENV, 'false')
+
+    // No `.hbs` of its own for 'invoice-created' in code (see db/manifest.ts), so this can only
+    // resolve if the (real, matching) database record is used — proving the kill switch, not a
+    // missing-record fallback, is what's forcing the code path here.
+    await assertRejects(
+      () => provider.resolve('sms', 'invoice-created', { invoiceId: '42', amount: '$10' }),
+      Error,
+      'Template not found',
+    )
   },
 )
 
