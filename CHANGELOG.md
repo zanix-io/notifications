@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-26
+
+### Fixed
+
+- Slow types on documentation.
+
 ## [0.2.0] - 2026-07-26
 
 ### Added
