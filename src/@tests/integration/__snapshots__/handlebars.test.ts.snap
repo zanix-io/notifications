@@ -27,7 +27,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -40,7 +41,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -110,7 +111,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -123,7 +125,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -191,7 +193,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -204,7 +207,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -275,7 +278,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -288,7 +292,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -357,7 +361,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -370,7 +375,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -439,7 +444,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -452,7 +458,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;
@@ -493,4 +499,112 @@ h1 {
     </div>
   </body> 
 </html>'
+`;
+
+snapshot[`Handlebars runtime should render a link button when buttonLink is provided 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zanix Template</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container,
+p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white !important;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">Zanix Notifications Library</h1>
+      <div class="content"><p>We are excited to introduce the <strong>Zanix Notifications</strong> 
+    library, a powerful tool for sending pre-defined messages and notifications 
+    across your Zanix ecosystem.</p>
+    <p>This library simplifies communication across your platform, 
+    ensuring your messages are delivered effectively and efficiently.</p>
+    <p>Get started with the Zanix Notifications library today and 
+    streamline your notification workflow.</p>
+</div>
+          <a href="https://zanix.dev" class="button">Visit us</a>
+
+      
+    </div>
+  </body> 
+</html>'
+`;
+
+snapshot[`Handlebars runtime should return correct sms generic template content 1`] = `
+"Your code is 123456. Don't share it.
+"
+`;
+
+snapshot[`Handlebars runtime should return correct sms otp template content 1`] = `
+"Your verification code is 123456. 
+It expires in 5 minutes. Don't share this code with anyone.
+"
+`;
+
+snapshot[`Handlebars runtime should return correct whatsapp generic template content 1`] = `
+"Your code is 123456. Don't share it.
+"
+`;
+
+snapshot[`Handlebars runtime should return correct whatsapp otp template content 1`] = `
+"Your verification code is 123456.
+It expires in 15 minutes. Don't share this code with anyone.
+"
 `;

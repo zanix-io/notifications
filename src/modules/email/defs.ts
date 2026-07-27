@@ -37,6 +37,11 @@ const registerConnector = () => {
  * This behavior ensures that, when a SMTP configuration is provided,
  * a default SMTP connector is available without requiring manual setup.
  *
+ * `SCOPED` here means the framework gives every request its own `SmtpClient` instance — see
+ * `email/connector.ts` for why a shared instance would be unsafe under concurrent requests, and
+ * how a shared connection pool (`SMTP_POOL_SIZE`) still avoids paying a fresh handshake on every
+ * request despite that.
+ *
  * @requires Deno.env
  * @requires SmtpClient
  * @decorator Connector

@@ -1,9 +1,9 @@
 import type { GenericTemplateSchema } from 'typings/templates.ts'
 
-import { execTemplate } from '../mod.ts'
+import { execTemplate } from '../../mod.ts'
 
 export const generic = (data?: GenericTemplateSchema): Promise<string> => {
-  return execTemplate('generic', {
+  return execTemplate('email/generic', {
     title: 'Zanix Notifications Library',
     content: `<p>We are excited to introduce the <strong>Zanix Notifications</strong> 
     library, a powerful tool for sending pre-defined messages and notifications 

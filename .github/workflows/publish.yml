@@ -18,20 +18,28 @@ jobs:
       contents: read # Allows reading of the repository's contents.
       id-token: write # Allows the creation of an ID token for authentication with JSR.
 
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Deno
-        uses: denoland/setup-deno@v1
+        uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
-      - name: Run Deno task build 
+      - name: Run Deno task build
         run: deno task build-handlebars
 
       - name: Run tests
         run: deno test --allow-all
+        env:
+          MONGO_TEST_URI: mongodb://localhost:27017
 
       - name: Publish to Deno
         run: deno publish --allow-slow-types

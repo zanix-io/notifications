@@ -17,7 +17,8 @@ h1 {
   color: #162156;
   text-align: center;
 }
-.container, p {
+.container,
+p {
   color: #333333;
   font-size: 16px;
   line-height: 1.5;
@@ -30,7 +31,7 @@ h1 {
   padding: 15px 25px;
   font-size: 24px;
   font-weight: bold;
-  color: white;
+  color: white !important;
   background-color: #162156;
   border-radius: 6px;
   letter-spacing: 2px;

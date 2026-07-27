@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { baseHtmlSchema, baseStylesSchema, defaultHtmlSchema } from '../schema.ts'
+import { baseHtmlSchema, baseStylesSchema, defaultHtmlSchema } from '../../schema.ts'
 
 // Ensure default styles are applied if not present
 const defaultStyles = {
@@ -21,7 +21,8 @@ const styleSchema = z.object({
   footerClass: z.string().optional(),
 }).default(defaultStyles).and(baseStylesSchema)
 
-const genericSchema = z.object({
+/** Zod schema backing the `generic` Handlebars template's data. */
+export const genericSchema = z.object({
   html: z.preprocess((val: object) => {
     return { ...defaultHtmlSchema, ...val }
   }, baseHtmlSchema),

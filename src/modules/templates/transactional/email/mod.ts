@@ -10,7 +10,7 @@ import { loginWithOTP, passwordChanged, passwordRecovery, welcome } from './auth
 import { generic } from './generic.ts'
 
 /**
- * An object containing different template rendering functions for various types of notifications.
+ * An object containing different template rendering functions for various types of EMAIL notifications.
  *
  * Each template corresponds to a specific type of notification (e.g., welcome email, password
  * change notification, etc.). These functions accept an optional data object that conforms to a
@@ -30,12 +30,12 @@ import { generic } from './generic.ts'
  *
  * @example
  * // Example usage to render a "welcome" template
- * const result = await templates.welcome({ username: 'John Doe' })
+ * const result = await templates.welcome({ app: 'Acme' })
  * console.log(result) // Rendered HTML for the "welcome" template with provided data
  *
  * @example
  * // Example usage to render a "password-changed" template
- * const result = await templates['password-changed']({ username: 'Jane Doe', date: '2023-11-25' })
+ * const result = await templates['password-changed']({ app: 'Acme' })
  * console.log(result) // Rendered HTML for the "password-changed" template
  */
 const templates: {
@@ -69,7 +69,9 @@ const templates: {
   /**
    * Renders a password recovery notification template.
    *
-   * @param {PasswordRecoveryTemplateSchema} [data] - Optional data to be injected into the template.
+   * @param {PasswordRecoveryTemplateSchema} [data] - Optional data to be injected into the
+   *    template; omit entirely to use the default `code`/`ttl`. If passed, `code` and `ttl` are
+   *    required (everything else is optional).
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
@@ -78,7 +80,9 @@ const templates: {
   /**
    * Renders a login OTP notification template.
    *
-   * @param {LoginWithOTPTemplateSchema} [data] - Optional data to be injected into the template.
+   * @param {LoginWithOTPTemplateSchema} [data] - Optional data to be injected into the template;
+   *    omit entirely to use the default `code`/`ttl`. If passed, `code` and `ttl` are required
+   *    (everything else is optional).
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */

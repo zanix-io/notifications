@@ -1,50 +1,45 @@
+import { assert } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
+import { loadTestEnv, missingEnv } from './env.ts'
 
 console.error = () => {}
 
-// Make sure to configure the environment variables correctly before running this test.
-// Be careful not to commit them accidentally to the repository, as they contain sensitive information (SMTP credentials).
-// These variables include the SMTP port, host, user, and password.
-Deno.test({
-  ignore: true,
-  sanitizeOps: false,
-  sanitizeResources: false,
-  name: 'Send an email using NotifierProvider',
-  fn: async () => {
-    Deno.env.set('SMTP_PORT', '')
-    Deno.env.set('SMTP_HOST', '')
-    Deno.env.set('SMTP_USER', '')
-    Deno.env.set('SMTP_PASSWORD', '')
-    const subject = '' // Set a valid email
+await loadTestEnv()
 
+const REQUIRED_ENV = ['SMTP_PORT', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'TEST_EMAIL_TO']
+const TEST_NAME = 'Send an email using NotifierProvider'
+
+// Functional test — hits a real SMTP server. Copy .env.test.example to .env.test (gitignored)
+// at the project root and fill in real credentials to run it; otherwise it's skipped with a
+// warning (see env.ts).
+Deno.test({
+  name: TEST_NAME,
+  ignore: missingEnv(REQUIRED_ENV, TEST_NAME),
+  fn: async () => {
     await import('../../modules/email/defs.ts')
 
     const provider = new NotifierProvider()
 
-    await new Promise((resolve) => {
+    const response = await new Promise((resolve) => {
       provider.sendMessage('email', {
-        from: 'noreply@aeratech.io',
-        to: subject,
+        from: Deno.env.get('TEST_EMAIL_FROM') ?? 'noreply@example.com',
+        to: Deno.env.get('TEST_EMAIL_TO') as string,
         subject: 'Welcome to Zanix',
-        body: { template: 'welcome', data: { buttonText: 'Click here' } },
+        zanixTemplate: 'welcome',
+        data: { buttonText: 'Click here' },
+        // content:'text'
       }, {
         useOneTimeWorker: {
-          callback: () => {
-            resolve(true)
+          callback: (response) => {
+            if (response.error) resolve(false)
+            else resolve(true)
           },
         },
       })
-      provider.sendMessage('email', {
-        from: 'noreply@aeratech.io',
-        to: subject,
-        subject: 'Login to Zanix',
-        body: { template: 'login-otp' },
-      }, {
-        useOneTimeWorker: true,
-      })
-
-      provider['onDestroy']() // this execute queues
+      provider['onDestroy']() // this executes queues
     })
+
+    assert(response)
 
     try {
       await provider.use('email')['close']()

@@ -19,8 +19,8 @@
  *    This string will contain the result of the template rendering with the provided data.
  *
  * @example
- * // Example usage to render a "welcome" email template
- * const result = await execTemplate('welcome', { username: 'John Doe', email: 'john@example.com' })
+ * // Example usage to render the "generic" email template
+ * const result = await execTemplate('email/generic', { title: 'Hello', content: 'Welcome aboard!' })
  * console.log(result) // The rendered template with the provided data
  */
 

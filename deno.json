@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
@@ -54,9 +54,11 @@
     "@std/testing": "jsr:@std/testing@1.0.16",
     "@std/path": "jsr:@std/path@0.224",
     "handlebars": "npm:handlebars@^4.7.8",
-    "@zanix/server": "jsr:@zanix/server@1.*",
+    "@zanix/server": "jsr:@zanix/server@2.*",
+    "@zanix/datamaster": "jsr:@zanix/datamaster@0.7.*",
     "@zanix/helpers": "jsr:@zanix/utils@2.*/helpers",
     "@zanix/workers": "jsr:@zanix/utils@2.*/workers",
+    "@zanix/logger": "jsr:@zanix/utils@2.*/logger",
     "typings/": "./src/typings/",
     "utils/": "./src/utils/",
     "modules/": "./src/modules/"

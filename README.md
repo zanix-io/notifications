@@ -8,78 +8,82 @@
 
 ## 🧭 Table of Contents
 
-- [🧩 Description](#🧩-description)
-- [⚙️ Features](#⚙️-features)
-- [📦 Installation](#📦-installation)
-- [🚀 Basic Usage](#🚀-basic-usage)
-- [🌐 Environment Variables](#🌐-environment-variables)
-- [🤝 Contributing](#🤝-contributing)
-- [🕒 Changelog](#🕒-changelog)
-- [⚖️ License](#⚖️-license)
-- [🔗 Resources](#🔗-resources)
+1. [Description](#-description)
+2. [Features](#-features)
+3. [Installation](#-installation)
+4. [Basic Usage](#-basic-usage)
+5. [Documentation](#-documentation)
+6. [Environment Variables](#-environment-variables)
+7. [Contributing](#-contributing)
+8. [Changelog](#-changelog)
+9. [License](#-license)
+10. [Resources](#-resources)
 
 ---
 
 ## 🧩 Description
 
-**Zanix Notifications** is a flexible and extensible notification system designed to handle
-notification messages with pre-built templates. It supports **Handlebars-based templates** and
-currently allows the use of an **SMTP provider** to send messages. It also provides the option to
-**activate a worker** for background processing of messages.
+**Zanix Notifications** is a flexible and extensible notification system for sending transactional
+messages over **email**, **SMS**, and **WhatsApp**, with pre-built **Handlebars-based templates**
+for all three. Delivery for each channel is pluggable — built-in adapters cover SMTP (email), Twilio
+(SMS/WhatsApp), and Meta's WhatsApp Cloud API, and any other provider can be plugged in without
+touching application code. It also provides the option to **activate a background worker** for
+queued, non-blocking message delivery.
+
+> 💡 If you're building a full application (not just sending notifications standalone), use
+> **[`@zanix/core`](https://jsr.io/@zanix/core)** as your entrypoint via
+> `Zanix.start()`/`Zanix.startWorker()`, which wires this package's providers together with
+> `@zanix/datamaster`, `@zanix/auth`, and `@zanix/asyncmq`.
 
 It provides a unified and extensible system for:
 
-- Sending notifications via SMTP
-- Support for pre-defined templates (Handlebars-based)
-- Optional worker for background processing
+- Sending notifications via email (SMTP), SMS (Twilio), and WhatsApp (Meta Cloud API or Twilio)
+- Support for pre-defined templates (Handlebars-based), per channel
+- Native WhatsApp Business template messages (Meta/Twilio), for starting conversations outside the
+  24h session window
+- Optional worker for background, queued processing
+- Zero-config connector registration from environment variables
 - Easy integration with your application
 
 ---
 
-## ⚙️ Features
+## ✨ Features
 
-- **SMTP Provider**
-  - `NotifierProvider`: the core provider for sending messages through SMTP.
-  - Configurable using environment variables for SMTP settings.
-  - **SMTP Client**:\
-    The `SmtpClient` class is responsible for sending emails using the Simple Mail Transfer Protocol
-    (SMTP). It extends the `ZanixNotifierConnector` and provides a straightforward interface to
-    configure and send email messages. The client uses the SMTP configuration options (host, port,
-    user, and password) provided in the environment variables to connect to the mail server and send
-    emails with the specified content and templates. This class supports reliable delivery of
-    messages, including handling dynamic template rendering and personalized data injection.
+- **Multi-channel connectors**
+  - `SmtpClient` — email over SMTP, with optional connection pooling (`SMTP_POOL_SIZE`).
+  - `SmsClient` — SMS via the built-in `TwilioSmsAdapter`, or any custom `SmsProviderAdapter`.
+  - `WhatsappClient` — WhatsApp via `MetaCloudWhatsappAdapter` (default) or `TwilioWhatsappAdapter`,
+    or any custom `WhatsappProviderAdapter`.
+  - All three extend the same `ZanixNotifierConnector` base and register with zero app-side setup
+    when their environment variables are set and `@zanix/notifications/core` is imported.
+  - See [Connectors](./docs/connectors.md).
 
-- **Message Sending**
-  - `sendMessage()`: sends a message using a specific template (e.g., `welcome`, `generic`).
-  - Supports dynamic data injection into templates.
+- **`NotifierProvider`**
+  - The core provider for sending messages through any channel — `.email()`, `.sms()`,
+    `.whatsapp()`, or the generic `sendMessage(notifier, message)`.
+  - A default instance is registered automatically under the `'notifications'` core-provider key
+    (importing `@zanix/notifications/core` is enough) — `this.providers.get('notifications')` works
+    with zero setup.
+  - `sendTemplate()` sends a native WhatsApp Business template message (Meta or Twilio);
+    `.whatsapp()` dispatches between it and `sendMessage()` automatically based on the message
+    shape.
+  - See [Notifier Provider](./docs/notifier-provider.md).
 
 - **Message Queuing & Worker**
-  - When using the worker (`useWorker: { callback: ... }`), messages are queued for background
-    processing. This helps avoid sending multiple messages at once and ensures a smooth experience
-    when dealing with high volumes of notifications.
-  - The queued messages are executed via `provider.onDestroy()` once the processing is complete.
-  - If you are using the **Zanix Server Library** or are within the **Zanix ecosystem**,
-    `onDestroy()` is automatically called when the provider is destroyed, ensuring no extra workers
-    are spawned unnecessarily.
+  - When using the worker (`useOneTimeWorker: { callback: ... }`), messages are queued for
+    background processing instead of sent inline.
+  - Queued messages are flushed via `provider.onDestroy()` — inside the Zanix ecosystem this is
+    called automatically when the provider is destroyed, so no extra workers are spawned
+    unnecessarily.
 
 - **Handlebars Templates**
-
-  - Built-in templates:
-    - `welcome`
-    - `generic`
-    - `password-changed`
-    - `password-recovery`
-    - `login-otp`
-  - You can add custom data to the templates dynamically.
-
-- **Worker Support (Optional)**
-
-  - Optional worker functionality allows you to send notifications in the background, improving
-    performance for large-scale systems.
-
-- **Environment Variables**
-
-  - Configuration for SMTP settings is done via environment variables.
+  - Per-channel registries: email's `welcome`, `generic`, `password-changed`, `password-recovery`,
+    `login-otp`; SMS/WhatsApp's own `generic`, `otp`.
+  - Dynamic data injection into any template, and support for adding custom ones.
+  - Optional database-backed templates (`TEMPLATES_MODEL_NAME`) — code templates seed a
+    `ZanixTemplate` collection (via `@zanix/datamaster`), then a direct database edit takes effect
+    on the next send, no redeploy needed.
+  - See [Templates](./docs/templates.md).
 
 ---
 
@@ -100,82 +104,83 @@ Import specific modules:
 import { NotifierProvider } from 'jsr:@zanix/notifications@[version]'
 ```
 
+Or import `@zanix/notifications/core` (for its side effects) to register the default connectors and
+notifier provider from environment variables, with zero app-side setup — see
+[Environment Variables](#-environment-variables).
+
 ---
 
 ## 🚀 Basic Usage
 
-Example showing how to:
-
-1. Initialize the `NotifierProvider`
-2. Send an email message using a template
-3. Optionally use a worker for background processing
+Example showing how to send an email using a built-in template, queued through a background worker:
 
 ```ts
 import { NotifierProvider } from 'jsr:@zanix/notifications@latest'
 
 const provider = new NotifierProvider()
 
-provider.sendMessage('email', {
-  from: 'noreply@aeratech.io',
+await provider.email({
   to: 'recipient@example.com',
   subject: 'Welcome to Zanix',
-  body: { template: 'welcome', data: { buttonText: 'Click here' } },
-  // body: 'HTML custom content',
+  zanixTemplate: 'welcome',
+  data: { buttonText: 'Click here' },
 }, {
-  useWorker: {
-    callback: () => {
-      resolve(true)
+  useOneTimeWorker: {
+    callback: (response) => {
+      if (response.error) console.error('Failed to send:', response.error)
     },
   },
 })
 
-provider.use('email')['close']() // this close the SMTP client
-provider['onDestroy']() // this execute current worker
+provider['onDestroy']() // flushes the queued message via a one-time background worker
 ```
 
-### 🧩 Message Data Example
-
-When sending a notification message, you can customize the content using dynamic data. Here's an
-example of the object structure that can be passed to the `sendMessage()` method when using a
-template:
-
-#### Example:
+`.sms()` and `.whatsapp()` work the same way, against that channel's own templates:
 
 ```ts
-provider.sendMessage('email', {
-  from: 'noreply@aeratech.io',
-  to: 'recipient@example.com',
-  subject: 'Welcome to Zanix',
-  body: {
-    template: 'welcome', // Specify the template to use
-    data: {
-      styles: {
-        css: `.container {
-          ...
-        }`,
-        html: {
-          title: 'Page Title',
-        },
-      }
-      title: 'Welcome to Zanix!',
-      content: 'We are thrilled to have you on board.',
-      buttonText: 'Get Started',
-      buttonLink: 'https://example.com/start',
-      message: 'If you need help, feel free to contact us at support@example.com.',
-      footer: 'This is an automated message. Please do not reply.'
-    }
-  }
+await provider.sms({ to: '+15551234567', zanixTemplate: 'otp', data: { code: '123456', ttl: 5 } })
+
+await provider.whatsapp({
+  to: '+15551234567',
+  zanixTemplate: 'otp',
+  data: { code: '123456', ttl: 5 },
 })
 ```
 
+See [Notifier Provider](./docs/notifier-provider.md) for plain (non-templated) content, native
+WhatsApp Business template messages, and the full queuing/worker behavior, and
+[Templates](./docs/templates.md) for every built-in template's data shape.
+
+---
+
+## 📚 Documentation
+
+- [Connectors](./docs/connectors.md) — `SmtpClient`/`SmsClient`/`WhatsappClient`, built-in and
+  custom provider adapters.
+- [Notifier Provider](./docs/notifier-provider.md) — `sendMessage()`/`email()`/`sms()`/`whatsapp()`,
+  native WhatsApp templates, queuing.
+- [Templates](./docs/templates.md) — the Handlebars template system, built-in templates, adding your
+  own.
+- [Environment Variables](./docs/environment-variables.md) — the full reference table for every
+  channel.
+
+---
+
 ## 🌐 Environment Variables
 
-| Variable        | Description                               | Example              |
-| --------------- | ----------------------------------------- | -------------------- |
-| `SMTP_PORT`     | The SMTP port to use for sending messages | `587`                |
-| `SMTP_HOST`     | The SMTP server hostname                  | `smtp.gmail.com`     |
-| `SMTP_USER`     | The SMTP username                         | `user@example.com`   |
-| `SMTP_PASSWORD` | The SMTP password                         | `your-smtp-password` |
+Each channel registers automatically from its own environment variables when
+`@zanix/notifications/core` is imported — see the full reference in
+[Environment Variables](./docs/environment-variables.md). Quick summary:
+
+| Channel  | Provider          | Key variables                                                     |
+| -------- | ----------------- | ----------------------------------------------------------------- |
+| Email    | SMTP              | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`            |
+| SMS      | Twilio            | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`   |
+| WhatsApp | Meta Cloud API    | `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`                       |
+| WhatsApp | Twilio (fallback) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
+
+Setting `TEMPLATES_MODEL_NAME` (with a `@zanix/datamaster` connector registered) additionally
+enables [database-backed templates](./docs/templates.md#database-backed-templates).
 
 ---
 
@@ -195,7 +200,7 @@ See [`CHANGELOG`](./CHANGELOG.md) for the version history.
 
 ---
 
-## ⚖️ License
+## 📜 License
 
 Licensed under the **MIT License**. See the [`LICENSE`](./LICENSE) file for details.
 

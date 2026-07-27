@@ -5,11 +5,11 @@ import type {
   WelcomeTemplateSchema,
 } from 'typings/templates.ts'
 
-import { execTemplate } from '../mod.ts'
+import { execTemplate } from '../../mod.ts'
 
 export const welcome = (data: WelcomeTemplateSchema = {}): Promise<string> => {
   const { app = 'Zanix', html = { title: 'Welcome Email' }, ...content } = data
-  return execTemplate('generic', {
+  return execTemplate('email/generic', {
     title: 'Welcome, Astronaut!',
     content: `Greetings, Space Explorer!<br><br>
     We’re thrilled to have you aboard Zanix, your mission control 
@@ -25,7 +25,7 @@ export const welcome = (data: WelcomeTemplateSchema = {}): Promise<string> => {
 
 export const passwordChanged = (data: PasswordChangedTemplateSchema = {}): Promise<string> => {
   const { app = 'Zanix', html = { title: 'Password Changed' }, ...content } = data
-  return execTemplate('generic', {
+  return execTemplate('email/generic', {
     title: 'Password Successfully Changed',
     content: `<p>We wanted to let you know that your password has been successfully changed.</p>
     <p>If you didn't make this change, please contact support immediately.</p>
@@ -41,7 +41,7 @@ export const loginWithOTP = (
   data: LoginWithOTPTemplateSchema = { code: '123456', ttl: 5 },
 ): Promise<string> => {
   const { app = 'Zanix', html = { title: 'Login OTP' }, ...content } = data
-  return execTemplate('generic', {
+  return execTemplate('email/generic', {
     title: 'Your code for Login',
     content:
       ` <p>We received a login request for your account. To complete your login, please use the One-Time Password (OTP) below:</p>`,
@@ -59,7 +59,7 @@ export const passwordRecovery = (
   data: PasswordRecoveryTemplateSchema = { code: '123456', ttl: 5 },
 ): Promise<string> => {
   const { app = 'Zanix', html = { title: 'Password Recovery' }, ...content } = data
-  return execTemplate('generic', {
+  return execTemplate('email/generic', {
     title: 'Password Recovery Request',
     content:
       `<p>We have received a request to reset your password. Use the following code to proceed:</p>`,

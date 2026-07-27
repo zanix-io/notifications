@@ -1,0 +1,2 @@
+/* Intentionally empty: SMS is plain text. This file exists only because compiler.ts always
+   reads a sibling styles.css for every .hbs it compiles. */
