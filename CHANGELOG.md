@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-28
+
 ### Added
 
 - **Mode C: remote-only templates** — `RemoteTemplateBackend`, for a service with no local database
