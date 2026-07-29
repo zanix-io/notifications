@@ -67,9 +67,7 @@ const zanixTemplateProvider: void = Provider({ lifetime: 'SCOPED' })(TemplatePro
 defaultTemplatesModelName()
 
 // Boot-time `ZanixTemplate` model registration, conditional on `TEMPLATES_MODEL_NAME` — the same
-// `registerModel` DSL any other Zanix repository provider uses (see `ContractRepository` in
-// aeratech-ms-blockchain for the established real-world pattern: `registerModel` once at import
-// time, then a plain `this.database.getModel(name)` in the consuming provider — no schema-building
+// `registerModel` DSL any other Zanix repository provider uses in the consuming provider — no schema-building
 // at usage time). This is why `LocalTemplateBackend`'s own `#sync()` only ever does a name-only
 // `getModel()`.
 // Also skipped when `DATABASE_TEMPLATES=false` (see `isDatabaseTemplatesDisabled()`'s own comment)
