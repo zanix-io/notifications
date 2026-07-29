@@ -7,6 +7,54 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Mode C: remote-only templates** — `RemoteTemplateBackend`, for a service with no local database
+  access to templates at all. Set `TEMPLATES_SERVICE_URL` (the central Notification/ Template
+  Service's own internal admin base URL) instead of `TEMPLATES_MODEL_NAME`, and
+  `TemplateProvider.resolve()` calls that service's `GET /admin/templates/:channel/:name` instead of
+  a local Mongo lookup — everything else (code-fallback on any failure, `404` treated as "no such
+  template", etc.) behaves identically to Modes A/B. `TEMPLATES_SERVICE_TOKEN` sends a pre-issued
+  `type: 'api'` machine credential (`@zanix/auth`'s `X-Znx-Authorization` contract) on every call;
+  `TEMPLATES_SERVICE_CACHE_TTL_MS` overrides the default 45-second local fetch-cache TTL.
+  `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME` are mutually exclusive — setting both throws
+  immediately via the new `assertTemplatesConfigNotConflicting()`, both at boot and on every
+  `resolve()` call, rather than silently picking one. Composes automatically with `@zanix/server`'s
+  `RestClient` conditional-`GET` (`ETag`/`If-None-Match`) support once the central service starts
+  returning `ETag`. New exports: `RemoteTemplateBackend`, `RemoteTemplateBackendConfig`,
+  `TemplateBackend`, `TEMPLATES_SERVICE_URL_ENV`, `TEMPLATES_SERVICE_TOKEN_ENV`,
+  `TEMPLATES_SERVICE_CACHE_TTL_ENV`, `DEFAULT_TEMPLATES_MODEL_NAME`, `templatesModelName`. See
+  [Templates](./docs/templates.md#mode-c-remote-only-templates).
+- Internally, database-backed templates (Modes A/B) were refactored behind the same
+  `TemplateBackend` interface as the new `RemoteTemplateBackend` (now `LocalTemplateBackend`) — no
+  behavior change for existing `TEMPLATES_MODEL_NAME` configurations.
+- `assertValidHandlebarsSyntax(hbs)` — validates that `hbs` is syntactically valid Handlebars,
+  throwing otherwise. Exported so a consumer building its own admin-style API against this package's
+  templates (e.g. `@zanix/admin`'s `TemplatesAdminRepository`) can reject a malformed `hbs` at
+  create/update time, instead of only discovering it the first time `TemplateProvider.resolve()`
+  tries to send it (and even then, only as a silently-downgraded fallback to the code registry, not
+  a clear error). Note: `Handlebars.compile()` alone doesn't parse eagerly in this build — a syntax
+  error only surfaces once the compiled template is actually invoked with data, so this calls it
+  with `{}` to force that check now.
+- `NOTIFIER_CHANNELS` — every `Notifiers` value as a runtime array, the single source of truth for
+  validating/enumerating channels at runtime (e.g. a Mongoose schema `enum`, or `@zanix/validator`'s
+  `@IsEnum`). Replaces a hand-copied `['email', 'sms', 'whatsapp']` literal previously duplicated in
+  this package's own schema and in `@zanix/admin`'s templates RTOs.
+
+### Changed
+
+- `RemoteTemplateBackend` no longer hardcodes its own local copies of `X-Znx-Admin-Protocol` and
+  `X-Znx-Authorization`. It now imports `ADMIN_PROTOCOL_HEADER` and `AUTH_HEADERS` from
+  `@zanix/server`, matching the shared source used by `@zanix/core` and `@zanix/auth`. The admin
+  protocol version (`'1'`) remains a local literal to avoid coupling `@zanix/server` to
+  `@zanix/core` business constants. No behavior change.
+
+### Internal
+
+- Added a direct workspace reference to `@zanix/server` for local development.
+- Added the `@zanix/errors` dependency.
+- Regenerated the lockfile to reflect dependency updates.
+
 ## [0.2.2] - 2026-07-26
 
 ### Added

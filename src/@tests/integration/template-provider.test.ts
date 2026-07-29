@@ -4,6 +4,7 @@ import {
   resetTemplateProviderState,
   TemplateProvider,
   TEMPLATES_MODEL_ENV,
+  TEMPLATES_SERVICE_URL_ENV,
 } from 'modules/templates/provider.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { AdaptedModel } from '@zanix/datamaster'
@@ -95,6 +96,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
     } finally {
       Deno.env.delete(TEMPLATES_MODEL_ENV)
       Deno.env.delete(DATABASE_TEMPLATES_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_URL_ENV)
     }
   })
 }
@@ -304,5 +306,22 @@ templateTest(
 
     assertEquals(content, 'still renders: y')
     assertEquals(docs().find((doc) => doc.name === 'no-longer-in-code')?.source, 'database')
+  },
+)
+
+templateTest(
+  'TemplateProvider: resolve() throws synchronously, uncaught, when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set',
+  async () => {
+    Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
+    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    const provider = freshProvider()
+    // No `this.database` stub and no fake fetch installed — if this were caught and fell back
+    // to the warn-and-fallback path instead of rethrowing, one of those would have to run.
+
+    await assertRejects(
+      () => provider.resolve('email', 'welcome', { buttonText: 'Click here' }),
+      Error,
+      'mutually exclusive',
+    )
   },
 )

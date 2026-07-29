@@ -114,6 +114,34 @@ Deno.test(
 )
 
 Deno.test(
+  'MetaCloudWhatsappAdapter: send() omits components entirely when a template message has no templateParams',
+  async () => {
+    let capturedInit: RequestInit | undefined
+
+    await withFakeFetch(
+      (_input, init) => {
+        capturedInit = init
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+      },
+      () =>
+        new MetaCloudWhatsappAdapter(config).send({
+          to: '+15551234567',
+          templateName: 'welcome',
+          templateLanguage: 'en_US',
+        }),
+    )
+
+    const body = JSON.parse(capturedInit?.body as string)
+    // `JSON.stringify` drops keys whose value is `undefined` entirely — asserting the field is
+    // absent (rather than comparing the whole object) is what actually proves the `undefined`
+    // branch ran, without depending on how `assertEquals` treats a missing vs. `undefined` key.
+    assertEquals('components' in body.template, false)
+    assertEquals(body.template.name, 'welcome')
+    assertEquals(body.template.language, { code: 'en_US' })
+  },
+)
+
+Deno.test(
   "MetaCloudWhatsappAdapter: send() throws HttpError with Meta's message on a non-2xx response",
   async () => {
     await withFakeFetch(

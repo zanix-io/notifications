@@ -4,6 +4,8 @@ import { WhatsappClient } from '../../modules/whatsapp/connector.ts'
 import { NotifierProvider } from '../../modules/providers/notifier.ts'
 import { TemplateProvider } from '../../modules/templates/provider.ts'
 
+console.error = () => {}
+
 Deno.test(
   'providers/core.ts registers NotifierProvider under the notifications core key without throwing',
   async () => {
@@ -24,6 +26,33 @@ Deno.test(
     const instance = (new NotifierProvider() as any).providers.get(TemplateProvider)
     if (!(instance instanceof TemplateProvider)) {
       throw new Error('Expected this.providers.get(TemplateProvider) to resolve a TemplateProvider')
+    }
+  },
+)
+
+Deno.test(
+  'templates/core.ts throws at import time when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set',
+  async () => {
+    Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
+    Deno.env.set('TEMPLATES_MODEL_NAME', 'zanix-templates')
+
+    try {
+      // A distinct query string forces Deno to re-evaluate this module's top-level code (a fresh
+      // module-graph entry) instead of returning the already-cached instance from the earlier
+      // "registers TemplateProvider" test above — `./provider.ts`'s own specifier is unaffected,
+      // so `TemplateProvider`/env constants still resolve to the SAME cached instances.
+      let threw = false
+      try {
+        await import('../../modules/templates/core.ts?conflict-test')
+      } catch {
+        threw = true
+      }
+      if (!threw) {
+        throw new Error('Expected templates/core.ts to throw when both env vars are set')
+      }
+    } finally {
+      Deno.env.delete('TEMPLATES_SERVICE_URL')
+      Deno.env.delete('TEMPLATES_MODEL_NAME')
     }
   },
 )

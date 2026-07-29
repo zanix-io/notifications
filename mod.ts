@@ -35,6 +35,19 @@ export { execTemplate } from 'modules/templates/mod.ts'
 export { default as transactionalTemplates } from 'modules/templates/transactional/email/mod.ts'
 export { default as smsTemplates } from 'modules/templates/transactional/sms.ts'
 export { default as whatsappTemplates } from 'modules/templates/transactional/whatsapp.ts'
+/**
+ * Every {@link Notifiers} value as a runtime array — the single source of truth for validating/
+ * enumerating channels at runtime, so a consumer building its own admin-style API against this
+ * package's templates (e.g. `@zanix/admin`'s `CreateTemplateRTO`) doesn't hand-copy the same three
+ * strings independently.
+ */
+export { NOTIFIER_CHANNELS } from 'utils/constants.ts'
+
+/**
+ * Validates `hbs` compiles as syntactically valid Handlebars — see its own JSDoc for exactly what
+ * it does and doesn't check.
+ */
+export { assertValidHandlebarsSyntax } from 'modules/templates/hbs-validation.ts'
 
 // Typings
 export type {
@@ -80,8 +93,18 @@ export type {
 
 export {
   DATABASE_TEMPLATES_ENV,
+  DEFAULT_TEMPLATES_MODEL_NAME,
   isDatabaseTemplatesDisabled,
   TEMPLATES_MODEL_ENV,
+  TEMPLATES_SERVICE_CACHE_TTL_ENV,
+  TEMPLATES_SERVICE_TOKEN_ENV,
+  TEMPLATES_SERVICE_URL_ENV,
+  templatesModelName,
 } from 'modules/templates/provider.ts'
 
 export type { TemplateSource, ZanixTemplateAttrs } from 'typings/templates-db.ts'
+
+// Mode C: remote-only templates (see docs/templates.md#mode-c-remote-only-templates)
+export { RemoteTemplateBackend } from 'modules/templates/db/remote-backend.ts'
+export type { RemoteTemplateBackendConfig } from 'modules/templates/db/remote-backend.ts'
+export type { TemplateBackend } from 'modules/templates/db/backend.ts'

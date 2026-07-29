@@ -1,6 +1,8 @@
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { MongoModelDefinition } from '@zanix/datamaster'
 
+import { NOTIFIER_CHANNELS } from 'utils/constants.ts'
+
 /**
  * Builds the model definition backing the `ZanixTemplate` model — see `typings/templates-db.ts`
  * for the field-by-field type and `docs/templates.md` for the design rationale. Field markers
@@ -16,7 +18,7 @@ import type { MongoModelDefinition } from '@zanix/datamaster'
 export function templateModelDefinition(): MongoModelDefinition<ZanixTemplateAttrs> {
   return {
     definition: {
-      channel: { type: String, required: true, enum: ['email', 'sms', 'whatsapp'] },
+      channel: { type: String, required: true, enum: NOTIFIER_CHANNELS },
       name: { type: String, required: true },
       hbs: { type: String, required: true },
       source: { type: String, required: true, enum: ['code', 'database'] },

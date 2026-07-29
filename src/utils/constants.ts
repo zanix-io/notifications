@@ -1,3 +1,13 @@
+import type { Notifiers } from 'typings/general.ts'
+
+/**
+ * Every value of the {@link Notifiers} union, as a runtime array — the single source of truth for
+ * anything that needs to validate/enumerate channels at runtime (e.g. `@zanix/validator`'s
+ * `@IsEnum`, or a Mongoose schema's `enum`), instead of hand-copying the same three strings in
+ * more than one place.
+ */
+export const NOTIFIER_CHANNELS: Notifiers[] = ['email', 'sms', 'whatsapp']
+
 /**
  * SMTP response codes used to interpret server replies.
  */

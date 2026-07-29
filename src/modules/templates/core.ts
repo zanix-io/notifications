@@ -11,15 +11,20 @@ import { registerModel } from '@zanix/datamaster'
 import { Provider } from '@zanix/server'
 
 import {
+  assertTemplatesConfigNotConflicting,
   DATABASE_TEMPLATES_ENV,
+  DEFAULT_TEMPLATES_MODEL_NAME,
   isDatabaseTemplatesDisabled,
   TemplateProvider,
   TEMPLATES_MODEL_ENV,
 } from './provider.ts'
 import { templateModelDefinition } from './db/schema.ts'
 
-/** Default `ZanixTemplate` model name applied when `DATABASE_TEMPLATES=true` (see below). */
-const DEFAULT_TEMPLATES_MODEL_NAME = 'zanix-templates'
+// Fail fast at boot if both `TEMPLATES_SERVICE_URL` (Mode C) and `TEMPLATES_MODEL_NAME` (Modes
+// A/B) are set — see `assertTemplatesConfigNotConflicting()`'s own doc comment. Runs before any
+// other boot logic below so a misconfiguration never gets the chance to silently register a local
+// model it shouldn't.
+assertTemplatesConfigNotConflicting()
 
 /**
  * `DATABASE_TEMPLATES=true` is a convenience opt-in for the DEFAULT model name — lets an app
@@ -65,7 +70,8 @@ defaultTemplatesModelName()
 // `registerModel` DSL any other Zanix repository provider uses (see `ContractRepository` in
 // aeratech-ms-blockchain for the established real-world pattern: `registerModel` once at import
 // time, then a plain `this.database.getModel(name)` in the consuming provider — no schema-building
-// at usage time). This is why `TemplateProvider.#sync()` only ever does a name-only `getModel()`.
+// at usage time). This is why `LocalTemplateBackend`'s own `#sync()` only ever does a name-only
+// `getModel()`.
 // Also skipped when `DATABASE_TEMPLATES=false` (see `isDatabaseTemplatesDisabled()`'s own comment)
 // — no point registering a model for a feature the app explicitly turned off.
 const modelName = Deno.env.get(TEMPLATES_MODEL_ENV)

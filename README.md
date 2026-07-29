@@ -83,6 +83,10 @@ It provides a unified and extensible system for:
   - Optional database-backed templates (`TEMPLATES_MODEL_NAME`) — code templates seed a
     `ZanixTemplate` collection (via `@zanix/datamaster`), then a direct database edit takes effect
     on the next send, no redeploy needed.
+  - Or, with no local database access to templates at all, remote-only templates
+    (`TEMPLATES_SERVICE_URL`) — `RemoteTemplateBackend` resolves each template from a central
+    Notification/Template Service instead, with a local TTL cache and automatic fallback to the code
+    version on any remote failure.
   - See [Templates](./docs/templates.md).
 
 ---
@@ -180,7 +184,9 @@ Each channel registers automatically from its own environment variables when
 | WhatsApp | Twilio (fallback) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
 
 Setting `TEMPLATES_MODEL_NAME` (with a `@zanix/datamaster` connector registered) additionally
-enables [database-backed templates](./docs/templates.md#database-backed-templates).
+enables [database-backed templates](./docs/templates.md#database-backed-templates). A service with
+no local database access to templates at all can set `TEMPLATES_SERVICE_URL` instead, for
+[remote-only templates](./docs/templates.md#mode-c-remote-only-templates).
 
 ---
 
