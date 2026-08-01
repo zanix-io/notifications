@@ -11,29 +11,21 @@ import type { DefaultTemplates, NotifyMessageWithTemplate } from 'typings/genera
 import type { NotifierProvider } from './notifier.ts'
 
 /**
- * The `mail` trigger action's payload contract — what `@zanix/datamaster`'s generic
- * `TriggerActions['mail']` (typed there as `to`/`subject` plus an open catch-all, since datamaster
- * doesn't know this package's contract) is expected to satisfy by the time it reaches
- * {@link sendMailTriggerNotification}. Owned here, not in datamaster, since it mirrors
- * `NotifierProvider.sendMessage('email', ...)`'s own contract exactly.
+ * Payload contract for the `mail` trigger action.
  *
- * Derived from `NotifyMessageWithTemplate` (not hand-duplicated) so it stays in sync with the
- * notifier's own envelope fields (`to`/`from`/`date`/`subject`) automatically — only `content`/
- * `zanixTemplate`/`data` are replaced by `body.template`/`body.data`, since `template` here is
- * authored dynamically (a trigger's own config) and can't be statically narrowed to
- * `NotifyMessageWithTemplate`'s `DefaultTemplates`-keyed `MessageContent` union the way a
- * compile-time-known template can.
+ * `@zanix/datamaster` intentionally treats `TriggerActions['mail']` as an opaque payload
+ * (`to`/`subject` plus an open-ended object), because it owns trigger persistence rather than the
+ * notification protocol itself. This package owns the concrete shape consumed by
+ * {@link sendMailTriggerNotification}, since it mirrors the contract accepted by
+ * `NotifierProvider.sendMessage('email', ...)`.
+ *
+ * The type is derived from `NotifyMessageWithTemplate` rather than duplicated manually so it stays
+ * aligned with the notifier's own envelope (`to`, `from`, `date`, `subject`) automatically. Only
+ * the template-specific fields are reshaped: `content`, `zanixTemplate`, and `data` become
+ * `body.template` and `body.data`, because a trigger's template is configured at runtime rather
+ * than selected from the compile-time `DefaultTemplates` union.
  */
-export type MailTriggerActionData =
-  & Omit<NotifyMessageWithTemplate<DefaultTemplates>, 'content' | 'zanixTemplate' | 'data'>
-  & {
-    body: {
-      /** The name of the notification template to render. Resolved at runtime — see {@link sendMailTriggerNotification}. */
-      template: string
-      /** The template's render data, or a literal string for plain-content templates. */
-      data?: Record<string, unknown> | string
-    }
-  }
+export type MailTriggerActionData = NotifyMessageWithTemplate<DefaultTemplates>
 
 /**
  * Sends the email a `mail` trigger action describes, via `NotifierProvider.sendMessage('email',
@@ -51,14 +43,16 @@ export async function sendMailTriggerNotification(
   notifier: NotifierProvider,
   action: MailTriggerActionData,
 ): Promise<void> {
-  const { to, subject, from, date, body } = action
+  const { to, subject, from, date, zanixTemplate, data, content, ...rest } = action
 
   await notifier.sendMessage('email', {
     to,
     subject,
     from,
     date,
-    zanixTemplate: body.template,
-    data: body.data,
+    content,
+    zanixTemplate,
+    data,
+    ...rest,
   } as never)
 }

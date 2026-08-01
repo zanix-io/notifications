@@ -21,7 +21,8 @@ Deno.test('sendMailTriggerNotification forwards fields to sendMessage', async ()
     to: 'a@b.com',
     subject: 'Hi',
     from: 'noreply@example.com',
-    body: { template: 'welcome', data: { name: 'A' } },
+    zanixTemplate: 'welcome',
+    data: { buttonLink: 'A' },
   })
 
   assertEquals(calls.length, 1)
@@ -36,7 +37,7 @@ Deno.test('sendMailTriggerNotification forwards fields to sendMessage', async ()
   )
   assertEquals(
     (calls[0].message as { data: unknown }).data,
-    { name: 'A' },
+    { buttonLink: 'A' },
   )
 })
 
@@ -46,7 +47,8 @@ Deno.test('sendMailTriggerNotification forwards a literal string as body.data as
   await sendMailTriggerNotification(notifier, {
     to: 'a@b.com',
     subject: 'Hi',
-    body: { template: 'generic', data: 'plain text body' },
+    zanixTemplate: 'generic',
+    data: { buttonText: 'plain text body' },
   })
 
   assertEquals(
@@ -54,7 +56,7 @@ Deno.test('sendMailTriggerNotification forwards a literal string as body.data as
     'generic',
   )
   assertEquals(
-    (calls[0].message as { data: unknown }).data,
+    (calls[0].message as { data: Record<string, string> }).data.buttonText,
     'plain text body',
   )
 })
