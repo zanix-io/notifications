@@ -6,6 +6,7 @@ import { NotifierProvider, sendBackgroundMessage } from 'modules/providers/notif
 // used by `NotifierProvider.#dispatch()`) — needed even with the database feature untouched,
 // since `TemplateProvider` itself is unconditionally required infrastructure (see `core.ts`).
 import 'modules/templates/core.ts'
+import { TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 
 console.error = () => {}
 
@@ -360,9 +361,90 @@ Deno.test(
   },
 )
 
+Deno.test(
+  'NotifierProvider: onDestroy() preloads the zanixTemplate chain for a queued message that carries one',
+  async () => {
+    await withFakeWorker(async () => {
+      const provider = new NotifierProvider()
+
+      await provider.sendMessage('email', {
+        to: 'a@b.com',
+        subject: 'Welcome',
+        zanixTemplate: 'welcome',
+        data: { buttonText: 'Click here' },
+      }, { useOneTimeWorker: true })
+
+      // No TEMPLATES_MODEL_NAME/TEMPLATES_SERVICE_URL set — TemplateProvider#backend() is
+      // undefined, so preloadChain() is a no-op; this only proves onDestroy() calls it at all
+      // for a queued message carrying a `zanixTemplate`, without needing a database.
+      await provider['onDestroy']()
+
+      assertEquals(FakeWorker.instances.length, 1)
+      const [{ parameters }] = FakeWorker.instances[0].sent
+      const templates = parameters[1] as Map<string, unknown>
+      assertEquals(templates.size, 0)
+    })
+  },
+)
+
+Deno.test(
+  "NotifierProvider: onDestroy() doesn't touch the database for a plain-content message, even with database templates enabled",
+  async () => {
+    Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix-templates-test')
+    try {
+      await withFakeWorker(async () => {
+        const provider = new NotifierProvider()
+
+        await provider.sendMessage('email', {
+          to: 'a@b.com',
+          subject: 'Hi',
+          content: 'plain body, no zanixTemplate',
+        }, { useOneTimeWorker: true })
+
+        // No `this.database` stub is installed anywhere in this test — if onDestroy() called
+        // `TemplateProvider.preload()` for this message (it carries no `zanixTemplate`), that
+        // would try to resolve a database connector that was never registered and throw.
+        await provider['onDestroy']()
+
+        assertEquals(FakeWorker.instances.length, 1)
+        const [{ parameters }] = FakeWorker.instances[0].sent
+        const templates = parameters[1] as Map<string, unknown>
+        assertEquals(templates.size, 0)
+      })
+    } finally {
+      Deno.env.delete(TEMPLATES_MODEL_ENV)
+    }
+  },
+)
+
 Deno.test('sendBackgroundMessage: resolves immediately with an empty queue', async () => {
-  await sendBackgroundMessage([])
+  await sendBackgroundMessage([], new Map())
 })
+
+Deno.test(
+  'sendBackgroundMessage: dispatches a kind "template" entry through sendTemplate()',
+  async () => {
+    // Without WHATSAPP_* env vars, `whatsapp/defs.ts` never registers a connector, so
+    // `NotifierProvider.use('whatsapp')` fails and `sendTemplate` re-wraps it as `Interrupted` —
+    // this exercises the `kind === 'template'` branch directly, without a real worker thread (the
+    // only other place it runs — see `NotifierProvider.onDestroy()` — spawns a real `Worker`,
+    // whose own module graph isn't covered by this process's instrumentation).
+    let caught: unknown
+    try {
+      await sendBackgroundMessage([
+        {
+          notifier: 'whatsapp',
+          kind: 'template',
+          message: { to: '+15551234567', contentSid: 'HX123' },
+        },
+      ], new Map())
+    } catch (error) {
+      caught = error
+    }
+
+    assert(caught instanceof Deno.errors.Interrupted)
+  },
+)
 
 Deno.test('sendBackgroundMessage: rejects if connector is unregistered', async () => {
   // Without SMTP_* env vars, `email/defs.ts` short-circuits and never registers SmtpClient,
@@ -382,7 +464,7 @@ Deno.test('sendBackgroundMessage: rejects if connector is unregistered', async (
         kind: 'message',
         message: { to: 'a@b.com', subject: 'x', content: 'y' },
       },
-    ])
+    ], new Map())
   } catch (error) {
     caught = error
   } finally {

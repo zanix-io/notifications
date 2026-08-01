@@ -165,6 +165,8 @@ WhatsApp Business template messages, and the full queuing/worker behavior, and
   native WhatsApp templates, queuing.
 - [Templates](./docs/templates.md) — the Handlebars template system, built-in templates, adding your
   own.
+- [Template Inheritance](./docs/template-inheritance.md) — templates that render through another
+  template's content (`parent`) instead of owning their own `.hbs`.
 - [Environment Variables](./docs/environment-variables.md) — the full reference table for every
   channel.
 

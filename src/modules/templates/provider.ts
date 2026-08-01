@@ -1,6 +1,7 @@
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixMongoConnector } from '@zanix/datamaster'
 import type { TemplateBackend } from './db/backend.ts'
+import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
 import { ZanixProvider } from '@zanix/server'
 import logger from '@zanix/logger'
@@ -9,7 +10,7 @@ import emailTemplates from 'modules/templates/transactional/email/mod.ts'
 import smsTemplates from 'modules/templates/transactional/sms.ts'
 import whatsappTemplates from 'modules/templates/transactional/whatsapp.ts'
 
-import { CODE_TEMPLATES } from './db/manifest.ts'
+import { CODE_TEMPLATES, DERIVED_TEMPLATES } from './db/manifest.ts'
 import { CODE_SOURCE } from './db/sync.ts'
 import { LocalTemplateBackend, resetLocalTemplateBackendState } from './db/local-backend.ts'
 import {
@@ -67,6 +68,16 @@ export const templatesModelName = (): string =>
 export const TEMPLATES_SERVICE_URL_ENV = 'TEMPLATES_SERVICE_URL'
 
 /**
+ * Env var naming this service's own identity, as registered in the central service's
+ * `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) under a
+ * `serviceId` mapped to a reachable base URL for this process's own
+ * `/.well-known/zanix/code-templates` endpoint (see `defineCodeTemplatesDiscovery`). Required
+ * alongside `TEMPLATES_SERVICE_URL_ENV` — the central service pulls this service's code templates
+ * by this identity, never as a request body.
+ */
+export const TEMPLATES_SERVICE_ID_ENV = 'TEMPLATES_SERVICE_ID'
+
+/**
  * Env var holding the pre-issued `type: 'api'` machine credential (see `@zanix/auth`'s
  * `X-Znx-Authorization` contract) sent on every call to `TEMPLATES_SERVICE_URL`. This package
  * never mints this token itself — issuance is the deploying operator's/central service's
@@ -85,15 +96,27 @@ export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
  * (Modes A/B) at once, rather than silently picking one — called at boot (`templates/core.ts`) and
  * at the top of every `resolve()` call. Deliberately left uncaught by `resolve()`'s own
  * warn-and-fallback `try/catch`: silently falling back to the code registry would itself be
- * "silently picking one," exactly what this guards against.
+ * "silently picking one," exactly what this guards against. Also refuses `TEMPLATES_SERVICE_URL`
+ * set without its required `TEMPLATES_SERVICE_ID` counterpart.
  *
- * @throws If both env vars are set.
+ * @throws If both `TEMPLATES_SERVICE_URL`/`TEMPLATES_MODEL_NAME` are set, or if
+ * `TEMPLATES_SERVICE_URL` is set without `TEMPLATES_SERVICE_ID`.
  */
 export function assertTemplatesConfigNotConflicting(): void {
-  if (Deno.env.get(TEMPLATES_SERVICE_URL_ENV) && Deno.env.get(TEMPLATES_MODEL_ENV)) {
+  const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
+
+  if (serviceUrl && Deno.env.get(TEMPLATES_MODEL_ENV)) {
     throw new InternalError(
       `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" and "${TEMPLATES_MODEL_ENV}" are ` +
         `mutually exclusive — set only one, never both.`,
+    )
+  }
+
+  if (serviceUrl && !Deno.env.get(TEMPLATES_SERVICE_ID_ENV)) {
+    throw new InternalError(
+      `[TemplateProvider] "${TEMPLATES_SERVICE_ID_ENV}" is required alongside ` +
+        `"${TEMPLATES_SERVICE_URL_ENV}" — the central service pulls this service's code ` +
+        `templates by that identity.`,
     )
   }
 }
@@ -109,6 +132,19 @@ function templatesFor(channel: Notifiers): TemplateRegistry {
 
 /** Compiled-render cache, keyed by `{channel}:{name}`, invalidated when the DB `hash` changes — module-level so it's shared across every `SCOPED` `TemplateProvider` instance, the same way `getSmtpPool()`'s pool is. */
 const renderCache = new Map<string, { hash: string; render: (data: unknown) => string }>()
+
+/**
+ * Data transform applied by `resolve()`'s database-backed parent-chain walk (`#resolveChain()`)
+ * when a `DERIVED_TEMPLATES` entry has no content of its own — the exact same mapping each
+ * `transactional/*` wrapper applies before calling `execTemplate()` directly, so a database-edited
+ * ancestor (e.g. `generic`) renders with equivalent data regardless of whether the send took the
+ * pure code path or fell through to the database. Built directly from `DERIVED_TEMPLATES` — a new
+ * derived template only ever needs declaring once, in its own `transactional/*` module (see
+ * `typings/templates.ts`'s `DerivedTemplateDeclaration`), never registered separately here too.
+ */
+const derivedTemplateTransforms = new Map(
+  DERIVED_TEMPLATES.map((entry) => [`${entry.channel}:${entry.name}`, entry.transform]),
+)
 
 /** Resets every module-level template cache (sync memo, remote fetch cache, compiled-render cache) — test-only. */
 export function resetTemplateProviderState(): void {
@@ -150,8 +186,10 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
     const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
     if (serviceUrl) {
+      assertTemplatesConfigNotConflicting()
       return new RemoteTemplateBackend({
         url: serviceUrl,
+        serviceId: Deno.env.get(TEMPLATES_SERVICE_ID_ENV) as string,
         token: Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV),
         cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) || undefined,
       })
@@ -204,10 +242,62 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
   }
 
   /**
+   * Fetches `zanixTemplate` for `channel` against the configured backend (mirrors `resolve()`'s
+   * backend lookup, without the code-registry fallback), so a caller can build its own
+   * request-scoped cache ahead of time — see `NotifierProvider.onDestroy()`.
+   *
+   * `undefined` if no persisted backend is configured (see `#backend()`) — a no-op in that case.
+   *
+   * @param channel The notifier channel `name` belongs to.
+   * @param name The `zanixTemplate` name to preload.
+   */
+  public preload(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined> | undefined {
+    return this.#backend()?.preload(channel, name)
+  }
+
+  /**
+   * Preloads `{channel, name}` AND every ancestor in its `parent` chain (see `#resolveChain()`'s
+   * own chain walk, and `db/manifest.ts`'s `DERIVED_TEMPLATES`) into `cache`, keyed the same way
+   * `LocalTemplateBackend`'s own cache is (`` `znx:${channel}:${name}` ``) — so a one-time worker's
+   * `resolve()` call can satisfy every hop from the passed-in cache alone, without opening its own
+   * database connection for any of them. A no-op (nothing added to `cache`) if no persisted
+   * backend is configured — see `preload()`.
+   *
+   * @param channel The notifier channel `name` belongs to.
+   * @param name The `zanixTemplate` name whose whole chain should be preloaded.
+   * @param cache The map to populate — see `NotifierProvider.onDestroy()`.
+   */
+  public async preloadChain(
+    channel: Notifiers,
+    name: string,
+    cache: Map<`znx:${Notifiers}:${string}`, ZanixTemplateAttrs | undefined>,
+  ): Promise<void> {
+    const backend = this.#backend()
+    if (!backend) return
+
+    const visited = new Set<string>()
+    let current: string | undefined = name
+
+    while (current && !visited.has(current)) {
+      visited.add(current)
+      // Each hop's name is only known after the previous one resolves — genuinely sequential,
+      // not a batch of independent lookups `Promise.all` could parallelize.
+      // deno-lint-ignore no-await-in-loop
+      const record = await backend.preload(channel, current)
+      cache.set(`znx:${channel}:${current}`, record)
+      current = (!record?.hbs && record?.parent) ? record.parent : undefined
+    }
+  }
+
+  /**
    * Resolves `zanixTemplate` for `channel` against a persisted backend (Modes A/B via
    * `TEMPLATES_MODEL_NAME`, or Mode C via `TEMPLATES_SERVICE_URL` — see `#backend()`) if one is
    * configured, `DATABASE_TEMPLATES` isn't explicitly `'false'`, and a matching, active record
-   * exists — falling back to the in-memory code registry otherwise.
+   * exists anywhere in `name`'s `parent` chain (see `#resolveChain()`) — falling back to the
+   * in-memory code registry, for the original `name`/`data`, otherwise.
    *
    * Any failure on the backend path — the connector not actually being configured, a sync error,
    * a network error calling the remote service, an invalid `hbs` record, etc. — is caught and
@@ -220,7 +310,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
    * @param data The data to render the template with.
    * @throws If `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME` are both set (see
    * `assertTemplatesConfigNotConflicting()`), or if `name` doesn't exist in either the configured
-   * backend or the code registry for `channel`.
+   * backend (nor anywhere in its `parent` chain) or the code registry for `channel`.
    */
   public async resolve(
     channel: Notifiers,
@@ -230,19 +320,10 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     assertTemplatesConfigNotConflicting()
 
     const backend = this.#backend()
-    const registry = templatesFor(channel)
-
     if (backend) {
       try {
-        const record = await backend.resolve(channel, name)
-
-        if (record) {
-          const compile = await this.#compile(channel, name, record.hbs, record.hash)
-          if (record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)) {
-            return await this.#renderCodeBacked(channel, name, compile, data)
-          }
-          return compile(data)
-        }
+        const rendered = await this.#resolveChain(channel, name, data, backend, new Set())
+        if (rendered !== undefined) return rendered
       } catch (error) {
         logger.warn(
           `[TemplateProvider] Database-backed template resolution failed for "${channel}/${name}"` +
@@ -251,8 +332,45 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
       }
     }
 
+    const registry = templatesFor(channel)
     const render = registry[name]
     if (!render) throw new Error(`Template not found: ${channel}/${name}`)
     return await render(data as never)
+  }
+
+  /**
+   * Walks `record.parent` (see `db/manifest.ts`'s `DERIVED_TEMPLATES`) starting at `{channel,
+   * name}`, applying each hop's registered data transform (`derivedTemplateTransforms`, if any),
+   * until it finds a record with active content of its own — returning that render — or the chain
+   * runs out: no `parent`, a missing/inactive record, or a cycle back to an already-visited name.
+   * Returns `undefined` in that case so `resolve()` falls back to the code registry for the
+   * ORIGINAL `name`/`data` it was called with, not whatever hop this walk stopped at.
+   */
+  async #resolveChain(
+    channel: Notifiers,
+    name: string,
+    data: Record<string, unknown>,
+    backend: TemplateBackend,
+    visited: Set<string>,
+  ): Promise<string | undefined> {
+    if (visited.has(name)) return undefined
+    visited.add(name)
+
+    const record = await backend.resolve(channel, name)
+    if (!record) return undefined
+
+    if (record.hbs) {
+      const compile = await this.#compile(channel, name, record.hbs, record.hash)
+      if (record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)) {
+        return await this.#renderCodeBacked(channel, name, compile, data)
+      }
+      return compile(data)
+    }
+
+    if (!record.parent) return undefined
+
+    const transform = derivedTemplateTransforms.get(`${channel}:${name}`)
+    const parentData = transform ? transform(data as never) : data
+    return await this.#resolveChain(channel, record.parent, parentData, backend, visited)
   }
 }

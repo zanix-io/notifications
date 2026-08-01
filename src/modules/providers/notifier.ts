@@ -12,7 +12,9 @@ import type {
 } from 'typings/general.ts'
 import type { WhatsappTemplateMessage } from 'typings/whatsapp.ts'
 import type { WhatsappClient } from '../whatsapp/connector.ts'
+import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
+import { resetPreloadedDBTemplates } from '../templates/db/manifest.ts'
 import { ZanixCoreNotificationsProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
 import { WorkerManager } from '@zanix/workers'
@@ -71,8 +73,14 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    * @returns The resolved connector instance.
    * @throws `TargetError` if no instance of that connector is available in this provider's context.
    */
-  public override use(connector: Notifiers, verbose: boolean = false): ZanixNotifierConnector {
-    return this.getProviderConnector<ZanixNotifierConnector>(notifierConnectors[connector], verbose)
+  public override use(
+    connector: Notifiers,
+    verbose: boolean = false,
+  ): ZanixNotifierConnector {
+    return this.getProviderConnector<ZanixNotifierConnector>(
+      notifierConnectors[connector],
+      verbose,
+    )
   }
 
   /**
@@ -228,7 +236,9 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
       await client.isReady
 
       if (kind === 'template') {
-        await (client as WhatsappClient).sendTemplate(message as WhatsappTemplateMessage)
+        await (client as WhatsappClient).sendTemplate(
+          message as WhatsappTemplateMessage,
+        )
         return
       }
 
@@ -259,14 +269,29 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    * `WorkerManager` task (`sendBackgroundMessage`) so they're sent after this instance's own
    * lifecycle ends, invoking each message's `callback` (if any) with the worker's response.
    */
-  protected override onDestroy(): void {
+  protected override async onDestroy(): Promise<void> {
     if (!this.#queue.length) return
 
     const callbacks: TaskCallback[] = []
+    const templates = new Map<`znx:${Notifiers}:${string}`, ZanixTemplateAttrs | undefined>()
+    const preloads: Promise<void>[] = []
+    const templateProvider = this.providers.get(TemplateProvider)
+
     const messages = this.#queue.map(({ callback, ...msg }) => {
       if (callback) callbacks.push(callback)
+
+      const zanixTemplate = msg.kind !== 'template'
+        ? (msg.message as AnyNotifyMessageWithTemplate).zanixTemplate
+        : undefined
+
+      if (zanixTemplate) {
+        preloads.push(templateProvider.preloadChain(msg.notifier, zanixTemplate, templates))
+      }
+
       return msg
     })
+
+    await Promise.all(preloads)
 
     // One Time Worker
     const worker = new WorkerManager()
@@ -277,7 +302,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
         callbacks.forEach((callback) => callback(response))
       },
       timeout: 10000 * messages.length,
-    }).invoke(messages)
+    }).invoke(messages, templates)
   }
 }
 
@@ -292,27 +317,49 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
  * @param data The queued `{notifier, kind, message}` entries to send, potentially spanning
  * several channels in one batch.
  */
-export async function sendBackgroundMessage(data: {
-  notifier: Notifiers
-  kind: 'message' | 'template'
-  message: AnyNotifyMessageWithTemplate | WhatsappTemplateMessage
-}[]) {
+export async function sendBackgroundMessage(
+  data: {
+    notifier: Notifiers
+    kind: 'message' | 'template'
+    message: AnyNotifyMessageWithTemplate | WhatsappTemplateMessage
+  }[],
+  templates: Map<
+    `znx:${Notifiers}:${string}`,
+    ZanixTemplateAttrs | undefined
+  >,
+) {
   const uniqueNotifiers = [
     ...new Set(
       data.map((item) => item.notifier),
     ),
   ]
+
   await Promise.all([
     import('../templates/core.ts'),
     ...uniqueNotifiers.map((notifier) => import(`../${notifier}/defs.ts`)),
   ])
 
+  // Safe to hydrate once, unconditionally, before the loop below — a `kind: 'template'` message
+  // (`sendTemplate()`) short-circuits inside `#dispatch()` straight to the connector's own
+  // `sendTemplate()` and returns, never reaching the `zanixTemplate`/`TemplateProvider.resolve()`
+  // branch that's the only thing reading this cache. There's nothing for it to (mis)set for that
+  // kind of message, regardless of a batch's message order/mix.
+  resetPreloadedDBTemplates(templates)
+
   const provider = new NotifierProvider()
 
   for await (const { notifier, kind, message } of data) {
-    if (kind === 'template') await provider.sendTemplate(message as WhatsappTemplateMessage)
-    else await provider.sendMessage(notifier, message as AnyNotifyMessageWithTemplate)
+    if (kind === 'template') {
+      await provider.sendTemplate(message as WhatsappTemplateMessage)
+    } else {
+      await provider.sendMessage(
+        notifier,
+        message as AnyNotifyMessageWithTemplate,
+      )
+    }
   }
 
-  await Promise.all(uniqueNotifiers.map((notifier) => provider.use(notifier)['close']()))
+  await Promise.all(
+    uniqueNotifiers.map((notifier) => provider.use(notifier)['close']()),
+  )
 }

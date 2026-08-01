@@ -25,6 +25,18 @@ export { ZanixNotifierConnector } from 'modules/base.ts'
 
 export type { AnyNotifyMessageWithTemplate } from 'modules/providers/notifier.ts'
 
+/**
+ * Owns the `mail` trigger action's concrete payload contract — the counterpart of
+ * `@zanix/database`'s generic `TriggerActions['mail']` (a `Record<string, unknown>` catch-all
+ * beyond its own `to`/`subject` fields). `@zanix/core` is the composer that bridges the two: it
+ * registers the job that calls {@link sendMailTriggerNotification} for `@zanix/datamaster`'s
+ * built-in `mail` trigger action.
+ */
+export {
+  type MailTriggerActionData,
+  sendMailTriggerNotification,
+} from 'modules/providers/trigger-mail.ts'
+
 // Provider adapters
 export { TwilioSmsAdapter } from 'modules/sms/twilio.ts'
 export { MetaCloudWhatsappAdapter } from 'modules/whatsapp/meta.ts'
@@ -97,14 +109,57 @@ export {
   isDatabaseTemplatesDisabled,
   TEMPLATES_MODEL_ENV,
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
+  TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesModelName,
 } from 'modules/templates/provider.ts'
 
-export type { TemplateSource, ZanixTemplateAttrs } from 'typings/templates-db.ts'
+export type {
+  CreateTemplateInput,
+  TemplateSource,
+  UpdateTemplateInput,
+  ZanixTemplateAttrs,
+} from 'typings/templates-db.ts'
+
+/**
+ * Data access and business logic for this package's own templates collection — the actual owner
+ * of the schema/collection `@zanix/admin`'s `/admin/templates`/`/templates` API is built on.
+ * `@zanix/admin` composes {@link TemplatesAdminService} into an HTTP surface; it does not author
+ * this logic itself. Exported so a consuming app can extend or reuse them to build its own custom
+ * templates API instead of duplicating the CRUD logic.
+ */
+export {
+  type SyncCodeTemplateEntry,
+  type SyncCodeTemplatesResult,
+  TemplatesAdminRepository,
+} from 'modules/templates/db/templates.repository.ts'
+export { TemplatesAdminService } from 'modules/templates/db/templates.service.ts'
+/**
+ * Builds the `DiscoveryProvider` for `/.well-known/zanix/templates`, backed by
+ * {@link TemplatesAdminRepository}. `@zanix/admin` composes this into an HTTP surface via
+ * `ProgramModule.defineDiscovery`; it does not author the provider itself.
+ */
+export {
+  createTemplatesDiscoveryProvider,
+} from 'modules/templates/db/templates-discovery.provider.ts'
 
 // Mode C: remote-only templates (see docs/templates.md#mode-c-remote-only-templates)
 export { RemoteTemplateBackend } from 'modules/templates/db/remote-backend.ts'
 export type { RemoteTemplateBackendConfig } from 'modules/templates/db/remote-backend.ts'
 export type { TemplateBackend } from 'modules/templates/db/backend.ts'
+
+/**
+ * Registers this service's code-defined templates under `/.well-known/zanix/code-templates` — the
+ * pull-side counterpart of {@link RemoteTemplateBackend}'s sync. Call from your own bootstrap; see
+ * this function's own doc for the full example.
+ */
+export {
+  type CodeTemplateDiscoveryEntry,
+  createCodeTemplatesDiscoveryProvider,
+  defineCodeTemplatesDiscovery,
+} from 'modules/templates/db/code-templates-discovery.provider.ts'
+/** Re-exported so `createCodeTemplatesDiscoveryProvider`'s own return type is nameable. */
+export type { DiscoveryProvider } from '@zanix/server'
+/** Re-exported so `defineCodeTemplatesDiscovery`'s own `options.guards` type is nameable. */
+export type { MiddlewareGuard } from '@zanix/server'

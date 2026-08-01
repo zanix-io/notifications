@@ -113,6 +113,24 @@ Deno.test(
 )
 
 Deno.test(
+  'TwilioWhatsappAdapter: send() defaults Body to an empty string when neither content nor contentSid is set',
+  async () => {
+    let capturedInit: RequestInit | undefined
+
+    await withFakeFetch(
+      (_input, init) => {
+        capturedInit = init
+        return new Response(JSON.stringify({ sid: 'SM123', status: 'queued' }), { status: 201 })
+      },
+      () => new TwilioWhatsappAdapter(config).send({ to: '+15551234567' }),
+    )
+
+    const body = capturedInit?.body as URLSearchParams
+    assertEquals(body.get('Body'), '')
+  },
+)
+
+Deno.test(
   'TwilioWhatsappAdapter: send() throws (without calling Twilio) when templateName is set',
   async () => {
     let fetchCalled = false

@@ -22,4 +22,18 @@ export interface TemplateBackend {
    * that catches, warns, and falls back to the code registry.
    */
   resolve(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined>
+
+  /**
+   * Fetches the live `{ hbs, hash, ... }` record for `{channel, name}` — the same lookup as
+   * `resolve()`, without the code-registry fallback — so a caller can build its own
+   * request-scoped cache ahead of time (see `NotifierProvider.onDestroy()`, which resolves this on
+   * the main thread before handing a batch off to a one-time worker, so that worker's own
+   * `resolve()` call can hit the cache instead of opening its own connection). Has no caching
+   * side effect of its own; the caller owns whatever cache it builds from the result.
+   *
+   * @param channel The notifier channel `name` belongs to.
+   * @param name The `zanixTemplate` name to preload.
+   * @returns The matching, active record, or `undefined` if none exists.
+   */
+  preload(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined>
 }

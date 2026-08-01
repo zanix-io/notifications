@@ -3,8 +3,15 @@ import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { AdaptedModel, ZanixMongoConnector } from '@zanix/datamaster'
 import type { TemplateBackend } from './backend.ts'
 
-import { hashContent, loadCodeTemplates } from './manifest.ts'
+import {
+  DERIVED_TEMPLATES,
+  getPreloadedDBTemplates,
+  hashContent,
+  loadCodeTemplates,
+} from './manifest.ts'
+import type { ExistingTemplateEntry } from './sync.ts'
 import { CODE_SOURCE, planTemplateSync } from './sync.ts'
+import logger from '@zanix/logger'
 
 /**
  * Module-level, once-per-process sync memo — mirrors `provider.ts`'s own module-level state
@@ -78,7 +85,9 @@ export class LocalTemplateBackend implements TemplateBackend {
       })),
     )
 
-    const existing = await Model.find({ source: CODE_SOURCE }).lean()
+    // `source: CODE_SOURCE` records always carry a real `hbs` (only `DERIVED_TEMPLATES`' seeded
+    // fallback records, always `source: 'database'`, ever omit it — see `ZanixTemplateAttrs.hbs`).
+    const existing = await Model.find({ source: CODE_SOURCE }).lean() as ExistingTemplateEntry[]
     const plan = planTemplateSync(staticEntries, existing)
     const now = new Date()
 
@@ -99,28 +108,119 @@ export class LocalTemplateBackend implements TemplateBackend {
       ),
     ])
 
+    // A single broad fetch (every record, any `source`), reused below both to safely reconcile
+    // `plan.toSeed` (see immediately below) and to seed any still-missing `DERIVED_TEMPLATES`
+    // fallback stub — `plan`/`existing` above only ever see `source: CODE_SOURCE` records, so a
+    // database-only template or a derived-template fallback stub sharing a `{channel, name}` with
+    // a template that just gained real code content is otherwise invisible to `planTemplateSync`.
+    const allExisting = await Model.find({}).lean()
+    const allExistingByKey = new Map(allExisting.map((doc) => [`${doc.channel}:${doc.name}`, doc]))
+
     if (plan.toSeed.length) {
-      await Model.insertMany(
-        plan.toSeed.map((entry): ZanixTemplateAttrs => ({
-          channel: entry.channel,
-          name: entry.name,
-          hbs: entry.hbs,
-          source: CODE_SOURCE,
-          active: true,
-          version: 1,
-          hash: entry.hash,
-          lastSyncedHbs: entry.hbs,
-          lastSyncedHash: entry.hash,
-          lastSyncedAt: now,
-          updatedBy: 'system:bootstrap-sync',
-        })),
+      const toInsert: typeof plan.toSeed = []
+
+      const toPromote = plan.toSeed.flatMap((entry) => {
+        const collision = allExistingByKey.get(`${entry.channel}:${entry.name}`)
+        if (!collision) {
+          toInsert.push(entry)
+          return []
+        }
+        if (collision.hbs) {
+          // A document with real content already owns this `{channel, name}` — a genuine
+          // database-only template, or a fallback stub an admin already gave content of its own
+          // to (see `docs/templates.md#template-inheritance`). Seeding it as code would either
+          // violate the `{channel, name}` unique index or silently destroy that content; leave it
+          // alone (manual/existing content always wins, same as `toResync`'s own rule) and warn so
+          // a maintainer notices the name collision instead of a template silently never syncing.
+          logger.warn(
+            `[TemplateProvider] "${entry.channel}/${entry.name}" already has a database record ` +
+              `with its own content — skipping the code seed for it. Rename the code template or ` +
+              `the existing database record to resolve this collision.`,
+          )
+          return []
+        }
+        // A content-less fallback stub for this exact name already exists (either seeded by
+        // `DERIVED_TEMPLATES` before this template gained real `.hbs`/code content, or created
+        // directly) — safe to promote in place instead of inserting a duplicate.
+        return [{ _id: collision._id, entry }]
+      })
+
+      await Promise.all([
+        ...toPromote.map(({ _id, entry }) =>
+          Model.updateOne({ _id }, {
+            $set: {
+              hbs: entry.hbs,
+              lastSyncedHbs: entry.hbs,
+              hash: entry.hash,
+              lastSyncedHash: entry.hash,
+              lastSyncedAt: now,
+              source: CODE_SOURCE,
+              updatedBy: 'system:bootstrap-sync',
+            },
+          })
+        ),
+        toInsert.length
+          ? Model.insertMany(
+            toInsert.map((entry): ZanixTemplateAttrs => ({
+              channel: entry.channel,
+              name: entry.name,
+              hbs: entry.hbs,
+              source: CODE_SOURCE,
+              active: true,
+              version: 1,
+              hash: entry.hash,
+              lastSyncedHbs: entry.hbs,
+              lastSyncedHash: entry.hash,
+              lastSyncedAt: now,
+              updatedBy: 'system:bootstrap-sync',
+            })),
+          )
+          : Promise.resolve(),
+      ])
+    }
+
+    if (DERIVED_TEMPLATES.length) {
+      const missingDerived = DERIVED_TEMPLATES.filter(
+        (entry) => !allExistingByKey.has(`${entry.channel}:${entry.name}`),
       )
+
+      if (missingDerived.length) {
+        // A fallback record has no `hbs` to hash, but `hash` itself is `required` — any
+        // non-empty, stable placeholder works (see `docs/templates.md#name-vs-hash`: `hash` only
+        // needs to change whenever `hbs` does, and an absent `hbs` never does).
+        const noContentHash = await hashContent('')
+        await Model.insertMany(
+          missingDerived.map((entry): ZanixTemplateAttrs => ({
+            channel: entry.channel,
+            name: entry.name,
+            parent: entry.parent,
+            // Not `source: CODE_SOURCE` — there's no `.hbs` in code to keep this in sync
+            // against (see `DERIVED_TEMPLATES`'s own doc comment), so it's database-owned from
+            // the moment it exists, exactly like any other record with no code counterpart.
+            source: 'database',
+            active: true,
+            version: 1,
+            hash: noContentHash,
+            lastSyncedAt: now,
+            updatedBy: 'system:bootstrap-sync',
+          })),
+        )
+      }
     }
 
     return Model
   }
 
+  public async preload(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined> {
+    const Model = await this.#ensureSynced()
+    return (await Model.findOne({ channel, name, active: true }).lean()) ?? undefined
+  }
+
   public async resolve(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined> {
+    const preloadedTemplates = getPreloadedDBTemplates()
+    if (preloadedTemplates.has(`znx:${channel}:${name}`)) {
+      return preloadedTemplates.get(`znx:${channel}:${name}`)
+    }
     const Model = await this.#ensureSynced()
     return (await Model.findOne({ channel, name, active: true }).lean()) ?? undefined
   }

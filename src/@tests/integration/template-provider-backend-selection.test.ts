@@ -3,6 +3,7 @@ import {
   DATABASE_TEMPLATES_ENV,
   resetTemplateProviderState,
   TemplateProvider,
+  TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_URL_ENV,
 } from 'modules/templates/provider.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
@@ -47,6 +48,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
       await fn()
     } finally {
       Deno.env.delete(TEMPLATES_SERVICE_URL_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_ID_ENV)
       Deno.env.delete(DATABASE_TEMPLATES_ENV)
     }
   })
@@ -56,6 +58,7 @@ templateTest(
   'TemplateProvider#backend(): only TEMPLATES_SERVICE_URL set selects the remote backend, this.database is never touched',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
     // No `this.database` stub installed at all — if resolve() fell through to LocalTemplateBackend
     // instead of RemoteTemplateBackend, accessing it would throw and this test would fail below.
@@ -77,6 +80,7 @@ templateTest(
   'TemplateProvider#backend(): DATABASE_TEMPLATES=false disables the remote path too, even with TEMPLATES_SERVICE_URL set',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     Deno.env.set(DATABASE_TEMPLATES_ENV, 'false')
     const provider = freshProvider()
 
@@ -92,6 +96,7 @@ templateTest(
   'TemplateProvider#backend(): a remote 404 falls back to code silently (no warning), same as a missing local record',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
     const warnings: unknown[] = []
@@ -125,6 +130,7 @@ templateTest(
   'TemplateProvider#backend(): a remote network failure falls back to code with a warning',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
     const content = await withFakeFetch(
@@ -142,6 +148,7 @@ templateTest(
   'TemplateProvider#backend(): a remote database-only template (source: "database") renders as-is, same as the local backend',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
     const content = await withFakeFetch(
@@ -169,6 +176,7 @@ templateTest(
   'TemplateProvider#backend(): throws when the template exists nowhere (remote 404 and no code fallback)',
   async () => {
     Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
     await withFakeFetch(

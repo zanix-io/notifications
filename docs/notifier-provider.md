@@ -96,6 +96,28 @@ behavior as `sendMessage()` (see below). See
 [Connectors](./connectors.md#freeform-text-vs-native-provider-templates) for the full
 native-template shapes.
 
+## Sending a `mail` trigger action
+
+`@zanix/datamaster`'s built-in `mail` trigger action only declares `to`/`subject` itself — the rest
+of the payload (which template to render, and its data) is this package's contract, not
+datamaster's. `sendMailTriggerNotification(notifier, action)` owns that mapping onto
+`sendMessage('email', ...)`, for whichever job handler a composer (e.g. `@zanix/core`) registers for
+that action:
+
+```ts
+import { sendMailTriggerNotification } from '@zanix/notifications'
+
+await sendMailTriggerNotification(provider, {
+  to: 'recipient@example.com',
+  subject: 'Welcome to Zanix',
+  body: { template: 'welcome', data: { buttonText: 'Click here' } },
+})
+```
+
+`body.template` is authored dynamically (e.g. a trigger's own config), so — unlike `.email()`'s
+`zanixTemplate` — it isn't statically checked against the built-in template registry; an
+unregistered name surfaces as a runtime error instead of a compile-time one.
+
 ## Queuing with a background worker
 
 Pass `useOneTimeWorker` to defer the actual send to a one-time Web Worker instead of sending inline

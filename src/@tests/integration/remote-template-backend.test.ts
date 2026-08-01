@@ -64,6 +64,7 @@ function freshBackend(cacheTtlMs?: number): RemoteTemplateBackend {
   resetRemoteTemplateBackendSyncState()
   return new RemoteTemplateBackend({
     url: 'https://templates.internal.example',
+    serviceId: 'billing',
     token: 'service-token',
     cacheTtlMs,
   })
@@ -242,7 +243,7 @@ Deno.test(
 // --- sync trigger --------------------------------------------------------------------------
 
 Deno.test(
-  'RemoteTemplateBackend: resolve() triggers a batch POST admin/templates/sync exactly once per process',
+  'RemoteTemplateBackend: resolve() triggers a POST admin/templates/sync with its serviceId, exactly once per process',
   async () => {
     const postCalls: unknown[] = []
     let getCalls = 0
@@ -272,13 +273,7 @@ Deno.test(
 
     assertEquals(postCalls.length, 1)
     assertEquals(getCalls, 3)
-
-    const { entries } = postCalls[0] as { entries: Array<{ channel: string; name: string }> }
-    assertEquals(entries.length > 0, true)
-    assertEquals(
-      entries.some((entry) => entry.channel === 'email' && entry.name === 'generic'),
-      true,
-    )
+    assertEquals(postCalls[0], { serviceId: 'billing' })
   },
 )
 
@@ -343,6 +338,7 @@ Deno.test(
     // never even reached, so no fake response is needed here.
     const backend = new RemoteTemplateBackend({
       url: 'https://templates.internal.example',
+      serviceId: 'billing',
       token: 'bad\ntoken',
     })
 
@@ -366,12 +362,41 @@ Deno.test(
       () => {
         resetRemoteTemplateBackendCache()
         resetRemoteTemplateBackendSyncState()
-        const backend = new RemoteTemplateBackend({ url: 'https://templates.internal.example' })
+        const backend = new RemoteTemplateBackend({
+          url: 'https://templates.internal.example',
+          serviceId: 'billing',
+        })
         return backend.resolve('email', 'welcome')
       },
     )
 
     const headers = capturedInit?.headers as Record<string, string>
     assertEquals(headers['X-Znx-Authorization'], 'Bearer ')
+  },
+)
+
+Deno.test(
+  'RemoteTemplateBackend: preload() is a no-op — resolves to undefined without ever calling fetch',
+  async () => {
+    let fetchCalls = 0
+
+    const result = await withFakeFetch(
+      () => {
+        fetchCalls++
+        throw new Error('fetch should never be called by preload()')
+      },
+      () => {
+        resetRemoteTemplateBackendCache()
+        resetRemoteTemplateBackendSyncState()
+        const backend = new RemoteTemplateBackend({
+          url: 'https://templates.internal.example',
+          serviceId: 'billing',
+        })
+        return backend.preload('email', 'welcome')
+      },
+    )
+
+    assertEquals(result, undefined)
+    assertEquals(fetchCalls, 0)
   },
 )

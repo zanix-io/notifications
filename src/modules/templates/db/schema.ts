@@ -20,7 +20,8 @@ export function templateModelDefinition(): MongoModelDefinition<ZanixTemplateAtt
     definition: {
       channel: { type: String, required: true, enum: NOTIFIER_CHANNELS },
       name: { type: String, required: true },
-      hbs: { type: String, required: true },
+      hbs: { type: String },
+      parent: { type: String },
       source: { type: String, required: true, enum: ['code', 'database'] },
       active: { type: Boolean, default: true },
       version: { type: Number, default: 1 },

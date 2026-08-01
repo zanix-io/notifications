@@ -5,7 +5,6 @@ import type { TemplateBackend } from './backend.ts'
 import { ADMIN_PROTOCOL_HEADER, AUTH_HEADERS, RestClient } from '@zanix/server'
 import { HttpError } from '@zanix/errors'
 import logger from '@zanix/logger'
-import { hashContent, loadCodeTemplates } from './manifest.ts'
 
 /** Default TTL (ms) for the local `{hbs,hash}` fetch cache — see `TEMPLATES_SERVICE_CACHE_TTL_MS`. */
 const DEFAULT_CACHE_TTL_MS = 45_000
@@ -49,12 +48,13 @@ export function resetRemoteTemplateBackendCache(): void {
 
 /**
  * Module-level, once-per-process sync memo — mirrors `local-backend.ts`'s own `#ensureSynced()`
- * convention, but here "sync" is a single batch `POST admin/templates/sync` (see `@zanix/admin`'s
- * `TemplatesAdminRepository.syncCodeTemplates`) instead of a direct Mongo write, since this backend
- * has no local database access at all. Unlike the local case, this promise never rejects and is
- * never reset on failure — `#sync()` itself catches and logs — so the sync is attempted at most
- * once per process, not retried on every subsequent `resolve()` call after a failure. Reset only in
- * tests.
+ * convention, but here "sync" is a single `POST admin/templates/sync` telling the central service
+ * to pull this service's own `/.well-known/zanix/code-templates` snapshot (see `@zanix/admin`'s
+ * `TemplatesAdminService.syncCodeTemplatesFromService`) instead of a direct Mongo write, since this
+ * backend has no local database access at all. Unlike the local case, this promise never rejects
+ * and is never reset on failure — `#sync()` itself catches and logs — so the sync is attempted at
+ * most once per process, not retried on every subsequent `resolve()` call after a failure. Reset
+ * only in tests.
  */
 let syncPromise: Promise<void> | undefined
 
@@ -66,11 +66,20 @@ export function resetRemoteTemplateBackendSyncState(): void {
 /** Config for {@link RemoteTemplateBackend} — see `TEMPLATES_SERVICE_URL`/`TEMPLATES_SERVICE_TOKEN`. */
 export interface RemoteTemplateBackendConfig {
   /**
-   * Base URL of the central Notification/Template Service's *internal admin* server — today a
-   * second listener on its own port (`@zanix/core`'s `isInternal: true`), not the service's public
-   * port. Do not include `/admin/templates`; the path is appended per call.
+   * Base URL of the central Notification/Template Service's *admin* server — today an anchored
+   * `'admin'`-Application listener on its own port (`@zanix/core`'s `admin` option, see its
+   * `docs/admin-apis.md`), not the service's default-Application port. Do not include
+   * `/admin/templates`; the path is appended per call.
    */
   url: string
+  /**
+   * This service's own identity, as registered in the central service's `ServiceRegistry` (see
+   * `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) under a `serviceId` mapped to a
+   * reachable base URL for THIS process's own `/.well-known/zanix/code-templates` endpoint (see
+   * `defineCodeTemplatesDiscovery`, exported by this package). The central service pulls this
+   * service's code templates by that identity — it never receives them as a request body.
+   */
+  serviceId: string
   /** Machine credential sent as `X-Znx-Authorization: Bearer <token>` — see `TEMPLATES_SERVICE_TOKEN`. */
   token?: string
   /** TTL (ms) for the local `{hbs,hash}` fetch cache — see `TEMPLATES_SERVICE_CACHE_TTL_MS`. */
@@ -112,6 +121,7 @@ function realHttpStatus(error: unknown): number | undefined {
  */
 export class RemoteTemplateBackend extends RestClient implements TemplateBackend {
   #cacheTtlMs: number
+  #serviceId: string
 
   /** Creates a `RemoteTemplateBackend`, pointed at the central service's internal admin base URL. */
   constructor(config: RemoteTemplateBackendConfig) {
@@ -128,14 +138,15 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
     })
 
     this.#cacheTtlMs = config.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
+    this.#serviceId = config.serviceId
   }
 
   /**
-   * Ensures this package's `CODE_TEMPLATES` have been batch-synced into the central service's
-   * database exactly once for this process — mirrors `LocalTemplateBackend`'s own bootstrap sync,
-   * but as a single outbound `POST` instead of a direct Mongo write. Always resolves (never
-   * rejects): `#sync()` catches and logs its own failure, so a caller can `await` this
-   * unconditionally without a `try/catch` of its own.
+   * Ensures the central service has pulled this package's `CODE_TEMPLATES` exactly once for this
+   * process — mirrors `LocalTemplateBackend`'s own bootstrap sync, but as a single outbound `POST`
+   * triggering a remote pull instead of a direct Mongo write. Always resolves (never rejects):
+   * `#sync()` catches and logs its own failure, so a caller can `await` this unconditionally
+   * without a `try/catch` of its own.
    */
   async #ensureSynced(): Promise<void> {
     if (!syncPromise) syncPromise = this.#sync()
@@ -143,34 +154,43 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
   }
 
   /**
-   * Batch-syncs every entry in `CODE_TEMPLATES` (see `manifest.ts`) into the central service via
+   * Tells the central service to pull this service's current `CODE_TEMPLATES` (see `manifest.ts`)
+   * from its own `/.well-known/zanix/code-templates` Discovery endpoint, via
    * `POST admin/templates/sync` — the same hand-rolled `RestClient` primitive `resolve()`'s own
    * `GET` uses, not `@zanix/admin`'s `TemplatesAdminClient` (importing it here would be circular:
-   * `@zanix/admin` already depends on this package for `ZanixTemplateAttrs`/`Notifiers`).
+   * `@zanix/admin` already depends on this package for `ZanixTemplateAttrs`/`Notifiers`). Sends
+   * only this instance's `serviceId` — never the template contents themselves — so the central
+   * service must have this service registered in its own `ServiceRegistry` first.
    *
-   * Best-effort: any failure (network error, non-2xx, or the central service not yet supporting
-   * this route) is caught and logged as a warning here, never rethrown — seeding the central
-   * database is an enhancement, never a hard dependency for `resolve()` to keep working off the
-   * code-registry fallback.
+   * Best-effort: any failure (network error, non-2xx, unregistered `serviceId`, or the central
+   * service not yet supporting this route) is caught and logged as a warning here, never rethrown
+   * — seeding the central database is an enhancement, never a hard dependency for `resolve()` to
+   * keep working off the code-registry fallback.
    */
   async #sync(): Promise<void> {
     try {
-      const codeTemplates = await loadCodeTemplates()
-      const entries = await Promise.all(
-        codeTemplates.map(async (entry) => ({
-          channel: entry.channel,
-          name: entry.name,
-          hbs: entry.hbs,
-          hash: await hashContent(entry.hbs),
-        })),
-      )
-      await this.http.post('admin/templates/sync', { body: JSON.stringify({ entries }) })
+      await this.http.post('admin/templates/sync', {
+        body: JSON.stringify({ serviceId: this.#serviceId }),
+      })
     } catch (error) {
       logger.warn(
-        `[RemoteTemplateBackend] Batch code-template sync failed — continuing without it. ` +
+        `[RemoteTemplateBackend] Code-template sync trigger failed — continuing without it. ` +
           `${(error as Error).message}`,
       )
     }
+  }
+
+  /**
+   * No-op.
+   *
+   * @param channel The notifier channel `name` belongs to.
+   * @param name The `zanixTemplate` name to preload.
+   */
+  public preload(
+    _channel: Notifiers,
+    _name: string,
+  ): Promise<ZanixTemplateAttrs | undefined> {
+    return Promise.resolve(undefined)
   }
 
   /**

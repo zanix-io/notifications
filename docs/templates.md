@@ -9,6 +9,8 @@ selects one of these by name when sending a message.
 
 - [Notifier Provider](./notifier-provider.md) — sending a message with `zanixTemplate`/`data`.
 - [Connectors](./connectors.md) — WhatsApp's own, unrelated native provider-template mechanism.
+- [Template Inheritance](./template-inheritance.md) — templates that render through another
+  template's content (`parent`) instead of owning their own `.hbs`, and how to update/add them.
 
 ---
 
@@ -137,6 +139,19 @@ These are easy to conflate but serve entirely different purposes:
     or plain `crypto.randomUUID()`). `@zanix/utils`' `generateUUID()` (`jsr:@zanix/utils/helpers`)
     is a convenient, guaranteed-distinct choice, used exactly this way in the example above.
 
+### How to update a database template
+
+- **A code-backed template that owns its own `.hbs`** (e.g. `generic`) or a **database-only template
+  with no code counterpart** (e.g. a custom `invoice-created`) — update `hbs` and `hash` together,
+  exactly like [the example above](#database-backed-templates). Takes effect on the next send, no
+  restart, in every replica independently (see
+  [Behavior across multiple instances](#behavior-across-multiple-instances) below).
+- **A derived template** (`welcome`, `otp`, etc. — one that renders through another template's
+  content instead of owning its own) — see
+  [Template Inheritance's "How to update a derived template"](./template-inheritance.md#how-to-update-a-derived-template),
+  since which record to edit depends on whether you want to change what it inherits or give it
+  independent content.
+
 ### Behavior across multiple instances
 
 The sync memo and compiled-render cache are per-process, not shared across replicas — each instance
@@ -180,15 +195,22 @@ Notification/Template Service — sets `TEMPLATES_SERVICE_URL` instead of `TEMPL
 
 ```ts
 Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
+Deno.env.set('TEMPLATES_SERVICE_ID', 'billing')
 Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
 ```
 
-- **`TEMPLATES_SERVICE_URL`** — the central service's own _internal admin_ base URL (today, per
-  `@zanix/core`'s `isInternal: true` wiring, a second listener on its own port — not the service's
-  public port). Do not include the `/admin/templates` suffix; `TemplateProvider` appends it per
-  call. **Mutually exclusive with `TEMPLATES_MODEL_NAME`** — setting both throws immediately, at
-  boot (importing `@zanix/notifications/core`) and on every `resolve()` call, rather than silently
-  picking one.
+- **`TEMPLATES_SERVICE_URL`** — the central service's own _admin_ base URL (today, per
+  `@zanix/core`'s `admin` option, an `'admin'`-Application listener on its own port — anchored
+  (id-prefixed) whenever that service's own `ADMIN_SERVER_ID` is set, not the service's
+  default-Application port). Do not include the `/admin/templates` suffix; `TemplateProvider`
+  appends it per call. **Mutually exclusive with `TEMPLATES_MODEL_NAME`** — setting both throws
+  immediately, at boot (importing `@zanix/notifications/core`) and on every `resolve()` call, rather
+  than silently picking one.
+- **`TEMPLATES_SERVICE_ID`** — this service's own identity, as registered in the central service's
+  `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) mapped to a
+  base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint
+  (see "Remote sync" below). **Required alongside `TEMPLATES_SERVICE_URL`** — omitting it throws the
+  same way the mutual-exclusivity check does.
 - **`TEMPLATES_SERVICE_TOKEN`** — a pre-issued machine credential, sent as
   `X-Znx-Authorization: Bearer <token>` (`@zanix/auth`'s `type: 'api'` contract — RS256, verified
   against `JWK_PUB`). This package never mints this token itself; issuing and rotating it is the
@@ -206,26 +228,64 @@ falls through to the code registry silently, same as a missing local record; any
 (network error, timeout, non-2xx) falls back to the code version with a logged warning, exactly the
 same "strictly additive, never a new way for a send to fail" guarantee.
 
-**Remote sync IS supported.** `RemoteTemplateBackend` has no local database of its own to sync
-against, but on the first `resolve()` call for the whole process it fires a single batch
-`POST admin/templates/sync` — sending this package's `CODE_TEMPLATES` (`email/generic`,
-`sms/generic`, `whatsapp/generic`, each as `{channel, name, hbs, hash}`) to the central service. The
-central service reconciles that batch against its own database using the exact same
+**Validating the three env vars together, before traffic.** `RemoteTemplateBackend`'s own self-check
+(`#ensureSynced()`/`#sync()`) already catches and logs every failure without ever throwing — the
+only gap is it fires lazily, on this process's first `resolve()` call, rather than at boot. For a
+deploy-pipeline smoke test that catches a misconfiguration before it reaches real traffic, script
+against the same `admin/templates/sync` endpoint directly:
+
+```sh
+curl -X POST "$TEMPLATES_SERVICE_URL/admin/templates/sync" \
+  -H "X-Znx-Authorization: Bearer $TEMPLATES_SERVICE_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"serviceId\":\"$TEMPLATES_SERVICE_ID\"}"
+# expect a 2xx — validates TEMPLATES_SERVICE_URL/_ID/_TOKEN together, with zero new code
+```
+
+**Remote sync IS supported, pull-based.** `RemoteTemplateBackend` has no local database of its own
+to sync against, but on the first `resolve()` call for the whole process it fires a single
+`POST admin/templates/sync`, telling the central service _which registered service to pull from_
+(`{ serviceId: config.serviceId }`) — the template contents themselves are never sent as a request
+body. This requires this process to expose its own `CODE_TEMPLATES` for the central service to pull
+from, via `defineCodeTemplatesDiscovery()` (exported by this package):
+
+```ts
+import { defineCodeTemplatesDiscovery } from 'jsr:@zanix/notifications@[version]'
+import { ProgramModule } from 'jsr:@zanix/server@[version]'
+
+// Inside your own bootstrap's Application scope:
+await ProgramModule.defineApplication('main', () => {
+  defineCodeTemplatesDiscovery() // serves /.well-known/zanix/code-templates
+})
+```
+
+`defineCodeTemplatesDiscovery` accepts an optional `{ guards }` — this package has no dependency on
+`@zanix/auth`, so it never assumes an auth scheme; pass a guard from your own bootstrap if this
+endpoint should require one (see `@zanix/server`'s `docs/HANDLERS.md`'s "Discovery" section on why
+omitting it is a deliberate, honest "unauthenticated," not a silently-broken "looks protected but
+isn't").
+
+Once the central service receives the sync POST, it resolves `serviceId` in its own
+`ServiceRegistry`, fetches this process's `/.well-known/zanix/code-templates` snapshot
+(`email/generic`, `sms/generic`, `whatsapp/generic`, each as `{channel, name, hbs, hash}`) — cross-
+service orchestration owned by `@zanix/admin` itself (`syncTemplatesFromRegisteredService`) — and
+reconciles it against its own database via this package's own
+`TemplatesAdminRepository.syncCodeTemplates`, using the exact same
 seed/resync/orphan/manual-edit-always-wins rules `LocalTemplateBackend` applies locally (see
-[Database-backed templates](#database-backed-templates) above and `@zanix/admin`'s
-`TemplatesAdminRepository.syncCodeTemplates`), so a service running in this mode gets its
-code-defined templates seeded into the central database exactly like a local-Mongo service does,
-without ever touching Mongo itself.
+[Database-backed templates](#database-backed-templates) above), so a service running in this mode
+gets its code-defined templates seeded into the central database exactly like a local-Mongo service
+does, without ever touching Mongo itself.
 
 This trigger fires **at most once per process**, not once per `resolve()` call — and, unlike
 `LocalTemplateBackend`'s own bootstrap sync, it is never retried after a failure within the same
 process (mirrors the "once per process" framing exactly). It is strictly best-effort: any failure
-(network error, non-2xx, or an older central service that doesn't yet expose this route) is caught
-and logged as a warning, never rethrown — seeding the central database is an enhancement on top of
-the read path above, never a new hard dependency for `resolve()` to keep working off the code
-registry fallback. Requires a central service built on a `@zanix/admin` version that exposes
-`POST /admin/templates/sync` (check its own changelog); against an older central service, the sync
-POST simply fails once (logged) and the read path above continues to work exactly as before.
+(network error, non-2xx, an unregistered `serviceId`, or an older central service that doesn't yet
+expose this route) is caught and logged as a warning, never rethrown — seeding the central database
+is an enhancement on top of the read path above, never a new hard dependency for `resolve()` to keep
+working off the code registry fallback. Requires a central service built on a `@zanix/admin` version
+that pulls via Discovery (check its own changelog); against an older, push-expecting central
+service, the sync POST simply fails once (logged, wrong body shape) and the read path above
+continues to work exactly as before.
 
 **Composes automatically with conditional-`GET` support in `@zanix/server`'s `RestClient`.** On top
 of `RemoteTemplateBackend`'s own TTL cache above, every remote fetch it makes already goes through
@@ -237,13 +297,16 @@ actually changed. Requires a `@zanix/server` version that ships this (check its 
 
 ### Reusing the admin CRUD layer
 
-`@zanix/core` ships a `/admin/templates` CRUD API (internal-only, role-gated) on top of this same
-collection — see its own README. Rather than duplicating that CRUD logic, a consuming app that needs
+This package owns the full CRUD/business-logic layer behind `/admin/templates`
+(`TemplatesAdminRepository`/`TemplatesAdminService`, exported directly from this package) —
+`@zanix/admin` (and, via its own re-export, `@zanix/core`) only composes them into an HTTP surface
+(`createTemplatesController`), the same "compose, don't own" role it already plays for triggers
+(owned by `@zanix/datamaster`). Rather than duplicating this CRUD logic, a consuming app that needs
 a custom templates API (different endpoints, extra fields, its own auth scheme) can import and
-extend `@zanix/core`'s exported `TemplatesAdminService`/`TemplatesAdminRepository` directly:
+extend it directly:
 
 ```ts
-import { TemplatesAdminRepository } from 'jsr:@zanix/core'
+import { TemplatesAdminRepository } from 'jsr:@zanix/notifications'
 
 class MyCustomTemplatesRepository extends TemplatesAdminRepository {
   // add/override methods as needed — the base CRUD (list/get/create/update/remove) is already
@@ -251,17 +314,33 @@ class MyCustomTemplatesRepository extends TemplatesAdminRepository {
 }
 ```
 
+`@zanix/admin`/`@zanix/core` re-export the same classes too, so importing from either of those works
+identically — pick whichever you already depend on.
+
 ## Adding a custom template
 
 > Maintainers only: The following steps are only required when adding or modifying a template
 > implementation. If you're just using the library to render templates, you can ignore this section.
 
-Templates live under `handlebars/{channel}/{name}/`, each with a `main.hbs`, a `schema.ts` (a Zod
-schema describing the data the template accepts — also the source of that template's exported
-`*TemplateSchema` type), and a `styles.css` (used by the wrapping HTML layout for email; still
-required, even if empty, for plain-text SMS/WhatsApp templates, since the build pipeline always
-injects `data.styles.css`). Run `deno task build-handlebars` to compile every `main.hbs` into a
-`main.js` module — this is what `execTemplate()` actually imports at runtime, so a new `.hbs` isn't
-usable until it's been compiled. A transactional wrapper function (see
-`src/modules/templates/transactional/`) then calls `execTemplate('{channel}/{name}', data)` with any
-default field values, and gets added to that channel's registry object.
+This covers a **base template** — one that owns its own `.hbs`. For a **derived template** (one that
+renders through another template's content instead, like `welcome` → `generic`), see
+[Template Inheritance's "Adding a derived template"](./template-inheritance.md#adding-a-derived-template)
+instead — picking the wrong guide is the easiest way to end up with a template that renders fine in
+code but is invisible to (or breaks) database-backed mode.
+
+### A. A base template (owns its own `.hbs`)
+
+1. Create `handlebars/{channel}/{name}/main.hbs`, `schema.ts` (a Zod schema describing the data the
+   template accepts — also the source of that template's exported `*TemplateSchema` type), and
+   `styles.css` (used by the wrapping HTML layout for email; still required, even if empty, for
+   plain-text SMS/WhatsApp templates, since the build pipeline always injects `data.styles.css`).
+2. Run `deno task build-handlebars` to compile every `main.hbs` into a `main.js` module — this is
+   what `execTemplate()` actually imports at runtime, so a new `.hbs` isn't usable until compiled.
+   This same task also **regenerates `db/code-templates.generated.ts`'s `CODE_TEMPLATES`** directly
+   from which `main.hbs` files it just found and compiled — nothing to register by hand here
+   anymore; commit the regenerated file alongside your new `.hbs`/`schema.ts`/`styles.css`, the same
+   way the compiled `main.js` is already committed.
+3. Add a transactional wrapper function (see `src/modules/templates/transactional/`) that calls
+   `execTemplate('{channel}/{name}', data)`, and add it to that channel's registry object
+   (`transactional/sms.ts`, `whatsapp.ts`, or `email/mod.ts`'s `templates` object) — the registry
+   key is the real `zanixTemplate` string a caller passes.

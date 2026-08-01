@@ -1,3 +1,22 @@
+import type { Notifiers } from 'typings/general.ts'
+
+/**
+ * A single "derived" template declaration — one that renders through `parent`'s content/parent
+ * chain instead of owning any `.hbs` of its own (see `docs/templates.md#template-inheritance`).
+ * Declared once, exported as a `derivedTemplates` array right next to its transactional wrapper
+ * (e.g. `transactional/sms.ts`, `transactional/email/auth.ts`), and aggregated centrally by
+ * `db/manifest.ts`'s `DERIVED_TEMPLATES` — the single source of truth both
+ * `LocalTemplateBackend`'s seeding and `TemplateProvider.resolve()`'s chain walk read from, so a
+ * new derived template only ever needs this one declaration, not a separate registration in
+ * `db/manifest.ts` and `provider.ts` too.
+ */
+export interface DerivedTemplateDeclaration {
+  channel: Notifiers
+  name: string
+  parent: string
+  transform: (data: never) => Record<string, unknown>
+}
+
 /** Data accepted by the `sms/otp` transactional template. */
 export type OTPTemplateSchema = {
   app?: string
