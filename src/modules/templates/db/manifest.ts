@@ -1,3 +1,4 @@
+import type { Model } from '@zanix/datamaster'
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { DerivedTemplateDeclaration } from 'typings/templates.ts'
@@ -77,6 +78,87 @@ export async function hashContent(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(
     '',
   )
+}
+
+/** Mongo's duplicate-key error code — see `seedMissingDerivedTemplates`/`syncCodeTemplates`'s own concurrent-seed handling. */
+export const DUPLICATE_KEY_ERROR_CODE = 11000
+
+/** Whether `error` is a Mongo duplicate-key failure (a unique-index violation), as opposed to any other write failure. */
+export function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null &&
+    (error as { code?: unknown }).code === DUPLICATE_KEY_ERROR_CODE
+}
+
+/**
+ * Seeds a content-less "fallback" record (`hbs` absent, `parent` set, `source: 'database'` — see
+ * {@link DERIVED_TEMPLATES}'s own doc comment) for every declared derived template not already
+ * present in `existingKeys`. Shared by both sync paths that seed this collection's defaults —
+ * `LocalTemplateBackend`'s same-process sync and `TemplatesAdminRepository.syncCodeTemplates`'s
+ * remote/cross-service sync — since {@link DERIVED_TEMPLATES} is a fixed list this package alone
+ * declares (never app-configurable), the caller never needs to pull it from anywhere; it only needs
+ * to know what already exists so it doesn't insert a duplicate or clobber content an admin already
+ * gave one of these records directly (see `docs/templates.md#template-inheritance`).
+ *
+ * Each entry is a single atomic `updateOne({channel,name}, {$setOnInsert: ...}, {upsert: true})` —
+ * same reasoning as `syncCodeTemplates`'s own `toSeed` step: safe to call concurrently from N
+ * replicas racing the exact same not-yet-seeded derived template, since only the replica whose
+ * result carries `upsertedCount: 1` counts it as newly seeded; the other either no-ops onto the
+ * same row or hits the collection's unique `{channel,name}` index as a duplicate-key error, caught
+ * here and treated as "already seeded," never surfaced as a failure.
+ *
+ * @param existingKeys `` `${channel}:${name}` `` keys already present in the collection, for ANY
+ * `source` — a derived name that already has its own record (fallback or promoted-to-real-content)
+ * must never be re-inserted.
+ * @param updatedBy Actor stamped on every inserted row.
+ * @returns How many derived templates were actually, newly seeded (0 if all already existed).
+ */
+export async function seedMissingDerivedTemplates(
+  Model: Model<ZanixTemplateAttrs>,
+  existingKeys: ReadonlySet<string>,
+  updatedBy: string,
+): Promise<number> {
+  const missing = DERIVED_TEMPLATES.filter(
+    (entry) => !existingKeys.has(`${entry.channel}:${entry.name}`),
+  )
+  if (!missing.length) return 0
+
+  // A fallback record has no `hbs` to hash, but `hash` itself is `required` — any non-empty,
+  // stable placeholder works (see `docs/templates.md#name-vs-hash`: `hash` only needs to change
+  // whenever `hbs` does, and an absent `hbs` never does).
+  const noContentHash = await hashContent('')
+  const now = new Date()
+
+  const seededFlags = await Promise.all(
+    missing.map(async (entry) => {
+      try {
+        const { upsertedCount } = await Model.updateOne(
+          { channel: entry.channel, name: entry.name },
+          {
+            $setOnInsert: {
+              channel: entry.channel,
+              name: entry.name,
+              parent: entry.parent,
+              // Not `source: 'code'` — there's no `.hbs` in code to keep this in sync against,
+              // so it's database-owned from the moment it exists, exactly like any other record
+              // with no code counterpart.
+              source: 'database',
+              active: true,
+              version: 1,
+              hash: noContentHash,
+              lastSyncedAt: now,
+              updatedBy,
+            },
+          },
+          { upsert: true },
+        )
+        return Boolean(upsertedCount)
+      } catch (error) {
+        if (!isDuplicateKeyError(error)) throw error
+        return false
+      }
+    }),
+  )
+  return seededFlags.filter(Boolean).length
 }
 
 /**

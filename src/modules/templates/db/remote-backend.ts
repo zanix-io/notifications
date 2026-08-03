@@ -1,8 +1,10 @@
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { TemplateBackend } from './backend.ts'
+import type { ServiceAuthClientOptions } from '@zanix/auth'
 
 import { ADMIN_PROTOCOL_HEADER, AUTH_HEADERS, RestClient } from '@zanix/server'
+import { createServiceAuthClient } from '@zanix/auth'
 import { HttpError } from '@zanix/errors'
 import logger from '@zanix/logger'
 
@@ -63,13 +65,32 @@ export function resetRemoteTemplateBackendSyncState(): void {
   syncPromise = undefined
 }
 
+/**
+ * Shared {@link createServiceAuthClient} instance, module-level for the same reason
+ * `remoteFetchCache`/`syncPromise` above are: `TemplateProvider.#backend()` builds a fresh
+ * `RemoteTemplateBackend` on every call, so a per-instance auth client would rebuild (and never
+ * reuse) its own sign+exchange+cache state, defeating the whole point of that cache — every
+ * `resolve()` would re-exchange a credential instead of reusing the cached one. There is only ever
+ * one central service per process (one `TEMPLATES_SERVICE_URL`), so a single shared instance is
+ * always correct — never rebuilt once created, even if a later call passes different `auth`
+ * options (env vars are boot-time config here, not expected to change mid-process).
+ */
+let authClient: ReturnType<typeof createServiceAuthClient> | undefined
+
+/** Resets the module-level auth client — test-only. */
+export function resetRemoteTemplateBackendAuthClient(): void {
+  authClient = undefined
+}
+
 /** Config for {@link RemoteTemplateBackend} — see `TEMPLATES_SERVICE_URL`/`TEMPLATES_SERVICE_TOKEN`. */
 export interface RemoteTemplateBackendConfig {
   /**
    * Base URL of the central Notification/Template Service's *admin* server — today an anchored
    * `'admin'`-Application listener on its own port (`@zanix/core`'s `admin` option, see its
    * `docs/admin-apis.md`), not the service's default-Application port. Do not include
-   * `/admin/templates`; the path is appended per call.
+   * `/admin/templates`; the path is appended per call. Also where `auth` (below) exchanges a
+   * credential, at this same base URL's own `/admin/service-token` — the fixed route every admin
+   * surface mounts, same convention `@zanix/admin`'s `createServiceRegistryAuthHeaders` uses.
    */
   url: string
   /**
@@ -78,10 +99,33 @@ export interface RemoteTemplateBackendConfig {
    * reachable base URL for THIS process's own `/.well-known/zanix/code-templates` endpoint (see
    * `defineCodeTemplatesDiscovery`, exported by this package). The central service pulls this
    * service's code templates by that identity — it never receives them as a request body.
+   *
+   * **Distinct from `auth.serviceId` below** — this one is a routing/lookup key the central
+   * service's own registry uses; `auth.serviceId` is this service's signing identity when
+   * authenticating *to* the central service. They're independent concepts and don't need to match
+   * (though nothing stops you from choosing the same string for both).
    */
   serviceId: string
-  /** Machine credential sent as `X-Znx-Authorization: Bearer <token>` — see `TEMPLATES_SERVICE_TOKEN`. */
+  /**
+   * Pre-issued `type: 'api'` machine credential, sent as `X-Znx-Authorization: Bearer <token>` —
+   * see `TEMPLATES_SERVICE_TOKEN`. This package never mints it; **you** obtain it out-of-band (e.g.
+   * `@zanix/auth`'s `createAppToken({ type: 'api', ... })`, run once as a setup step) and configure
+   * it statically. This is the only option that works against a central service outside the Zanix
+   * ecosystem (anything that can verify an RS256 `type: 'api'` JWT, without needing to also expose
+   * a `/admin/service-token` exchange endpoint). **Takes priority over `auth` below** — set both
+   * and `token` wins, `auth` is never even attempted.
+   */
   token?: string
+  /**
+   * Alternative to `token`, for a central service that IS itself Zanix-based (exposes
+   * `/admin/service-token`, `@zanix/admin`'s `createServiceExchangeController`): signs a
+   * short-lived assertion and exchanges it for a real access token automatically, via
+   * `@zanix/auth`'s `createServiceAuthClient` — the same primitive `ZanixAdminHub.start({ auth })`
+   * uses, adapted here for a single fixed target instead of a `ServiceRegistry`. No static token to
+   * generate/rotate by hand; the credential is signed, exchanged, and cached (re-exchanged
+   * automatically near expiry) on demand. Ignored entirely when `token` is set.
+   */
+  auth?: ServiceAuthClientOptions
   /** TTL (ms) for the local `{hbs,hash}` fetch cache — see `TEMPLATES_SERVICE_CACHE_TTL_MS`. */
   cacheTtlMs?: number
 }
@@ -122,13 +166,14 @@ function realHttpStatus(error: unknown): number | undefined {
 export class RemoteTemplateBackend extends RestClient implements TemplateBackend {
   #cacheTtlMs: number
   #serviceId: string
+  #staticToken?: string
+  #exchangeUrl?: string
 
   /** Creates a `RemoteTemplateBackend`, pointed at the central service's internal admin base URL. */
   constructor(config: RemoteTemplateBackendConfig) {
     super({
       baseUrl: config.url,
       headers: {
-        [API_AUTH_HEADER]: `Bearer ${config.token ?? ''}`,
         // Sent preemptively even though `@zanix/core` doesn't verify it on incoming requests yet
         // (see its README's "Admin APIs" section, on `ADMIN_PROTOCOL_HEADER`/
         // `ADMIN_PROTOCOL_VERSION`), so a future server-side upgrade doesn't also require a
@@ -139,6 +184,34 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
 
     this.#cacheTtlMs = config.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
     this.#serviceId = config.serviceId
+    this.#staticToken = config.token
+
+    // `token` (a pre-issued static credential) always wins when set — `auth` (dynamic
+    // sign+exchange) is only ever attempted when there's no static token to fall back to. Reuses
+    // the module-level `authClient` (see its own doc) rather than building a fresh one per
+    // instance — `TemplateProvider.#backend()` constructs a new `RemoteTemplateBackend` on every
+    // call, so a per-instance client would never actually cache anything.
+    if (!config.token && config.auth) {
+      authClient ??= createServiceAuthClient(config.auth)
+      this.#exchangeUrl = `${config.url}/admin/service-token`
+    }
+  }
+
+  /**
+   * Resolves the `X-Znx-Authorization` header to send on this call — a static `Bearer <token>` if
+   * `token` was configured, a signed-and-exchanged (cached, auto-renewing) one via the shared
+   * `authClient` if `auth` was configured instead, or no header at all if neither was — better than
+   * always sending a malformed `Bearer ` with nothing after it, which a receiving guard would treat
+   * as "no token provided" anyway, just with a more confusing error.
+   */
+  async #authHeaders(): Promise<Record<string, string> | undefined> {
+    if (this.#staticToken) return { [API_AUTH_HEADER]: `Bearer ${this.#staticToken}` }
+    if (authClient && this.#exchangeUrl) {
+      // `targetServiceId` is only ever used internally as this client's own cache key — there's
+      // exactly one central service per `RemoteTemplateBackend`, so any constant works here.
+      return await authClient('central-templates-service', this.#exchangeUrl)
+    }
+    return undefined
   }
 
   /**
@@ -171,11 +244,13 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
     try {
       await this.http.post('admin/templates/sync', {
         body: JSON.stringify({ serviceId: this.#serviceId }),
+        headers: await this.#authHeaders(),
       })
     } catch (error) {
       logger.warn(
         `[RemoteTemplateBackend] Code-template sync trigger failed — continuing without it. ` +
           `${(error as Error).message}`,
+        error,
       )
     }
   }
@@ -214,7 +289,9 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
 
     let value: ZanixTemplateAttrs | undefined
     try {
-      value = await this.http.get<ZanixTemplateAttrs>(`admin/templates/${channel}/${name}`)
+      value = await this.http.get<ZanixTemplateAttrs>(`admin/templates/${channel}/${name}`, {
+        headers: await this.#authHeaders(),
+      })
     } catch (error) {
       if (realHttpStatus(error) === 404) {
         value = undefined

@@ -1,9 +1,19 @@
-import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from 'jsr:@std/assert@^1.0.15'
+import { generateRSAKeys } from '@zanix/helpers'
+import { InternalError } from '@zanix/errors'
+import {
+  assertTemplatesConfigNotConflicting,
   DATABASE_TEMPLATES_ENV,
   resetTemplateProviderState,
   TemplateProvider,
+  TEMPLATES_SERVICE_AUTH_ID_ENV,
   TEMPLATES_SERVICE_ID_ENV,
+  TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
 } from 'modules/templates/provider.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
@@ -50,6 +60,8 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
       Deno.env.delete(TEMPLATES_SERVICE_URL_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_ID_ENV)
       Deno.env.delete(DATABASE_TEMPLATES_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_AUTH_ID_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_TOKEN_ENV)
     }
   })
 }
@@ -188,5 +200,70 @@ templateTest(
           'Template not found',
         ),
     )
+  },
+)
+
+templateTest(
+  'assertTemplatesConfigNotConflicting: throws when TEMPLATES_SERVICE_AUTH_ID is set but no matching JWK_PRI_<id> resolves and no TEMPLATES_SERVICE_TOKEN fallback exists',
+  () => {
+    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
+    Deno.env.set(TEMPLATES_SERVICE_AUTH_ID_ENV, 'billing-service')
+    // Deliberately no JWK_PRI_billing-service and no TEMPLATES_SERVICE_TOKEN registered.
+
+    try {
+      assertThrows(
+        () => assertTemplatesConfigNotConflicting(),
+        InternalError,
+        'JWK_PRI_billing-service',
+      )
+    } finally {
+      Deno.env.delete('JWK_PRI_billing-service')
+    }
+  },
+)
+
+templateTest(
+  'TemplateProvider#backend(): TEMPLATES_SERVICE_AUTH_ID + JWK_PRI_<id> (no TEMPLATES_SERVICE_TOKEN) signs+exchanges a real credential end to end',
+  async () => {
+    const { privateKey } = await generateRSAKeys()
+    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
+    Deno.env.set(TEMPLATES_SERVICE_AUTH_ID_ENV, 'billing-service')
+    Deno.env.set('JWK_PRI_billing-service', btoa(privateKey))
+
+    try {
+      const provider = freshProvider()
+      const calls: string[] = []
+
+      const content = await withFakeFetch(
+        (input, init) => {
+          const url = String(input)
+          calls.push(url)
+          if (url.endsWith('/admin/service-token')) {
+            return new Response(
+              JSON.stringify({ accessToken: 'exchanged', expiresIn: 1800, serviceId: 'hub' }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+          if (init?.method === 'POST' && url.endsWith('/admin/templates/sync')) {
+            return new Response(JSON.stringify({ seeded: 0, resynced: 0 }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          }
+          return new Response(JSON.stringify(record), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        },
+        () => provider.resolve('email', 'welcome', { buttonText: 'Click here' }),
+      )
+
+      assertStringIncludes(content, 'Click here')
+      assertEquals(calls[0], 'https://templates.internal.example/admin/service-token')
+    } finally {
+      Deno.env.delete('JWK_PRI_billing-service')
+    }
   },
 )

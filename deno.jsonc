@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
@@ -54,16 +54,9 @@
     "@std/testing": "jsr:@std/testing@1.0.16",
     "@std/path": "jsr:@std/path@0.224",
     "handlebars": "npm:handlebars@^4.7.8",
-    // Local override (not yet published to JSR): `defineCodeTemplatesDiscovery` depends on the
-    // Discovery mechanism (`DiscoveryProvider`, `ProgramModule.defineDiscovery`) landed in the
-    // local `../server` checkout as v3.0.0, but it hasn't been published yet. Switch this back to
-    // `jsr:@zanix/server@^3.0.0` once it is.
-    "@zanix/server": "../server/mod.ts",
-    // Local override (not yet published to JSR): `registerTriggerActionJob`/
-    // `getRegisteredTriggerActionJobs`/`TriggerActionJobHandler` (used by this package's own
-    // `mail` trigger-action self-registration) landed in the local `../datamaster` checkout, but
-    // haven't been published yet. Switch this back to `jsr:@zanix/datamaster@0.8.*` once they are.
-    "@zanix/datamaster": "../datamaster/mod.ts",
+    "@zanix/server": "jsr:@zanix/server@3.*",
+    "@zanix/datamaster": "jsr:@zanix/datamaster@1.*",
+    "@zanix/auth": "jsr:@zanix/auth@0.6.*",
     "@zanix/helpers": "jsr:@zanix/utils@2.*/helpers",
     "@zanix/workers": "jsr:@zanix/utils@2.*/workers",
     "@zanix/logger": "jsr:@zanix/utils@2.*/logger",

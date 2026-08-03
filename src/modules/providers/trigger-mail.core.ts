@@ -25,7 +25,10 @@ function mailTriggerJobHandler(
   this: { providers: ZanixProvidersGetter },
   args: MailTriggerActionData,
 ): Promise<void> {
-  return sendMailTriggerNotification(this.providers.get<NotifierProvider>('notifications'), args)
+  return sendMailTriggerNotification(
+    this.providers.get<NotifierProvider>('notifications'),
+    args,
+  )
 }
 
 /**

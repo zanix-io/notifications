@@ -7,15 +7,27 @@
  * \_____/ \__,_||_| |_||_|/_/\_\
  */
 
-import { Provider } from '@zanix/server'
+import { Provider, registerCoreProviderSlot } from '@zanix/server'
 
-import { NotifierProvider } from './notifier.ts'
+import { NotifierProvider, ZanixCoreNotificationsProvider } from './notifier.ts'
 
-/** Provider DSL definition */
+/**
+ * Provider DSL definition — applies the decorator directly to `NotifierProvider` (calling it as a
+ * plain function, not `@Provider(...)` syntax) rather than wrapping it in a throwaway anonymous
+ * subclass, so `this.providers.get(NotifierProvider)` — the class every consumer actually imports
+ * — resolves correctly. See `@zanix/auth`'s identical `providers/core.ts` for the full rationale.
+ */
 const registerProvider = () => {
-  @Provider({ type: 'notifications', lifetime: 'SCOPED' })
-  class _NotifierProvider extends NotifierProvider {}
+  Provider({ slot: 'notifications', lifetime: 'SCOPED' })(NotifierProvider)
 }
+
+// `@zanix/notifications` owns the `'notifications'` core-provider slot: it registers it here,
+// mirroring `@zanix/auth`'s own `'auth'` slot registration (`providers/core.ts` there) — same
+// reasoning, same idempotency guarantee against `@zanix/server`'s historical registration of the
+// same slot.
+registerCoreProviderSlot('notifications', ZanixCoreNotificationsProvider, {
+  sourcePackage: '@zanix/notifications/core',
+})
 
 /**
  * Core Notifier provider loader for Zanix.

@@ -11,6 +11,7 @@ import { HttpError } from '@zanix/errors'
 import { generateUUID, planCodeSync } from '@zanix/helpers'
 import { assertValidHandlebarsSyntax } from '../hbs-validation.ts'
 import { templatesModelName } from '../provider.ts'
+import { DERIVED_TEMPLATES, isDuplicateKeyError, seedMissingDerivedTemplates } from './manifest.ts'
 
 /**
  * Rejects a syntactically invalid `hbs` before persisting it — otherwise `TemplateProvider` only
@@ -53,18 +54,39 @@ export type SyncCodeTemplatesResult = {
   resynced: number
 }
 
+/**
+ * Converts a full `ZanixTemplateAttrs[]` snapshot (e.g. another service's own DB-backed
+ * `/.well-known/zanix/templates` Discovery — real, currently-live content, as opposed to
+ * `/.well-known/zanix/code-templates`'s static code catalog) down to the {@link SyncCodeTemplateEntry}
+ * shape {@link TemplatesAdminRepository.syncCodeTemplates} expects. This package owns the
+ * `ZanixTemplateAttrs` contract (which fields exist, what `active`/`hbs`/`parent` mean) — a puller
+ * like `@zanix/admin`'s `syncTemplatesFromRegisteredService` has no business interpreting them
+ * itself; it just calls this and passes the result straight through.
+ *
+ * Excludes:
+ * - Entries with no own `hbs` (a derived template rendering through `parent` instead of owning
+ *   content) — nothing meaningful to seed as a default.
+ * - `active: false` entries (soft-deleted) — not live content, shouldn't be seeded either.
+ *
+ * `source`/`active`/`version`/etc. don't survive the conversion: `syncCodeTemplates` treats every
+ * entry it's given as this service's own authoritative default, the same way it always has for
+ * genuine code-catalog entries — how the ORIGIN service classified an entry internally is its own
+ * business, not something the puller needs to know or preserve.
+ */
+export function toSyncCodeTemplateEntries(entries: ZanixTemplateAttrs[]): SyncCodeTemplateEntry[] {
+  return entries
+    .filter((entry) => entry.active && entry.hbs)
+    .map((entry) => ({
+      channel: entry.channel,
+      name: entry.name,
+      hbs: entry.hbs as string,
+      hash: entry.hash,
+    }))
+}
+
 /** `updatedBy` stamped on every row `syncCodeTemplates()` seeds/resyncs by default — mirrors this
  * package's own `'system:bootstrap-sync'` convention for its local, same-process sync. */
 const SYNC_ACTOR = 'system:remote-sync'
-
-/** Mongo's duplicate-key error code — see `syncCodeTemplates()`'s seed step. */
-const DUPLICATE_KEY_ERROR_CODE = 11000
-
-/** Whether `error` is a Mongo duplicate-key failure (a unique-index violation), as opposed to any other write failure. */
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null &&
-    (error as { code?: unknown }).code === DUPLICATE_KEY_ERROR_CODE
-}
 
 /**
  * Data access for this package's own templates collection (`zanix-templates` by default, or
@@ -100,7 +122,7 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
     const Model = await this.model()
     const entry = await Model.findOne({ channel, name })
     if (!entry) throw new HttpError('NOT_FOUND', { meta: { channel, name } })
-    return entry
+    return entry.toJSON()
   }
 
   /**
@@ -158,7 +180,7 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
       { channel, name },
       { $set: { ...changes, version: entry.version + 1, hash: generateUUID(), updatedBy } },
       { new: true },
-    ) as Promise<ZanixTemplateAttrs>
+    ).then((res) => res?.toJSON() || res) as Promise<ZanixTemplateAttrs>
   }
 
   /** Soft delete — flips `active: false`, the same mechanism `TemplateProvider.resolve()` already
@@ -177,6 +199,15 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
    * Reuses the same `planCodeSync` reconciliation this package's own `LocalTemplateBackend` runs
    * locally (seed/resync/orphan, manual-edit-always-wins) rather than reimplementing it — see
    * `@zanix/helpers`' `planCodeSync` for the exact rules.
+   *
+   * Also seeds any missing `DERIVED_TEMPLATES` fallback stub (`welcome`, `password-changed`, ...),
+   * exactly like `LocalTemplateBackend` does for its own same-process sync — via the same shared
+   * `seedMissingDerivedTemplates` helper (see `db/manifest.ts`). Unlike `entries`, this list is
+   * never pulled from the caller: `DERIVED_TEMPLATES` is a fixed catalog this package alone
+   * declares, so this service already knows it locally regardless of what the caller's own
+   * `/.well-known/zanix/{templates,code-templates}` Discovery did or didn't include. This is what
+   * makes a Mode-C sync from a `code-templates`-only source (which never carries these, since they
+   * have no `.hbs` of their own) end up with the full template set anyway, not just the base ones.
    *
    * Safe to call concurrently from N replicas of the same business service: each seed is a single
    * atomic `updateOne({channel,name}, {$setOnInsert: ...}, {upsert: true})`, so two replicas racing
@@ -272,8 +303,16 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
       }),
     )
 
+    const derivedSeeded = DERIVED_TEMPLATES.length
+      ? await seedMissingDerivedTemplates(
+        Model,
+        new Set((await Model.find({})).map((doc) => `${doc.channel}:${doc.name}`)),
+        updatedBy,
+      )
+      : 0
+
     return {
-      seeded: seededFlags.filter(Boolean).length,
+      seeded: seededFlags.filter(Boolean).length + derivedSeeded,
       resynced: plan.toResync.length,
     }
   }

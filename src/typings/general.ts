@@ -133,4 +133,7 @@ export type WithWorker =
      * or cleanup after the log-saving task completes.
      */
     callback: TaskCallback
+    /** Worker timout. Defaults 20_000 ms*/
+    timeout?: number
   }
+  | { callback?: TaskCallback; timeout: number }

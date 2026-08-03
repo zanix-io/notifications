@@ -15,9 +15,11 @@ import { CODE_SOURCE } from './db/sync.ts'
 import { LocalTemplateBackend, resetLocalTemplateBackendState } from './db/local-backend.ts'
 import {
   RemoteTemplateBackend,
+  resetRemoteTemplateBackendAuthClient,
   resetRemoteTemplateBackendCache,
   resetRemoteTemplateBackendSyncState,
 } from './db/remote-backend.ts'
+import { resolveServiceAssertionKeyId, resolveServiceAssertionPrivateKey } from '@zanix/auth'
 import { InternalError } from '@zanix/errors'
 
 /** Env var naming the `ZanixTemplate` model — presence enables database-backed template resolution (see `resolve()`). Absent, behavior is unchanged from the pure code-registry path. */
@@ -81,9 +83,29 @@ export const TEMPLATES_SERVICE_ID_ENV = 'TEMPLATES_SERVICE_ID'
  * Env var holding the pre-issued `type: 'api'` machine credential (see `@zanix/auth`'s
  * `X-Znx-Authorization` contract) sent on every call to `TEMPLATES_SERVICE_URL`. This package
  * never mints this token itself — issuance is the deploying operator's/central service's
- * responsibility, not something `RemoteTemplateBackend` does at runtime.
+ * responsibility, not something `RemoteTemplateBackend` does at runtime. Takes priority over
+ * `TEMPLATES_SERVICE_AUTH_ID` below when both are set — the only option that works against a
+ * central service outside the Zanix ecosystem.
  */
 export const TEMPLATES_SERVICE_TOKEN_ENV = 'TEMPLATES_SERVICE_TOKEN'
+
+/**
+ * Env var naming THIS service's own signing identity (the assertion's `iss`/`sub`) when
+ * authenticating to the central service via `@zanix/auth`'s service-credential exchange —
+ * see `RemoteTemplateBackendConfig.auth`. **Distinct from `TEMPLATES_SERVICE_ID_ENV`**: that one is
+ * the lookup key the central service's own `ServiceRegistry` uses; this one is who this service
+ * claims to be when signing an assertion. They're independent and don't need to match.
+ *
+ * Neither the matching private key nor which key to sign with are separate env vars — both resolve
+ * automatically via `@zanix/auth`'s own conventions: the private key as `JWK_PRI_<this value>` (or
+ * `JWK_PRI_<this value>_<keyId>`), and which key to use as `JWK_ID_<this value>` (defaulting to the
+ * bare form when unset) — see `createServiceAssertion`'s own doc. The exact mirror image of
+ * `@zanix/auth`'s `resolveServiceAssertionKey` convention on the *verifying* side
+ * (`JWK_PUB_<serviceId>`/`JWK_PUB_<serviceId>_<keyId>`) — one naming scheme for "my key to sign as
+ * X" and "the key I trust for X", not package-specific env var names to remember on top of it.
+ * Ignored entirely when `TEMPLATES_SERVICE_TOKEN_ENV` is set.
+ */
+export const TEMPLATES_SERVICE_AUTH_ID_ENV = 'TEMPLATES_SERVICE_AUTH_ID'
 
 /**
  * Env var overriding `RemoteTemplateBackend`'s default local fetch-cache TTL (milliseconds) — see
@@ -97,10 +119,13 @@ export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
  * at the top of every `resolve()` call. Deliberately left uncaught by `resolve()`'s own
  * warn-and-fallback `try/catch`: silently falling back to the code registry would itself be
  * "silently picking one," exactly what this guards against. Also refuses `TEMPLATES_SERVICE_URL`
- * set without its required `TEMPLATES_SERVICE_ID` counterpart.
+ * set without its required `TEMPLATES_SERVICE_ID` counterpart, and `TEMPLATES_SERVICE_AUTH_ID` set
+ * without a resolvable matching `JWK_PRI_<id>` (and no `TEMPLATES_SERVICE_TOKEN` fallback either) —
+ * a clear signal of intent to authenticate with nothing actually configured to authenticate with.
  *
- * @throws If both `TEMPLATES_SERVICE_URL`/`TEMPLATES_MODEL_NAME` are set, or if
- * `TEMPLATES_SERVICE_URL` is set without `TEMPLATES_SERVICE_ID`.
+ * @throws If both `TEMPLATES_SERVICE_URL`/`TEMPLATES_MODEL_NAME` are set, if
+ * `TEMPLATES_SERVICE_URL` is set without `TEMPLATES_SERVICE_ID`, or if `TEMPLATES_SERVICE_AUTH_ID`
+ * is set without `TEMPLATES_SERVICE_TOKEN` or a resolvable `JWK_PRI_<id>`.
  */
 export function assertTemplatesConfigNotConflicting(): void {
   const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
@@ -118,6 +143,15 @@ export function assertTemplatesConfigNotConflicting(): void {
         `"${TEMPLATES_SERVICE_URL_ENV}" — the central service pulls this service's code ` +
         `templates by that identity.`,
     )
+  }
+
+  const authServiceId = Deno.env.get(TEMPLATES_SERVICE_AUTH_ID_ENV)
+  if (authServiceId && !Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV)) {
+    // Reuses `@zanix/auth`'s own resolvers rather than duplicating its `JWK_ID_<id>`/`JWK_PRI_<id>`/
+    // `JWK_PRI_<id>_<keyId>` naming rules here — throws `InternalError` (propagated as-is, already
+    // names the exact missing env var) if nothing is registered.
+    const keyId = resolveServiceAssertionKeyId(authServiceId)
+    resolveServiceAssertionPrivateKey(authServiceId, keyId)
   }
 }
 
@@ -151,6 +185,7 @@ export function resetTemplateProviderState(): void {
   resetLocalTemplateBackendState()
   resetRemoteTemplateBackendCache()
   resetRemoteTemplateBackendSyncState()
+  resetRemoteTemplateBackendAuthClient()
   renderCache.clear()
 }
 
@@ -187,10 +222,18 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
     if (serviceUrl) {
       assertTemplatesConfigNotConflicting()
+      const token = Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV)
+      const authServiceId = Deno.env.get(TEMPLATES_SERVICE_AUTH_ID_ENV)
       return new RemoteTemplateBackend({
         url: serviceUrl,
         serviceId: Deno.env.get(TEMPLATES_SERVICE_ID_ENV) as string,
-        token: Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV),
+        token,
+        // Only built when there's no static `token` — see `RemoteTemplateBackendConfig.auth`'s own
+        // doc on the priority between the two. `privateKey`/`keyId` deliberately omitted: their
+        // resolvability (`JWK_ID_<authServiceId>`/`JWK_PRI_<authServiceId>[_<keyId>]`) was already
+        // checked above by `assertTemplatesConfigNotConflicting()` — `createServiceAssertion`
+        // resolves both again, lazily, at actual sign time, so neither has to pass through here.
+        auth: !token && authServiceId ? { serviceId: authServiceId } : undefined,
         cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) || undefined,
       })
     }

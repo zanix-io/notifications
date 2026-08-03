@@ -11,7 +11,7 @@
     "jsr:@std/async@^1.0.15": "1.5.0",
     "jsr:@std/bytes@^1.0.2": "1.0.6",
     "jsr:@std/cli@~0.224.7": "0.224.7",
-    "jsr:@std/data-structures@^1.0.9": "1.1.1",
+    "jsr:@std/data-structures@^1.0.9": "1.1.2",
     "jsr:@std/encoding@1": "1.0.11",
     "jsr:@std/encoding@1.0.0-rc.2": "1.0.0-rc.2",
     "jsr:@std/encoding@^1.0.5": "1.0.11",
@@ -34,9 +34,12 @@
     "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/streams@~0.224.5": "0.224.5",
     "jsr:@std/testing@1.0.16": "1.0.16",
-    "jsr:@zanix/utils@*": "2.4.4",
-    "jsr:@zanix/utils@2": "2.4.4",
-    "jsr:@zanix/utils@2.4": "2.4.4",
+    "jsr:@zanix/auth@0.6": "0.6.0",
+    "jsr:@zanix/datamaster@1": "1.1.0",
+    "jsr:@zanix/server@3": "3.1.0",
+    "jsr:@zanix/server@^3.1.0": "3.1.0",
+    "jsr:@zanix/utils@2": "2.4.5",
+    "jsr:@zanix/utils@2.4": "2.4.5",
     "npm:@types/node@*": "24.2.0",
     "npm:amqplib@0.10": "0.10.9",
     "npm:esbuild@0.20.2": "0.20.2",
@@ -103,8 +106,8 @@
     "@std/cli@0.224.7": {
       "integrity": "654ca6477518e5e3a0d3fabafb2789e92b8c0febf1a1d24ba4b567aba94b5977"
     },
-    "@std/data-structures@1.1.1": {
-      "integrity": "7e1fcf19771fb9c6dbcd7f65039d6d42ef8dc023cfbc0c4cdc74b24e09229380"
+    "@std/data-structures@1.1.2": {
+      "integrity": "2471377c9e0051f9ec34e57d0ebd0ad133a5a889677446ec6ba9938e4e102918"
     },
     "@std/encoding@1.0.0-rc.2": {
       "integrity": "160d7674a20ebfbccdf610b3801fee91cf6e42d1c106dd46bbaf46e395cd35ef"
@@ -185,8 +188,38 @@
         "jsr:@std/path@^1.1.2"
       ]
     },
-    "@zanix/utils@2.4.4": {
-      "integrity": "02c2178f1df6d1c2a6c04f78a450514a4d5f822742ffedabd5122a6da0aa569a",
+    "@zanix/auth@0.6.0": {
+      "integrity": "3f597abb346b7eecb5b8f06dfe24ab081a7a8e688326fd6388751d06fe7458bf",
+      "dependencies": [
+        "jsr:@zanix/server@3",
+        "jsr:@zanix/utils@2",
+        "jsr:@zanix/utils@2.4"
+      ]
+    },
+    "@zanix/datamaster@1.1.0": {
+      "integrity": "f996bb2840ec7d8a6cff293aa8d1f2c0d05b63ec5232b8601225366f9204fcd7",
+      "dependencies": [
+        "jsr:@db/sqlite",
+        "jsr:@zanix/server@3",
+        "jsr:@zanix/utils@2",
+        "npm:mongoose",
+        "npm:redis"
+      ]
+    },
+    "@zanix/server@3.1.0": {
+      "integrity": "a0a2ef88daab0d6a0c3a9420bff5c21282fd2694dc8005f16af2a575fc808e2b",
+      "dependencies": [
+        "jsr:@std/http",
+        "jsr:@std/path@0.224",
+        "jsr:@zanix/server@^3.1.0",
+        "jsr:@zanix/utils@2",
+        "jsr:@zanix/utils@2.4",
+        "npm:graphql",
+        "npm:redis"
+      ]
+    },
+    "@zanix/utils@2.4.5": {
+      "integrity": "1c63a97018c29acdba39aeea9f583cae53f260be6a4fe36755a8c8e4a2fba3dc",
       "dependencies": [
         "jsr:@luca/esbuild-deno-loader",
         "jsr:@std/fmt@0.224",
@@ -946,8 +979,8 @@
         "fastest-levenshtein"
       ]
     },
-    "fast-uri@3.1.4": {
-      "integrity": "sha512-8JnbkQ4juDyvYs4mgFGQqg4yCYtFDtUtmp2QIQq11ZZe5CFQ5wcqm1rqDgAh/QdMySuBnPzMUiJUNZG5N/AiQw=="
+    "fast-uri@3.1.5": {
+      "integrity": "sha512-gHwA1O9LDIcKunMKhObS/HimwtehO1nPUECKAu5TpKgaO19fcWEl4bliWe1jWxVFvIXztJjjQ4L8XQ1EU9f7Jw=="
     },
     "fastest-levenshtein@1.0.16": {
       "integrity": "sha512-eRnCtTTtGZFpQCwhJiUOuxPQWRXVKYDn0b2PeHfXL6/Zi53SLAzAHfVhVWK2AryC/WH05kGfxhFIPvTF0SXQzg=="
@@ -2233,33 +2266,12 @@
     "dependencies": [
       "jsr:@std/path@0.224",
       "jsr:@std/testing@1.0.16",
+      "jsr:@zanix/auth@0.6",
+      "jsr:@zanix/datamaster@1",
+      "jsr:@zanix/server@3",
       "jsr:@zanix/utils@2",
       "npm:handlebars@^4.7.8",
       "npm:zod@^4.1.13"
-    ],
-    "links": {
-      "jsr:@zanix/datamaster@0.8.0": {
-        "dependencies": [
-          "jsr:@db/sqlite@0.12",
-          "jsr:@std/assert@0.224",
-          "jsr:@zanix/utils@2",
-          "npm:mongoose@8",
-          "npm:redis@^5.9.0"
-        ]
-      },
-      "jsr:@zanix/server@2.1.1": {
-        "dependencies": [
-          "jsr:@std/assert@0.224",
-          "jsr:@std/http@0.224",
-          "jsr:@std/path@0.224",
-          "jsr:@std/testing@1.0.9",
-          "jsr:@std/uuid@0.224",
-          "jsr:@zanix/utils@2",
-          "jsr:@zanix/utils@2.4",
-          "npm:graphql-jit@0.1.0",
-          "npm:graphql@16"
-        ]
-      }
-    }
+    ]
   }
 }

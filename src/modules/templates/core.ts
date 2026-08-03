@@ -17,6 +17,7 @@ import {
   isDatabaseTemplatesDisabled,
   TemplateProvider,
   TEMPLATES_MODEL_ENV,
+  TEMPLATES_SERVICE_URL_ENV,
 } from './provider.ts'
 import { templateModelDefinition } from './db/schema.ts'
 
@@ -37,7 +38,10 @@ assertTemplatesConfigNotConflicting()
  * top-level code) so it's directly callable/testable without relying on module-import side effects.
  */
 export function defaultTemplatesModelName(): void {
-  if (Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true' && !Deno.env.has(TEMPLATES_MODEL_ENV)) {
+  if (
+    Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true' && !Deno.env.has(TEMPLATES_MODEL_ENV) &&
+    !Deno.env.has(TEMPLATES_SERVICE_URL_ENV)
+  ) {
     Deno.env.set(TEMPLATES_MODEL_ENV, DEFAULT_TEMPLATES_MODEL_NAME)
   }
 }

@@ -1,18 +1,41 @@
 import { assert, assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
 import { HttpError } from '@zanix/errors'
-import { TemplatesAdminRepository } from 'modules/templates/db/templates.repository.ts'
+import {
+  TemplatesAdminRepository,
+  toSyncCodeTemplateEntries,
+} from 'modules/templates/db/templates.repository.ts'
 import type { SyncCodeTemplateEntry } from 'modules/templates/db/templates.repository.ts'
+import { DERIVED_TEMPLATES } from 'modules/templates/db/manifest.ts'
+import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
+
+/**
+ * Every `syncCodeTemplates` call also seeds any missing {@link DERIVED_TEMPLATES} fallback stub
+ * (see `manifest.ts#seedMissingDerivedTemplates`) — real, non-empty in this package. Tests that
+ * only care about the code-entry reconciliation compute this offset instead of hardcoding a magic
+ * number, so they don't silently drift whenever a new derived template is declared.
+ */
+const derivedCount = DERIVED_TEMPLATES.length
+
+// deno-lint-ignore no-explicit-any
+function fakeDoc(entries?: any) {
+  if (!entries) return
+  if (entries?.toJSON) return entries
+  Object.defineProperty(entries, 'toJSON', { value: () => entries })
+  return entries
+}
 
 // deno-lint-ignore no-explicit-any
 function fakeThis(entries: Record<string, any>[]) {
   const model = {
     find: (query: { channel?: string }) =>
-      Promise.resolve(query.channel ? entries.filter((e) => e.channel === query.channel) : entries),
+      Promise.resolve(
+        fakeDoc(query.channel ? entries.filter((e) => e.channel === query.channel) : entries),
+      ),
     findOne: ({ channel, name }: { channel: string; name: string }) =>
-      Promise.resolve(entries.find((e) => e.channel === channel && e.name === name)),
+      Promise.resolve(fakeDoc(entries.find((e) => e.channel === channel && e.name === name))),
     create: (doc: Record<string, unknown>) => {
       entries.push(doc)
-      return Promise.resolve(doc)
+      return Promise.resolve(fakeDoc(doc))
     },
     findOneAndUpdate: (
       { channel, name }: { channel: string; name: string },
@@ -21,7 +44,7 @@ function fakeThis(entries: Record<string, any>[]) {
       const entry = entries.find((e) => e.channel === channel && e.name === name)
       if (!entry) return Promise.resolve(undefined)
       Object.assign(entry, $set)
-      return Promise.resolve(entry)
+      return Promise.resolve(fakeDoc(entry))
     },
   }
   const instance = Object.create(TemplatesAdminRepository.prototype)
@@ -210,14 +233,56 @@ Deno.test('TemplatesAdminRepository.syncCodeTemplates seeds a new {channel,name}
   const result = await repo.syncCodeTemplates.call(instance, [
     { channel: 'email', name: 'generic', hbs: '<p>{{content}}</p>', hash: 'hash-1' },
   ])
-  assertEquals(result, { seeded: 1, resynced: 0 })
-  assertEquals(docs.length, 1)
+  assertEquals(result, { seeded: 1 + derivedCount, resynced: 0 })
+  assertEquals(docs.length, 1 + derivedCount)
   assertEquals(docs[0].source, 'code')
   assertEquals(docs[0].active, true)
   assertEquals(docs[0].version, 1)
   assertEquals(docs[0].lastSyncedHbs, '<p>{{content}}</p>')
   assertEquals(docs[0].updatedBy, 'system:remote-sync')
 })
+
+Deno.test(
+  'TemplatesAdminRepository.syncCodeTemplates also seeds every missing DERIVED_TEMPLATES fallback stub',
+  async () => {
+    const { instance, docs } = fakeSyncThis([])
+    await repo.syncCodeTemplates.call(instance, [])
+    assertEquals(docs.length, derivedCount)
+    for (const declared of DERIVED_TEMPLATES) {
+      const stub = docs.find((d) => d.channel === declared.channel && d.name === declared.name)
+      assert(stub, `expected a seeded stub for ${declared.channel}/${declared.name}`)
+      assertEquals(stub.source, 'database')
+      assertEquals(stub.parent, declared.parent)
+      assertEquals(stub.hbs, undefined)
+      assertEquals(stub.active, true)
+      assertEquals(stub.updatedBy, 'system:remote-sync')
+    }
+  },
+)
+
+Deno.test(
+  'TemplatesAdminRepository.syncCodeTemplates does not re-seed a derived stub that already exists',
+  async () => {
+    const [firstDerived] = DERIVED_TEMPLATES
+    const { instance, docs } = fakeSyncThis([{
+      channel: firstDerived.channel,
+      name: firstDerived.name,
+      parent: firstDerived.parent,
+      source: 'database',
+      active: true,
+      version: 1,
+      hash: 'already-there',
+    }])
+    const result = await repo.syncCodeTemplates.call(instance, [])
+    assertEquals(result.seeded, derivedCount - 1)
+    assertEquals(docs.length, derivedCount)
+    assertEquals(
+      docs.filter((d) => d.channel === firstDerived.channel && d.name === firstDerived.name)
+        .length,
+      1,
+    )
+  },
+)
 
 Deno.test(
   'TemplatesAdminRepository.syncCodeTemplates resyncs a code entry untouched since last sync',
@@ -236,7 +301,7 @@ Deno.test(
     const result = await repo.syncCodeTemplates.call(instance, [
       { channel: 'email', name: 'generic', hbs: '<p>new</p>', hash: 'new-hash' },
     ])
-    assertEquals(result, { seeded: 0, resynced: 1 })
+    assertEquals(result, { seeded: derivedCount, resynced: 1 })
     assertEquals(docs[0].hbs, '<p>new</p>')
     assertEquals(docs[0].hash, 'new-hash')
     assertEquals(docs[0].version, 2)
@@ -261,7 +326,7 @@ Deno.test(
     const result = await repo.syncCodeTemplates.call(instance, [
       { channel: 'email', name: 'generic', hbs: '<p>new code content</p>', hash: 'new-hash' },
     ])
-    assertEquals(result, { seeded: 0, resynced: 0 })
+    assertEquals(result, { seeded: derivedCount, resynced: 0 })
     assertEquals(docs[0].hbs, '<p>manually edited</p>')
     assertEquals(docs[0].version, 2)
   },
@@ -282,7 +347,7 @@ Deno.test(
     const result = await repo.syncCodeTemplates.call(instance, [
       { channel: 'email', name: 'generic', hbs: '<p>new code content</p>', hash: 'new-hash' },
     ])
-    assertEquals(result, { seeded: 0, resynced: 0 })
+    assertEquals(result, { seeded: derivedCount, resynced: 0 })
     assertEquals(docs[0].hbs, '<p>legacy</p>')
   },
 )
@@ -302,7 +367,7 @@ Deno.test(
       lastSyncedHash: 'retired-hash',
     }])
     const result = await repo.syncCodeTemplates.call(instance, [])
-    assertEquals(result, { seeded: 0, resynced: 0 })
+    assertEquals(result, { seeded: derivedCount, resynced: 0 })
     assertEquals(docs[0].source, 'database')
   },
 )
@@ -320,9 +385,61 @@ Deno.test(
       repo.syncCodeTemplates.call(instance, entries),
     ])
 
-    assertEquals(first.seeded + second.seeded, 1)
-    assertEquals(docs.length, 1)
+    assertEquals(first.seeded + second.seeded, 1 + derivedCount)
+    assertEquals(docs.length, 1 + derivedCount)
     assertEquals(docs[0].channel, 'whatsapp')
     assertEquals(docs[0].name, 'generic')
   },
 )
+
+// --- toSyncCodeTemplateEntries -------------------------------------------------------------------
+
+function attrs(overrides: Partial<ZanixTemplateAttrs> = {}): ZanixTemplateAttrs {
+  return {
+    channel: 'email',
+    name: 'generic',
+    hbs: '<p>hi</p>',
+    source: 'database',
+    active: true,
+    version: 1,
+    hash: 'hash-1',
+    ...overrides,
+  }
+}
+
+Deno.test('toSyncCodeTemplateEntries: trims down to {channel,name,hbs,hash}', () => {
+  const result = toSyncCodeTemplateEntries([attrs()])
+  assertEquals(result, [{ channel: 'email', name: 'generic', hbs: '<p>hi</p>', hash: 'hash-1' }])
+})
+
+Deno.test('toSyncCodeTemplateEntries: excludes a derived entry with no own hbs', () => {
+  const result = toSyncCodeTemplateEntries([
+    attrs({ name: 'welcome', hbs: undefined, parent: 'generic' }),
+  ])
+  assertEquals(result, [])
+})
+
+Deno.test('toSyncCodeTemplateEntries: excludes an active:false (soft-deleted) entry', () => {
+  const result = toSyncCodeTemplateEntries([attrs({ active: false })])
+  assertEquals(result, [])
+})
+
+Deno.test('toSyncCodeTemplateEntries: source is irrelevant — only hbs+active matter', () => {
+  const result = toSyncCodeTemplateEntries([attrs({ source: 'database', name: 'invoice-created' })])
+  assertEquals(result, [
+    { channel: 'email', name: 'invoice-created', hbs: '<p>hi</p>', hash: 'hash-1' },
+  ])
+})
+
+Deno.test('toSyncCodeTemplateEntries: keeps only live, self-contained entries, in order', () => {
+  const result = toSyncCodeTemplateEntries([
+    attrs({ name: 'a', hash: 'h-a' }),
+    attrs({ name: 'b', hbs: undefined, parent: 'a' }),
+    attrs({ name: 'c', active: false, hash: 'h-c' }),
+    attrs({ name: 'd', hash: 'h-d' }),
+  ])
+  assertEquals(result, [
+    { channel: 'email', name: 'a', hbs: '<p>hi</p>', hash: 'h-a' },
+    { channel: 'email', name: 'd', hbs: '<p>hi</p>', hash: 'h-d' },
+  ])
+})

@@ -7,6 +7,45 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-03
+
+### Added
+
+- **`RemoteTemplateBackend` (Mode C) now supports dynamic sign+exchange auth**, an alternative to
+  the existing static `TEMPLATES_SERVICE_TOKEN` for a central service that's itself Zanix-based:
+  `TEMPLATES_SERVICE_AUTH_ID` (this service's own signing identity) signs a short-lived assertion
+  and exchanges it for a real access token automatically, via `@zanix/auth`'s new
+  `createServiceAuthClient` — the same primitive `ZanixAdminHub.start({ auth })` uses. No static
+  token to generate/rotate by hand, and no separate private-key or "which key" env vars either: both
+  resolve automatically as `JWK_PRI_<TEMPLATES_SERVICE_AUTH_ID>[_<keyId>]` and
+  `JWK_ID_<TEMPLATES_SERVICE_AUTH_ID>`, via `@zanix/auth`'s new
+  `resolveServiceAssertionPrivateKey`/`resolveServiceAssertionKeyId` — the exact mirror image of the
+  `JWK_PUB_<serviceId>`/`JWK_PUB_<serviceId>_<keyId>` convention already used on the verifying side,
+  so this package doesn't invent its own env var naming on top of it (no
+  `TEMPLATES_SERVICE_AUTH_KEY_ID` needed either — rotation is `JWK_ID_<TEMPLATES_SERVICE_AUTH_ID>`).
+  `TEMPLATES_SERVICE_TOKEN` still works exactly as before and **takes priority when set** — the only
+  option that works against a central service outside the Zanix ecosystem, since it doesn't require
+  exposing `/admin/service-token`. New `@zanix/auth` dependency (previously this package depended
+  only on `@zanix/server`/`@zanix/datamaster`) — see `docs/templates.md`'s Mode C section.
+
+### Fixed
+
+- `RemoteTemplateBackend` no longer sends a malformed `X-Znx-Authorization: Bearer` (empty) header
+  when neither `TEMPLATES_SERVICE_TOKEN` nor the new auth option is configured — no header is sent
+  at all in that case, rather than one a receiving guard would reject anyway, just with a more
+  confusing "token missing" error pointing at the wrong header.
+- `TemplatesAdminRepository.syncCodeTemplates()` — the method backing a Mode-C central sync (via
+  `/.well-known/zanix/code-templates`) — now also seeds any missing `DERIVED_TEMPLATES` fallback
+  stub (`welcome`, `password-changed`, `password-recovery`, `login-otp`, ...), not just the base
+  templates that own a real `.hbs` file. Previously, a service syncing from a `code-templates`-only
+  source ended up with only the base catalog in its own database — every derived template was
+  silently missing, since `/.well-known/zanix/code-templates` never carried them (they have no
+  `.hbs` of their own to publish) and the sync had no other way to learn about them. Fixed by
+  extracting the same seeding logic `LocalTemplateBackend` already used for its own same-process
+  sync into a shared `seedMissingDerivedTemplates()` — `DERIVED_TEMPLATES` is a fixed catalog this
+  package alone declares, so the syncing service already knows it locally regardless of what the
+  remote source's Discovery payload did or didn't include.
+
 ## [0.2.3] - 2026-07-28
 
 ### Added

@@ -28,9 +28,10 @@ interface FakeTemplateModel {
     filter: Partial<ZanixTemplateAttrs>,
   ): { lean(): Promise<Array<ZanixTemplateAttrs & { _id: string }>> }
   updateOne(
-    filter: { _id: string },
-    update: { $set: Partial<ZanixTemplateAttrs> },
-  ): Promise<unknown>
+    filter: { _id: string } | Pick<ZanixTemplateAttrs, 'channel' | 'name'>,
+    update: { $set?: Partial<ZanixTemplateAttrs>; $setOnInsert?: ZanixTemplateAttrs },
+    options?: { upsert?: boolean },
+  ): Promise<{ upsertedCount: number }>
   insertMany(docs: ZanixTemplateAttrs[]): Promise<unknown>
 }
 
@@ -53,9 +54,19 @@ function fakeTemplateModel(seed: ZanixTemplateAttrs[] = []) {
     find: (filter) => ({
       lean: () => Promise.resolve(docs.filter((doc) => matches(doc, filter))),
     }),
-    updateOne: ({ _id }, { $set }) => {
-      docs = docs.map((doc) => doc._id === _id ? { ...doc, ...$set } : doc)
-      return Promise.resolve()
+    updateOne: (filter, update, options) => {
+      if ('_id' in filter) {
+        docs = docs.map((doc) => doc._id === filter._id ? { ...doc, ...update.$set } : doc)
+        return Promise.resolve({ upsertedCount: 0 })
+      }
+      const existing = docs.find((doc) => matches(doc, filter))
+      if (existing || !options?.upsert) return Promise.resolve({ upsertedCount: 0 })
+      docs.push(
+        { ...filter, ...update.$setOnInsert, _id: `new-${nextId++}` } as ZanixTemplateAttrs & {
+          _id: string
+        },
+      )
+      return Promise.resolve({ upsertedCount: 1 })
     },
     insertMany: (newDocs) => {
       docs.push(...newDocs.map((doc) => ({ ...doc, _id: `new-${nextId++}` })))

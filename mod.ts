@@ -19,7 +19,7 @@
 export { SmtpClient } from 'modules/email/connector.ts'
 export { SmsClient } from 'modules/sms/connector.ts'
 export { WhatsappClient } from 'modules/whatsapp/connector.ts'
-export { NotifierProvider } from 'modules/providers/notifier.ts'
+export { NotifierProvider, ZanixCoreNotificationsProvider } from 'modules/providers/notifier.ts'
 export { TemplateProvider } from 'modules/templates/provider.ts'
 export { ZanixNotifierConnector } from 'modules/base.ts'
 
@@ -133,6 +133,7 @@ export {
   type SyncCodeTemplateEntry,
   type SyncCodeTemplatesResult,
   TemplatesAdminRepository,
+  toSyncCodeTemplateEntries,
 } from 'modules/templates/db/templates.repository.ts'
 export { TemplatesAdminService } from 'modules/templates/db/templates.service.ts'
 /**

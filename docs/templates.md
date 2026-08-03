@@ -214,7 +214,46 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
 - **`TEMPLATES_SERVICE_TOKEN`** — a pre-issued machine credential, sent as
   `X-Znx-Authorization: Bearer <token>` (`@zanix/auth`'s `type: 'api'` contract — RS256, verified
   against `JWK_PUB`). This package never mints this token itself; issuing and rotating it is the
-  deploying operator's/central service's responsibility.
+  deploying operator's/central service's responsibility. **Takes priority when set** — the dynamic
+  exchange below is never even attempted. This is the only option that works against a central
+  service outside the Zanix ecosystem.
+- **`TEMPLATES_SERVICE_AUTH_ID`** — alternative to `TEMPLATES_SERVICE_TOKEN`, for a central service
+  that IS itself Zanix-based (exposes `/admin/service-token`): signs a short-lived assertion and
+  exchanges it for a real access token automatically, via `@zanix/auth`'s `createServiceAuthClient`
+  — the same primitive `ZanixAdminHub.start({ auth })` uses. No static token to generate/rotate by
+  hand. This is **this service's own signing identity (`iss`/`sub`)** — distinct from
+  `TEMPLATES_SERVICE_ID` above, which is a routing/lookup key the central service's own registry
+  uses. They're independent concepts that don't need to match, even though nothing stops you from
+  choosing the same string for both.
+
+  **There is no separate private-key (or "which key") env var to remember** — both resolve
+  automatically via `@zanix/auth`'s own conventions: the private key as
+  `JWK_PRI_<TEMPLATES_SERVICE_AUTH_ID>` (or `JWK_PRI_<TEMPLATES_SERVICE_AUTH_ID>_<keyId>`), and
+  which key to use as `JWK_ID_<TEMPLATES_SERVICE_AUTH_ID>` (for rotation — see below), defaulting to
+  the bare form when unset. This is the exact mirror image of `@zanix/auth`'s own
+  `JWK_PUB_<serviceId>`/`JWK_PUB_<serviceId>_<keyId>` convention already used on the _verifying_
+  side (see `docs/service-credential.md`'s `resolveServiceAssertionKey`): one naming scheme for "the
+  key I sign with as X" and "the key I trust for X", handled automatically by
+  `createServiceAssertion` itself (see its own doc on `resolveServiceAssertionPrivateKey`/
+  `resolveServiceAssertionKeyId`) — not package-specific variables this package invents on top of
+  it. **Base64-encoded, PKCS#8 only** (same convention as `JWK_PRI`/`JWK_PUB_<serviceId>`) —
+  generate with `generateRSAKeys()` (from `@zanix/helpers`) and store `btoa(privateKey)`, not the
+  raw PEM.
+
+  The central service needs `JWK_PUB_<TEMPLATES_SERVICE_AUTH_ID>` and
+  `SERVICE_PERMISSIONS_<TEMPLATES_SERVICE_AUTH_ID>` set to trust this identity — see
+  `@zanix/admin`'s `docs/service-authentication.md`. To rotate, register
+  `JWK_PRI_<TEMPLATES_SERVICE_AUTH_ID>_<newId>`/`JWK_PUB_<TEMPLATES_SERVICE_AUTH_ID>_<newId>`
+  alongside the current ones, then flip `JWK_ID_<TEMPLATES_SERVICE_AUTH_ID>` to `<newId>` — a config
+  change, not a code change, with a real overlap window (see `@zanix/auth`'s
+  `docs/service-credential.md#-rotating-a-services-key`).
+
+  ```ts
+  Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
+  Deno.env.set('TEMPLATES_SERVICE_ID', 'billing')
+  Deno.env.set('TEMPLATES_SERVICE_AUTH_ID', 'billing-service')
+  Deno.env.set('JWK_PRI_billing-service', btoa(privateKey)) // from generateRSAKeys()
+  ```
 - **`TEMPLATES_SERVICE_CACHE_TTL_MS`** — optional, overrides the default 45-second local cache TTL
   on top of the remote fetch (separate from the compiled-render cache described above, which is
   unaffected). A remote outage or latency spike doesn't turn every `resolve()` call into a blocking

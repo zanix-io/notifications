@@ -3,6 +3,7 @@ import { SmsClient } from '../../modules/sms/connector.ts'
 import { WhatsappClient } from '../../modules/whatsapp/connector.ts'
 import { NotifierProvider } from '../../modules/providers/notifier.ts'
 import { TemplateProvider } from '../../modules/templates/provider.ts'
+import { ProgramModule } from '@zanix/server'
 
 console.error = () => {}
 
@@ -10,6 +11,29 @@ Deno.test(
   'providers/core.ts registers NotifierProvider under the notifications core key without throwing',
   async () => {
     await import('../../modules/providers/core.ts')
+  },
+)
+
+Deno.test(
+  'providers/core.ts: the default notifications provider also resolves by class (NotifierProvider)',
+  async () => {
+    await import('../../modules/providers/core.ts')
+
+    // Regression guard, same reasoning as the `templates/core.ts`/`TemplateProvider` test below:
+    // a wrapping subclass (`class _X extends NotifierProvider {}`) instead of decorating
+    // `NotifierProvider` directly would register a DIFFERENT, unreachable class identity —
+    // this.providers.get(NotifierProvider) would throw.
+    const viaClass = ProgramModule.providers.get(NotifierProvider)
+    const viaName = ProgramModule.providers.get('notifications')
+
+    if (!(viaClass instanceof NotifierProvider)) {
+      throw new Error('Expected this.providers.get(NotifierProvider) to resolve a NotifierProvider')
+    }
+    if (viaName !== viaClass) {
+      throw new Error(
+        "Expected get('notifications') and get(NotifierProvider) to be the same instance",
+      )
+    }
   },
 )
 

@@ -4,10 +4,10 @@ import type { AdaptedModel, ZanixMongoConnector } from '@zanix/datamaster'
 import type { TemplateBackend } from './backend.ts'
 
 import {
-  DERIVED_TEMPLATES,
   getPreloadedDBTemplates,
   hashContent,
   loadCodeTemplates,
+  seedMissingDerivedTemplates,
 } from './manifest.ts'
 import type { ExistingTemplateEntry } from './sync.ts'
 import { CODE_SOURCE, planTemplateSync } from './sync.ts'
@@ -179,34 +179,11 @@ export class LocalTemplateBackend implements TemplateBackend {
       ])
     }
 
-    if (DERIVED_TEMPLATES.length) {
-      const missingDerived = DERIVED_TEMPLATES.filter(
-        (entry) => !allExistingByKey.has(`${entry.channel}:${entry.name}`),
-      )
-
-      if (missingDerived.length) {
-        // A fallback record has no `hbs` to hash, but `hash` itself is `required` — any
-        // non-empty, stable placeholder works (see `docs/templates.md#name-vs-hash`: `hash` only
-        // needs to change whenever `hbs` does, and an absent `hbs` never does).
-        const noContentHash = await hashContent('')
-        await Model.insertMany(
-          missingDerived.map((entry): ZanixTemplateAttrs => ({
-            channel: entry.channel,
-            name: entry.name,
-            parent: entry.parent,
-            // Not `source: CODE_SOURCE` — there's no `.hbs` in code to keep this in sync
-            // against (see `DERIVED_TEMPLATES`'s own doc comment), so it's database-owned from
-            // the moment it exists, exactly like any other record with no code counterpart.
-            source: 'database',
-            active: true,
-            version: 1,
-            hash: noContentHash,
-            lastSyncedAt: now,
-            updatedBy: 'system:bootstrap-sync',
-          })),
-        )
-      }
-    }
+    await seedMissingDerivedTemplates(
+      Model,
+      new Set(allExistingByKey.keys()),
+      'system:bootstrap-sync',
+    )
 
     return Model
   }

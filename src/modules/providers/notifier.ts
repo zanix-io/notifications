@@ -14,11 +14,29 @@ import type { WhatsappTemplateMessage } from 'typings/whatsapp.ts'
 import type { WhatsappClient } from '../whatsapp/connector.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
+import type { CoreModules } from '@zanix/server'
+
 import { resetPreloadedDBTemplates } from '../templates/db/manifest.ts'
-import { ZanixCoreNotificationsProvider } from '@zanix/server'
+import { ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
 import { WorkerManager } from '@zanix/workers'
 import { TemplateProvider } from '../templates/provider.ts'
+
+/**
+ * Abstract base for the `'notifications'` core-provider slot (see `providers/core.ts`) — owned by
+ * `@zanix/notifications`, not `@zanix/server`. Unlike the 6 slots with a dedicated `CoreBaseClass`
+ * getter (`cache`, `database`, `asyncmq`, `worker`, `kvLocal`, `search`), notifications has no such
+ * getter, so nothing in `@zanix/server`'s own source needs to import this type — it's a purely
+ * empty marker class whose only job is to give `@Provider({ type: 'notifications' })`'s
+ * `instanceof` check (`defineProviderDecorator`) something to validate concrete implementations
+ * against.
+ *
+ * @abstract
+ * @extends ZanixProvider
+ */
+export abstract class ZanixCoreNotificationsProvider<
+  T extends CoreModules = object,
+> extends ZanixProvider<T> {}
 
 /**
  * Any channel's `NotifyMessageWithTemplate`-shaped message. This is what `sendMessage`'s
@@ -50,10 +68,10 @@ function isTemplateMessage(
  * or other types of messages. The provider manages message templating, worker handling,
  * and the configuration of various notification channels.
  *
- * It extends `@zanix/server`'s `ZanixCoreNotificationsProvider` (which is what makes it eligible
- * for the `'notifications'` core-provider key — see `providers/core.ts`), integrating with the
- * Zanix ecosystem and ensuring easy dispatch of notifications to different platforms, while
- * providing a flexible interface for future extensibility.
+ * It extends `ZanixCoreNotificationsProvider` (above), which is what makes it eligible for the
+ * `'notifications'` core-provider key — see `providers/core.ts` — integrating with the Zanix
+ * ecosystem and ensuring easy dispatch of notifications to different platforms, while providing a
+ * flexible interface for future extensibility.
  *
  * @extends ZanixCoreNotificationsProvider
  */
@@ -63,6 +81,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
     kind: 'message' | 'template'
     message: AnyNotifyMessageWithTemplate | WhatsappTemplateMessage
     callback?: TaskCallback
+    timeout: number
   }[] = []
 
   /**
@@ -222,11 +241,15 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
   ): Promise<void> {
     const { useOneTimeWorker } = options
     if (useOneTimeWorker) {
+      const oneTimeData = typeof useOneTimeWorker === 'boolean'
+        ? { callback: undefined, timeout: undefined }
+        : useOneTimeWorker
       this.#queue.push({
-        callback: typeof useOneTimeWorker !== 'boolean' ? useOneTimeWorker.callback : undefined,
+        callback: oneTimeData.callback,
         notifier,
         kind,
         message,
+        timeout: oneTimeData.timeout ?? 20_000,
       })
       return
     }
@@ -273,11 +296,15 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
     if (!this.#queue.length) return
 
     const callbacks: TaskCallback[] = []
-    const templates = new Map<`znx:${Notifiers}:${string}`, ZanixTemplateAttrs | undefined>()
+    const templates = new Map<
+      `znx:${Notifiers}:${string}`,
+      ZanixTemplateAttrs | undefined
+    >()
     const preloads: Promise<void>[] = []
     const templateProvider = this.providers.get(TemplateProvider)
 
-    const messages = this.#queue.map(({ callback, ...msg }) => {
+    let totalTimeout = 0
+    const messages = this.#queue.map(({ callback, timeout, ...msg }) => {
       if (callback) callbacks.push(callback)
 
       const zanixTemplate = msg.kind !== 'template'
@@ -285,9 +312,11 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
         : undefined
 
       if (zanixTemplate) {
-        preloads.push(templateProvider.preloadChain(msg.notifier, zanixTemplate, templates))
+        preloads.push(
+          templateProvider.preloadChain(msg.notifier, zanixTemplate, templates),
+        )
       }
-
+      totalTimeout = +timeout
       return msg
     })
 
@@ -301,7 +330,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
       onFinish: (response) => {
         callbacks.forEach((callback) => callback(response))
       },
-      timeout: 10000 * messages.length,
+      timeout: totalTimeout,
     }).invoke(messages, templates)
   }
 }

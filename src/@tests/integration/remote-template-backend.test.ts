@@ -1,8 +1,10 @@
 import { HttpError } from 'jsr:@zanix/utils@2.*/errors'
 import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
 import { FakeTime } from '@std/testing/time'
+import { generateRSAKeys } from '@zanix/helpers'
 import {
   RemoteTemplateBackend,
+  resetRemoteTemplateBackendAuthClient,
   resetRemoteTemplateBackendCache,
   resetRemoteTemplateBackendSyncState,
 } from 'modules/templates/db/remote-backend.ts'
@@ -347,7 +349,7 @@ Deno.test(
 )
 
 Deno.test(
-  'RemoteTemplateBackend: constructor defaults to an empty Bearer credential when token is omitted',
+  'RemoteTemplateBackend: sends no X-Znx-Authorization header at all when neither token nor auth is configured',
   async () => {
     let capturedInit: RequestInit | undefined
 
@@ -362,6 +364,7 @@ Deno.test(
       () => {
         resetRemoteTemplateBackendCache()
         resetRemoteTemplateBackendSyncState()
+        resetRemoteTemplateBackendAuthClient()
         const backend = new RemoteTemplateBackend({
           url: 'https://templates.internal.example',
           serviceId: 'billing',
@@ -371,7 +374,107 @@ Deno.test(
     )
 
     const headers = capturedInit?.headers as Record<string, string>
-    assertEquals(headers['X-Znx-Authorization'], 'Bearer ')
+    assertEquals(headers['X-Znx-Authorization'], undefined)
+  },
+)
+
+Deno.test(
+  'RemoteTemplateBackend: auth mode signs+exchanges a credential and sends it as X-Znx-Authorization, on both the sync POST and the resolve GET',
+  async () => {
+    const { privateKey } = await generateRSAKeys()
+    const calls: string[] = []
+    const headersSent: (string | null)[] = []
+
+    await withFakeFetch(
+      (input, init) => {
+        const url = String(input)
+        calls.push(url)
+        headersSent.push(
+          (init?.headers as Record<string, string> | undefined)?.[
+            'X-Znx-Authorization'
+          ] ?? null,
+        )
+
+        if (url.endsWith('/admin/service-token')) {
+          return new Response(
+            JSON.stringify({ accessToken: 'exchanged-token', expiresIn: 1800, serviceId: 'hub' }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        if (url.endsWith('/admin/templates/sync')) {
+          return new Response(JSON.stringify({ seeded: 0, resynced: 0 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+      () => {
+        resetRemoteTemplateBackendCache()
+        resetRemoteTemplateBackendSyncState()
+        resetRemoteTemplateBackendAuthClient()
+        const backend = new RemoteTemplateBackend({
+          url: 'https://templates.internal.example',
+          serviceId: 'billing',
+          auth: { serviceId: 'billing-service', privateKey: btoa(privateKey) },
+        })
+        return backend.resolve('email', 'welcome')
+      },
+    )
+
+    assertEquals(
+      calls,
+      [
+        'https://templates.internal.example/admin/service-token',
+        'https://templates.internal.example/admin/templates/sync',
+        'https://templates.internal.example/admin/templates/email/welcome',
+      ],
+    )
+    // The sync POST and the resolve GET both carry the exchanged token — only the exchange
+    // call itself (first) has none, since it's what obtains the token in the first place.
+    assertEquals(headersSent, [null, 'Bearer exchanged-token', 'Bearer exchanged-token'])
+  },
+)
+
+Deno.test(
+  'RemoteTemplateBackend: a static token takes priority over auth — auth is never even attempted when both are set',
+  async () => {
+    const { privateKey } = await generateRSAKeys()
+    let exchangeCalled = false
+
+    await withFakeFetch(
+      autoSync((input, init) => {
+        if (String(input).endsWith('/admin/service-token')) {
+          exchangeCalled = true
+        }
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Sent-Auth': (init?.headers as Record<string, string> | undefined)?.[
+              'X-Znx-Authorization'
+            ] ?? '',
+          },
+        })
+      }),
+      async () => {
+        resetRemoteTemplateBackendCache()
+        resetRemoteTemplateBackendSyncState()
+        resetRemoteTemplateBackendAuthClient()
+        const backend = new RemoteTemplateBackend({
+          url: 'https://templates.internal.example',
+          serviceId: 'billing',
+          token: 'static-token',
+          auth: { serviceId: 'billing-service', privateKey: btoa(privateKey) },
+        })
+        return await backend.resolve('email', 'welcome')
+      },
+    )
+
+    assertEquals(exchangeCalled, false)
   },
 )
 

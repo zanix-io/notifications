@@ -1,10 +1,10 @@
-import { registerModel, ZanixMongoConnector } from 'jsr:@zanix/datamaster@0.*'
 import { generateUUID } from '@zanix/helpers'
 import { assertNotEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 import { templateModelDefinition } from 'modules/templates/db/schema.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
+import { registerModel, ZanixMongoConnector } from '@zanix/datamaster'
 
 console.error = () => {}
 
@@ -47,7 +47,7 @@ Deno.test({
 
     // Registers the real Mongo connector under the 'database' core key (MONGO_URI is set) — the
     // same zero-config mechanism a real app gets via `@zanix/datamaster/core`.
-    await import('jsr:@zanix/datamaster@0.*/core')
+    await import('@zanix/datamaster/core')
     // Registers `TemplateProvider` (see `templates/core.ts`'s own doc comment for why this is
     // unconditional, unlike the channel connectors).
     await import('../../modules/templates/core.ts')
@@ -144,7 +144,7 @@ Deno.test({
     Deno.env.set('MONGO_URI', MONGO_URI)
     Deno.env.set(TEMPLATES_MODEL_ENV, MODEL_NAME)
 
-    await import('jsr:@zanix/datamaster@0.*/core')
+    await import('@zanix/datamaster/core')
     await import('../../modules/templates/core.ts')
 
     const calls: Array<{ content: string }> = []
