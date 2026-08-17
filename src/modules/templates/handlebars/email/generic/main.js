@@ -6,404 +6,106 @@
  * corresponding source files or template configurations.
  */
 import Handlebars from "handlebars/runtime.js";
-import TemplateDataSchema from "./schema.ts";
+import TemplateDataSchema from './schema.ts'
 
-const compiled = Handlebars.template({
-  "1": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+const compiled = Handlebars.template({"0":function(container,depth0,helpers,partials,data) {
+    var stack1, lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return ((stack1 = lookupProperty(helpers, "if").call(
-        depth0 != null ? depth0 : (container.nullContext || {}),
-        depth0 != null ? lookupProperty(depth0, "buttonLink") : depth0,
-        {
-          "name": "if",
-          "hash": {},
-          "fn": container.program(2, data, 0),
-          "inverse": container.program(4, data, 0),
-          "data": data,
-          "loc": {
-            "start": { "line": 14, "column": 8 },
-            "end": { "line": 18, "column": 15 },
-          },
-        },
-      )) != null
-      ? stack1
-      : "");
-  },
-  "2": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      helper,
-      alias1 = depth0 != null ? depth0 : (container.nullContext || {}),
-      alias2 = container.hooks.helperMissing,
-      alias3 = "function",
-      alias4 = container.escapeExpression,
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+  return ((stack1 = lookupProperty(helpers,"if").call(depth0 != null ? depth0 : (container.nullContext || {}),(depth0 != null ? lookupProperty(depth0,"buttonLink") : depth0),{"name":"if","hash":{},"fn":container.program(1, data, 0),"inverse":container.program(2, data, 0),"data":data,"loc":{"start":{"line":14,"column":8},"end":{"line":18,"column":15}}})) != null ? stack1 : "");
+},"1":function(container,depth0,helpers,partials,data) {
+    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=container.hooks.helperMissing, alias3="function", alias4=container.escapeExpression, lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return '          <a href="' +
-      alias4(
-        ((helper =
-          (helper = lookupProperty(helpers, "buttonLink") || (depth0 != null
-              ? lookupProperty(depth0, "buttonLink")
-              : depth0)) != null
-            ? helper
-            : alias2),
-          (typeof helper === alias3
-            ? helper.call(alias1, {
-              "name": "buttonLink",
-              "hash": {},
-              "data": data,
-              "loc": {
-                "start": { "line": 15, "column": 19 },
-                "end": { "line": 15, "column": 33 },
-              },
-            })
-            : helper)),
-      ) +
-      '" class="' +
-      alias4(container.lambda(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "buttonClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      alias4(
-        ((helper =
-          (helper = lookupProperty(helpers, "buttonText") || (depth0 != null
-              ? lookupProperty(depth0, "buttonText")
-              : depth0)) != null
-            ? helper
-            : alias2),
-          (typeof helper === alias3
-            ? helper.call(alias1, {
-              "name": "buttonText",
-              "hash": {},
-              "data": data,
-              "loc": {
-                "start": { "line": 15, "column": 66 },
-                "end": { "line": 15, "column": 80 },
-              },
-            })
-            : helper)),
-      ) +
-      "</a>\n";
-  },
-  "4": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      helper,
-      alias1 = container.escapeExpression,
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+  return "          <a href=\""
+    + alias4(((helper = (helper = lookupProperty(helpers,"buttonLink") || (depth0 != null ? lookupProperty(depth0,"buttonLink") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"buttonLink","hash":{},"data":data,"loc":{"start":{"line":15,"column":19},"end":{"line":15,"column":33}}}) : helper)))
+    + "\" class=\""
+    + alias4(container.lambda(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"buttonClass") : stack1), depth0))
+    + "\">"
+    + alias4(((helper = (helper = lookupProperty(helpers,"buttonText") || (depth0 != null ? lookupProperty(depth0,"buttonText") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"buttonText","hash":{},"data":data,"loc":{"start":{"line":15,"column":66},"end":{"line":15,"column":80}}}) : helper)))
+    + "</a>\n";
+},"2":function(container,depth0,helpers,partials,data) {
+    var stack1, helper, alias1=container.escapeExpression, lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return '          <span class="' +
-      alias1(container.lambda(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "buttonClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      alias1(
-        ((helper =
-          (helper = lookupProperty(helpers, "buttonText") || (depth0 != null
-              ? lookupProperty(depth0, "buttonText")
-              : depth0)) != null
-            ? helper
-            : container.hooks.helperMissing),
-          (typeof helper === "function"
-            ? helper.call(
-              depth0 != null ? depth0 : (container.nullContext || {}),
-              {
-                "name": "buttonText",
-                "hash": {},
-                "data": data,
-                "loc": {
-                  "start": { "line": 17, "column": 47 },
-                  "end": { "line": 17, "column": 61 },
-                },
-              },
-            )
-            : helper)),
-      ) +
-      "</span>\n";
-  },
-  "6": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      helper,
-      alias1 = container.escapeExpression,
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+  return "          <span class=\""
+    + alias1(container.lambda(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"buttonClass") : stack1), depth0))
+    + "\">"
+    + alias1(((helper = (helper = lookupProperty(helpers,"buttonText") || (depth0 != null ? lookupProperty(depth0,"buttonText") : depth0)) != null ? helper : container.hooks.helperMissing),(typeof helper === "function" ? helper.call(depth0 != null ? depth0 : (container.nullContext || {}),{"name":"buttonText","hash":{},"data":data,"loc":{"start":{"line":17,"column":47},"end":{"line":17,"column":61}}}) : helper)))
+    + "</span>\n";
+},"3":function(container,depth0,helpers,partials,data) {
+    var stack1, helper, alias1=container.escapeExpression, lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return '        <p class="' +
-      alias1(container.lambda(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "messageClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      alias1(
-        ((helper = (helper = lookupProperty(helpers, "message") ||
-            (depth0 != null ? lookupProperty(depth0, "message") : depth0)) !=
-            null
-          ? helper
-          : container.hooks.helperMissing),
-          (typeof helper === "function"
-            ? helper.call(
-              depth0 != null ? depth0 : (container.nullContext || {}),
-              {
-                "name": "message",
-                "hash": {},
-                "data": data,
-                "loc": {
-                  "start": { "line": 22, "column": 43 },
-                  "end": { "line": 22, "column": 54 },
-                },
-              },
-            )
-            : helper)),
-      ) +
-      "</p>\n";
-  },
-  "8": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      helper,
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+  return "        <p class=\""
+    + alias1(container.lambda(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"messageClass") : stack1), depth0))
+    + "\">"
+    + alias1(((helper = (helper = lookupProperty(helpers,"message") || (depth0 != null ? lookupProperty(depth0,"message") : depth0)) != null ? helper : container.hooks.helperMissing),(typeof helper === "function" ? helper.call(depth0 != null ? depth0 : (container.nullContext || {}),{"name":"message","hash":{},"data":data,"loc":{"start":{"line":22,"column":43},"end":{"line":22,"column":54}}}) : helper)))
+    + "</p>\n";
+},"4":function(container,depth0,helpers,partials,data) {
+    var stack1, helper, lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return '        <div class="' +
-      container.escapeExpression(container.lambda(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "footerClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      ((stack1 = ((helper = (helper = lookupProperty(helpers, "footer") ||
-            (depth0 != null ? lookupProperty(depth0, "footer") : depth0)) !=
-            null
-          ? helper
-          : container.hooks.helperMissing),
-          (typeof helper === "function"
-            ? helper.call(
-              depth0 != null ? depth0 : (container.nullContext || {}),
-              {
-                "name": "footer",
-                "hash": {},
-                "data": data,
-                "loc": {
-                  "start": { "line": 26, "column": 44 },
-                  "end": { "line": 26, "column": 56 },
-                },
-              },
-            )
-            : helper))) != null
-        ? stack1
-        : "") +
-      "</div> \n";
-  },
-  "compiler": [8, ">= 4.3.0"],
-  "main": function (container, depth0, helpers, partials, data) {
-    var stack1,
-      helper,
-      alias1 = container.lambda,
-      alias2 = container.escapeExpression,
-      alias3 = depth0 != null ? depth0 : (container.nullContext || {}),
-      alias4 = container.hooks.helperMissing,
-      alias5 = "function",
-      lookupProperty = container.lookupProperty ||
-        function (parent, propertyName) {
-          if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
-            return parent[propertyName];
-          }
-          return undefined;
-        };
+  return "        <div class=\""
+    + container.escapeExpression(container.lambda(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"footerClass") : stack1), depth0))
+    + "\">"
+    + ((stack1 = ((helper = (helper = lookupProperty(helpers,"footer") || (depth0 != null ? lookupProperty(depth0,"footer") : depth0)) != null ? helper : container.hooks.helperMissing),(typeof helper === "function" ? helper.call(depth0 != null ? depth0 : (container.nullContext || {}),{"name":"footer","hash":{},"data":data,"loc":{"start":{"line":26,"column":44},"end":{"line":26,"column":56}}}) : helper))) != null ? stack1 : "")
+    + "</div> \n";
+},"compiler":[8,">= 4.3.0"],"main":function(container,depth0,helpers,partials,data) {
+    var stack1, helper, alias1=container.lambda, alias2=container.escapeExpression, alias3=depth0 != null ? depth0 : (container.nullContext || {}), alias4=container.hooks.helperMissing, alias5="function", lookupProperty = container.lookupProperty || function(parent, propertyName) {
+        if (Object.prototype.hasOwnProperty.call(parent, propertyName)) {
+          return parent[propertyName];
+        }
+        return undefined
+    };
 
-    return '<!DOCTYPE html>\n<html lang="' +
-      alias2(
-        alias1(
-          (stack1 = depth0 != null ? lookupProperty(depth0, "html") : depth0) !=
-              null
-            ? lookupProperty(stack1, "lang")
-            : stack1,
-          depth0,
-        ),
-      ) +
-      '">\n  <head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>' +
-      alias2(
-        alias1(
-          (stack1 = depth0 != null ? lookupProperty(depth0, "html") : depth0) !=
-              null
-            ? lookupProperty(stack1, "title")
-            : stack1,
-          depth0,
-        ),
-      ) +
-      "</title>\n  <style>" +
-      alias2(alias1(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "css")
-          : stack1,
-        depth0,
-      )) +
-      '</style>\n  </head>\n  <body>\n    <div class="' +
-      alias2(alias1(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "containerClass")
-          : stack1,
-        depth0,
-      )) +
-      '">\n      <h1 class="' +
-      alias2(alias1(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "titleClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      alias2(
-        ((helper = (helper = lookupProperty(helpers, "title") ||
-            (depth0 != null ? lookupProperty(depth0, "title") : depth0)) !=
-            null
-          ? helper
-          : alias4),
-          (typeof helper === alias5
-            ? helper.call(alias3, {
-              "name": "title",
-              "hash": {},
-              "data": data,
-              "loc": {
-                "start": { "line": 11, "column": 40 },
-                "end": { "line": 11, "column": 49 },
-              },
-            })
-            : helper)),
-      ) +
-      '</h1>\n      <div class="' +
-      alias2(alias1(
-        (stack1 = depth0 != null ? lookupProperty(depth0, "styles") : depth0) !=
-            null
-          ? lookupProperty(stack1, "contentClass")
-          : stack1,
-        depth0,
-      )) +
-      '">' +
-      ((stack1 =
-          ((helper =
-            (helper = lookupProperty(helpers, "content") || (depth0 != null
-                ? lookupProperty(depth0, "content")
-                : depth0)) != null
-              ? helper
-              : alias4),
-            (typeof helper === alias5
-              ? helper.call(alias3, {
-                "name": "content",
-                "hash": {},
-                "data": data,
-                "loc": {
-                  "start": { "line": 12, "column": 43 },
-                  "end": { "line": 12, "column": 56 },
-                },
-              })
-              : helper))) != null
-        ? stack1
-        : "") +
-      "</div>\n" +
-      ((stack1 = lookupProperty(helpers, "if").call(
-          alias3,
-          depth0 != null ? lookupProperty(depth0, "buttonText") : depth0,
-          {
-            "name": "if",
-            "hash": {},
-            "fn": container.program(1, data, 0),
-            "inverse": container.noop,
-            "data": data,
-            "loc": {
-              "start": { "line": 13, "column": 6 },
-              "end": { "line": 19, "column": 13 },
-            },
-          },
-        )) != null
-        ? stack1
-        : "") +
-      "\n" +
-      ((stack1 = lookupProperty(helpers, "if").call(
-          alias3,
-          depth0 != null ? lookupProperty(depth0, "message") : depth0,
-          {
-            "name": "if",
-            "hash": {},
-            "fn": container.program(6, data, 0),
-            "inverse": container.noop,
-            "data": data,
-            "loc": {
-              "start": { "line": 21, "column": 6 },
-              "end": { "line": 23, "column": 13 },
-            },
-          },
-        )) != null
-        ? stack1
-        : "") +
-      "      \n" +
-      ((stack1 = lookupProperty(helpers, "if").call(
-          alias3,
-          depth0 != null ? lookupProperty(depth0, "footer") : depth0,
-          {
-            "name": "if",
-            "hash": {},
-            "fn": container.program(8, data, 0),
-            "inverse": container.noop,
-            "data": data,
-            "loc": {
-              "start": { "line": 25, "column": 6 },
-              "end": { "line": 27, "column": 13 },
-            },
-          },
-        )) != null
-        ? stack1
-        : "") +
-      "    </div>\n  </body> \n</html>";
-  },
-  "useData": true,
-});
+  return "<!DOCTYPE html>\n<html lang=\""
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"html") : depth0)) != null ? lookupProperty(stack1,"lang") : stack1), depth0))
+    + "\">\n  <head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>"
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"html") : depth0)) != null ? lookupProperty(stack1,"title") : stack1), depth0))
+    + "</title>\n  <style>"
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"css") : stack1), depth0))
+    + "</style>\n  </head>\n  <body>\n    <div class=\""
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"containerClass") : stack1), depth0))
+    + "\">\n      <h1 class=\""
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"titleClass") : stack1), depth0))
+    + "\">"
+    + alias2(((helper = (helper = lookupProperty(helpers,"title") || (depth0 != null ? lookupProperty(depth0,"title") : depth0)) != null ? helper : alias4),(typeof helper === alias5 ? helper.call(alias3,{"name":"title","hash":{},"data":data,"loc":{"start":{"line":11,"column":40},"end":{"line":11,"column":49}}}) : helper)))
+    + "</h1>\n      <div class=\""
+    + alias2(alias1(((stack1 = (depth0 != null ? lookupProperty(depth0,"styles") : depth0)) != null ? lookupProperty(stack1,"contentClass") : stack1), depth0))
+    + "\">"
+    + ((stack1 = ((helper = (helper = lookupProperty(helpers,"content") || (depth0 != null ? lookupProperty(depth0,"content") : depth0)) != null ? helper : alias4),(typeof helper === alias5 ? helper.call(alias3,{"name":"content","hash":{},"data":data,"loc":{"start":{"line":12,"column":43},"end":{"line":12,"column":56}}}) : helper))) != null ? stack1 : "")
+    + "</div>\n"
+    + ((stack1 = lookupProperty(helpers,"if").call(alias3,(depth0 != null ? lookupProperty(depth0,"buttonText") : depth0),{"name":"if","hash":{},"fn":container.program(0, data, 0),"inverse":container.noop,"data":data,"loc":{"start":{"line":13,"column":6},"end":{"line":19,"column":13}}})) != null ? stack1 : "")
+    + "\n"
+    + ((stack1 = lookupProperty(helpers,"if").call(alias3,(depth0 != null ? lookupProperty(depth0,"message") : depth0),{"name":"if","hash":{},"fn":container.program(3, data, 0),"inverse":container.noop,"data":data,"loc":{"start":{"line":21,"column":6},"end":{"line":23,"column":13}}})) != null ? stack1 : "")
+    + "      \n"
+    + ((stack1 = lookupProperty(helpers,"if").call(alias3,(depth0 != null ? lookupProperty(depth0,"footer") : depth0),{"name":"if","hash":{},"fn":container.program(4, data, 0),"inverse":container.noop,"data":data,"loc":{"start":{"line":25,"column":6},"end":{"line":27,"column":13}}})) != null ? stack1 : "")
+    + "    </div>\n  </body> \n</html>";
+},"useData":true});
 
-export default function (context) {
-  try {
+export default function(context) {
+  try{
     const data = TemplateDataSchema.parse(context);
     data.styles.css = `\nbody {
   font-family: Arial, sans-serif;
@@ -461,15 +163,14 @@ p {
     padding: 12px 20px;
   }
 }
-` + "\n" + data.styles.css;
+` + '\n' + data.styles.css
     return compiled(data);
   } catch (e) {
-    throw new Error(e.message);
+    throw new Error(e.message)
   }
 }
 
 // Raw source, for database-sync seeding — see `db/manifest.ts`.
-export const source =
-  '<!DOCTYPE html>\n<html lang="{{html.lang}}">\n  <head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>{{html.title}}</title>\n  <style>{{styles.css}}</style>\n  </head>\n  <body>\n    <div class="{{styles.containerClass}}">\n      <h1 class="{{styles.titleClass}}">{{title}}</h1>\n      <div class="{{styles.contentClass}}">{{{content}}}</div>\n      {{#if buttonText}}\n        {{#if buttonLink}}\n          <a href="{{buttonLink}}" class="{{styles.buttonClass}}">{{buttonText}}</a>\n        {{else}}\n          <span class="{{styles.buttonClass}}">{{buttonText}}</span>\n        {{/if}}\n      {{/if}}\n\n      {{#if message}}\n        <p class="{{styles.messageClass}}">{{message}}</p>\n      {{/if}}\n      \n      {{#if footer}}\n        <div class="{{styles.footerClass}}">{{{footer}}}</div> \n      {{/if}} \n    </div>\n  </body> \n</html>';
-export const styles =
-  "body {\n  font-family: Arial, sans-serif;\n  background-color: #f4f6f8;\n  margin: 0;\n  padding: 0;\n}\n.container {\n  max-width: 600px;\n  margin: 40px auto;\n  background-color: #ffffff;\n  border-radius: 8px;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);\n  overflow: hidden;\n  padding: 20px;\n}\nh1 {\n  color: #162156;\n  text-align: center;\n}\n.container,\np {\n  color: #333333;\n  font-size: 16px;\n  line-height: 1.5;\n  text-align: center;\n}\n.button {\n  display: block;\n  width: fit-content;\n  margin: 20px auto;\n  padding: 15px 25px;\n  font-size: 24px;\n  font-weight: bold;\n  color: white !important;\n  background-color: #162156;\n  border-radius: 6px;\n  letter-spacing: 2px;\n  text-align: center;\n  text-decoration: none;\n}\n.footer {\n  margin-top: 30px;\n  font-size: 12px;\n  color: #888888;\n  text-align: center;\n}\n\n@media (max-width: 500px) {\n  .container {\n    padding: 15px;\n  }\n  .button {\n    font-size: 20px;\n    padding: 12px 20px;\n  }\n}\n";
+export const source = "<!DOCTYPE html>\n<html lang=\"{{html.lang}}\">\n  <head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>{{html.title}}</title>\n  <style>{{styles.css}}</style>\n  </head>\n  <body>\n    <div class=\"{{styles.containerClass}}\">\n      <h1 class=\"{{styles.titleClass}}\">{{title}}</h1>\n      <div class=\"{{styles.contentClass}}\">{{{content}}}</div>\n      {{#if buttonText}}\n        {{#if buttonLink}}\n          <a href=\"{{buttonLink}}\" class=\"{{styles.buttonClass}}\">{{buttonText}}</a>\n        {{else}}\n          <span class=\"{{styles.buttonClass}}\">{{buttonText}}</span>\n        {{/if}}\n      {{/if}}\n\n      {{#if message}}\n        <p class=\"{{styles.messageClass}}\">{{message}}</p>\n      {{/if}}\n      \n      {{#if footer}}\n        <div class=\"{{styles.footerClass}}\">{{{footer}}}</div> \n      {{/if}} \n    </div>\n  </body> \n</html>";
+export const styles = "body {\n  font-family: Arial, sans-serif;\n  background-color: #f4f6f8;\n  margin: 0;\n  padding: 0;\n}\n.container {\n  max-width: 600px;\n  margin: 40px auto;\n  background-color: #ffffff;\n  border-radius: 8px;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);\n  overflow: hidden;\n  padding: 20px;\n}\nh1 {\n  color: #162156;\n  text-align: center;\n}\n.container,\np {\n  color: #333333;\n  font-size: 16px;\n  line-height: 1.5;\n  text-align: center;\n}\n.button {\n  display: block;\n  width: fit-content;\n  margin: 20px auto;\n  padding: 15px 25px;\n  font-size: 24px;\n  font-weight: bold;\n  color: white !important;\n  background-color: #162156;\n  border-radius: 6px;\n  letter-spacing: 2px;\n  text-align: center;\n  text-decoration: none;\n}\n.footer {\n  margin-top: 30px;\n  font-size: 12px;\n  color: #888888;\n  text-align: center;\n}\n\n@media (max-width: 500px) {\n  .container {\n    padding: 15px;\n  }\n  .button {\n    font-size: 20px;\n    padding: 12px 20px;\n  }\n}\n";
+    

@@ -12,9 +12,7 @@ import type { Notifiers } from 'typings/general.ts'
  * (`handlebars/{channel}/{name}/`) — the only templates a database sync can seed from or resync
  * against. Discovered directly from which `main.hbs` files exist, not maintained by hand.
  */
-export const CODE_TEMPLATES: ReadonlyArray<
-  { channel: Notifiers; name: string }
-> = [
+export const CODE_TEMPLATES: ReadonlyArray<{ channel: Notifiers; name: string }> = [
   { channel: 'email', name: 'generic' },
   { channel: 'sms', name: 'generic' },
   { channel: 'whatsapp', name: 'generic' },
