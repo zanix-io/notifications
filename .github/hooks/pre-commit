@@ -1,5 +1,23 @@
 #!/bin/sh
 
+######### BUILD HANDLEBARS ############
+
+# Staged files that can affect the generated handlebars output (templates, styles, per-template
+# schemas, or the compiler itself).
+STAGED_HBS_SOURCE=$(git diff --staged --name-only --diff-filter=ACM | grep -E '^src/modules/templates/handlebars/(.*\.(hbs|css)$|.*/schema\.ts$|compiler\.ts$)')
+
+if [ -n "$STAGED_HBS_SOURCE" ]; then
+  echo "\033[0;33minfo[pre-commit]\033[0m: Handlebars source changed, running build-handlebars..."
+  deno task build-handlebars
+  if [ $? -ne 0 ]; then
+    echo "\033[1;31merror[pre-commit]\033[0m: build-handlebars failed!"
+    exit 1
+  fi
+  # Re-stage the generated output so it's committed alongside its source.
+  git add src/modules/templates/db/code-templates.generated.ts
+  find src/modules/templates/handlebars -name '*.js' -exec git add {} +
+fi
+
 ######### LINT STAGED ############
 
 # Get the staged files that are added, copied, or modified (only specified extensions).
