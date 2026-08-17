@@ -98,7 +98,7 @@ export class SmtpClient extends ZanixNotifierConnector {
    * Closes the SMTP connection: released back to the shared pool for reuse when pooling is
    * enabled, or terminated for good (QUIT + socket close) otherwise.
    */
-  public async close() {
+  public async close(): Promise<boolean> {
     if (!this.#session) return false
 
     const session = this.#session
