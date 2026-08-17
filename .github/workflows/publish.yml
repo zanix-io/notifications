@@ -42,4 +42,4 @@ jobs:
           MONGO_TEST_URI: mongodb://localhost:27017
 
       - name: Publish to Deno
-        run: deno publish --allow-slow-types
+        run: deno publish
