@@ -54,7 +54,11 @@ export class WhatsappClient extends ZanixNotifierConnector {
    * @param config Per-instance provider settings, merged with `WhatsappClient.config`, plus the
    * connector's own `contextId`/`autoInitialize` options.
    */
-  constructor({ contextId, autoInitialize, ...config }: WhatsappClientConfig & ConnectorOptions) {
+  constructor(
+    { contextId, autoInitialize, ...config }:
+      & WhatsappClientConfig
+      & ConnectorOptions,
+  ) {
     super({ contextId, autoInitialize })
 
     this.#config = { ...config, ...WhatsappClient.config }
@@ -72,7 +76,9 @@ export class WhatsappClient extends ZanixNotifierConnector {
     // given; an incomplete config fails naturally on first send (see above), not here.
     this.#adapter = this.#config.adapter ??
       new MetaCloudWhatsappAdapter(
-        this.#config as Required<Pick<WhatsappClientConfig, 'phoneNumberId' | 'accessToken'>>,
+        this.#config as Required<
+          Pick<WhatsappClientConfig, 'phoneNumberId' | 'accessToken'>
+        >,
       )
   }
 

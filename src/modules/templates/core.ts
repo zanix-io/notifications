@@ -36,13 +36,33 @@ assertTemplatesConfigNotConflicting()
  * `TEMPLATES_MODEL_NAME` if that's already set, including to an explicit empty string (a valid
  * opt-out even with `DATABASE_TEMPLATES=true`). Extracted as its own function (rather than inline
  * top-level code) so it's directly callable/testable without relying on module-import side effects.
+ *
+ * The `!Deno.env.has(TEMPLATES_SERVICE_URL_ENV)` guard below is defense-in-depth, not the primary
+ * enforcement of that conflict: `assertTemplatesConfigNotConflicting()` (called at this module's own
+ * top level, BEFORE this function runs — see above) now throws outright if `DATABASE_TEMPLATES=true`
+ * and `TEMPLATES_SERVICE_URL` are both set, so this function's own guard should never actually be
+ * the thing that catches it in practice — it's kept so this function stays correct even if called
+ * directly, standalone, without that boot-time assertion having run first.
  */
 export function defaultTemplatesModelName(): void {
   if (
-    Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true' && !Deno.env.has(TEMPLATES_MODEL_ENV) &&
+    Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true' &&
+    !Deno.env.has(TEMPLATES_MODEL_ENV) &&
     !Deno.env.has(TEMPLATES_SERVICE_URL_ENV)
   ) {
     Deno.env.set(TEMPLATES_MODEL_ENV, DEFAULT_TEMPLATES_MODEL_NAME)
+
+    // Required for `--watch`: remove the temporary env var before the process exits,
+    // so the next restarted process starts with a clean environment.
+    const cleanup = () => {
+      Deno.env.delete(TEMPLATES_MODEL_ENV)
+
+      Deno.removeSignalListener('SIGINT', cleanup)
+      Deno.removeSignalListener('SIGTERM', cleanup)
+    }
+
+    Deno.addSignalListener('SIGINT', cleanup)
+    Deno.addSignalListener('SIGTERM', cleanup)
   }
 }
 
@@ -66,7 +86,9 @@ export function defaultTemplatesModelName(): void {
  *
  * @module
  */
-const zanixTemplateProvider: void = Provider({ lifetime: 'SCOPED' })(TemplateProvider)
+const zanixTemplateProvider: void = Provider({ lifetime: 'SCOPED' })(
+  TemplateProvider,
+)
 
 defaultTemplatesModelName()
 

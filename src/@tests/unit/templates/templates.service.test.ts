@@ -14,7 +14,10 @@ Deno.test('TemplatesAdminService delegates every method to the repository', asyn
   const calls: unknown[] = []
   const repository: Partial<TemplatesAdminRepository> = {
     list: (channel) => (calls.push(['list', channel]), Promise.resolve([])) as never,
-    get: (channel, name) => (calls.push(['get', channel, name]), Promise.resolve({} as never)),
+    get: (
+      channel,
+      name,
+    ) => (calls.push(['get', channel, name]), Promise.resolve({} as never)),
     create: (input, updatedBy) => (
       calls.push(['create', input, updatedBy]), Promise.resolve({} as never)
     ),
@@ -33,7 +36,10 @@ Deno.test('TemplatesAdminService delegates every method to the repository', asyn
 
   await service.list('email')
   await service.get('email', 'welcome')
-  await service.create({ channel: 'email', name: 'welcome', hbs: '<p>hi</p>' }, 'admin-1')
+  await service.create(
+    { channel: 'email', name: 'welcome', hbs: '<p>hi</p>' },
+    'admin-1',
+  )
   await service.update('email', 'welcome', { active: false }, 'admin-1')
   await service.remove('email', 'welcome', 'admin-1')
   await service.syncCodeTemplates(
@@ -44,7 +50,11 @@ Deno.test('TemplatesAdminService delegates every method to the repository', asyn
   assertEquals(calls, [
     ['list', 'email'],
     ['get', 'email', 'welcome'],
-    ['create', { channel: 'email', name: 'welcome', hbs: '<p>hi</p>' }, 'admin-1'],
+    [
+      'create',
+      { channel: 'email', name: 'welcome', hbs: '<p>hi</p>' },
+      'admin-1',
+    ],
     ['update', 'email', 'welcome', { active: false }, 'admin-1'],
     ['remove', 'email', 'welcome', 'admin-1'],
     [

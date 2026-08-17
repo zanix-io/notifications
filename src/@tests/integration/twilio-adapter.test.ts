@@ -10,7 +10,10 @@ const config = {
 
 /** Records the last `fetch` call and lets tests control the (fake) response. */
 async function withFakeFetch<T>(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
   fn: () => Promise<T> | T,
 ): Promise<T> {
   const original = globalThis.fetch
@@ -34,11 +37,17 @@ Deno.test(
       (input, init) => {
         capturedUrl = String(input)
         capturedInit = init
-        return new Response(JSON.stringify({ sid: 'SM123', status: 'queued' }), { status: 201 })
+        return new Response(
+          JSON.stringify({ sid: 'SM123', status: 'queued' }),
+          { status: 201 },
+        )
       },
       async () => {
         const adapter = new TwilioSmsAdapter(config)
-        await adapter.send({ to: '+15551234567', content: 'Your code is 123456' })
+        await adapter.send({
+          to: '+15551234567',
+          content: 'Your code is 123456',
+        })
       },
     )
 
@@ -95,7 +104,10 @@ Deno.test(
     await withFakeFetch(
       () =>
         new Response(
-          JSON.stringify({ code: 21211, message: "The 'To' number is not valid." }),
+          JSON.stringify({
+            code: 21211,
+            message: "The 'To' number is not valid.",
+          }),
           { status: 400 },
         ),
       async () => {
@@ -105,7 +117,10 @@ Deno.test(
           HttpError,
         )
 
-        assertStringIncludes((error.cause as Error).message, "'To' number is not valid")
+        assertStringIncludes(
+          (error.cause as Error).message,
+          "'To' number is not valid",
+        )
       },
     )
   },

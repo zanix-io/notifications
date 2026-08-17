@@ -7,6 +7,51 @@ adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-17
+
+### Added
+
+- `useWorker: 'persisted'` support: `NotifierProvider`'s background-worker dispatch (queued via
+  `sendMessage()`/`sendTemplate()`'s `useWorker` option, flushed by `onDestroy()`) can now reuse the
+  app's pooled `'worker'` core provider instead of always spinning up a fresh one-time worker per
+  flush — via `@zanix/server`'s new `dispatchWorkerTask` helper, falling back to `'one-time'`
+  automatically outside a booted Zanix Core application. When a batch mixes both modes across
+  several queued messages, `'persisted'` wins for the whole flush if any one of them asked for it.
+  See
+  [Notifier Provider: Queuing with a background worker](docs/notifier-provider.md#queuing-with-a-background-worker).
+
+### Changed
+
+- **Breaking**: renamed `sendMessage()`/`sendTemplate()`/`.email()`/`.sms()`/`.whatsapp()`'s
+  `useOneTimeWorker` option to `useWorker`, and its `WithWorker` type changed shape from
+  `boolean | { callback, timeout? }` to `'one-time' | 'persisted' | { mode, callback?, timeout? }` —
+  update `useOneTimeWorker: true` to `useWorker: 'one-time'`, and `useOneTimeWorker: { callback }`
+  to `useWorker: { mode: 'one-time', callback }`.
+- Requires `@zanix/server@3.2.0` or later, for `dispatchWorkerTask`.
+
+### Fixed
+
+- **`assertTemplatesConfigNotConflicting()` now also rejects `DATABASE_TEMPLATES=true` set alongside
+  `TEMPLATES_SERVICE_URL`** — previously only `TEMPLATES_MODEL_NAME` set directly together with
+  `TEMPLATES_SERVICE_URL` threw a clear error; the equivalent conflict via the `DATABASE_TEMPLATES`
+  convenience toggle was a silent no-op instead (no error, no warning —
+  `defaultTemplatesModelName()` just skipped setting `TEMPLATES_MODEL_NAME`, leaving database-backed
+  templates quietly disabled). Real bug, found via a real deployment where two processes read the
+  same `.env` file with opposite needs for these variables (one is a Mode C consumer, the other is
+  the central service that itself needs `DATABASE_TEMPLATES=true`) — the silent-no-op side made the
+  failure look unrelated to config at all. Both spellings of the conflict now throw the same,
+  immediately, at boot.
+
+- `sendBackgroundMessage` (the function `useWorker` dispatches to) now constructs its internal
+  `NotifierProvider` with a fresh, random `contextId` instead of none. A `SCOPED` connector (e.g.
+  `SmtpClient`) is cached by the DI container under its resolving instance's `contextId`, and an
+  omitted one resolves to the same fixed bucket every call. `useWorker: 'one-time'` never surfaced
+  this — a fresh worker per flush means a fresh module graph, so that bucket started empty
+  regardless — but `useWorker: 'persisted'` reuses the same worker (and its DI container) across
+  many flushes: a second flush resolved the _first_ flush's already-`close()`d connector instead of
+  a fresh one, surfacing as e.g. `SmtpClient`'s "Connection not ready!" on the second email sent
+  through a `'persisted'` worker, even though the first one succeeded.
+
 ## [0.3.0] - 2026-08-03
 
 ### Added

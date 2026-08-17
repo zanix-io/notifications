@@ -107,7 +107,10 @@ Deno.test('SmtpClient: initialize() sends base64-encoded username and password',
     '235 OK\r\n',
   ])
 
-  const client = newClient({ username: 'someone@example.com', password: 'hunter2' })
+  const client = newClient({
+    username: 'someone@example.com',
+    password: 'hunter2',
+  })
 
   await withFakeConnectTls(conn, () => client['initialize']())
 
@@ -186,8 +189,9 @@ Deno.test(
     const readable = new ReadableStream<Uint8Array>({
       pull(controller) {
         readCount++
-        if (readCount === 1) controller.enqueue(encoder.encode('220 Ready\r\n'))
-        else controller.close()
+        if (readCount === 1) {
+          controller.enqueue(encoder.encode('220 Ready\r\n'))
+        } else controller.close()
       },
     })
     const writable = new WritableStream<Uint8Array>({
@@ -215,7 +219,9 @@ Deno.test(
   async () => {
     const readable = new ReadableStream<Uint8Array>({
       pull() {
-        throw new Error("BadResource: The stream's underlying resource was closed or consumed")
+        throw new Error(
+          "BadResource: The stream's underlying resource was closed or consumed",
+        )
       },
     })
     const writable = new WritableStream<Uint8Array>({
@@ -258,7 +264,9 @@ Deno.test(
     const firstConnReadable = new ReadableStream<Uint8Array>({
       pull(controller) {
         if (firstConnReadIndex < firstConnResponses.length) {
-          controller.enqueue(encoder.encode(firstConnResponses[firstConnReadIndex++]))
+          controller.enqueue(
+            encoder.encode(firstConnResponses[firstConnReadIndex++]),
+          )
         } else controller.close()
       },
     })
@@ -270,7 +278,9 @@ Deno.test(
     const firstConnWritable = new WritableStream<Uint8Array>({
       write() {
         firstConnWriteCount++
-        if (firstConnWriteCount > 15) throw new Error('Broken pipe (os error 32)')
+        if (firstConnWriteCount > 15) {
+          throw new Error('Broken pipe (os error 32)')
+        }
       },
     })
     const firstConn = {
@@ -299,11 +309,19 @@ Deno.test(
     const client = newClient()
     try {
       await client['initialize']()
-      await client.send({ to: 'dest@example.com', subject: 'Hello', content: 'body' })
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello',
+        content: 'body',
+      })
       assertEquals(client.isHealthy(), true)
 
       // Idle timeout: the next send's first write fails, triggering an automatic reconnect+retry.
-      await client.send({ to: 'dest@example.com', subject: 'Hello again', content: 'body' })
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello again',
+        content: 'body',
+      })
     } finally {
       Deno.connectTls = original
     }
@@ -335,7 +353,9 @@ Deno.test(
     const firstConnReadable = new ReadableStream<Uint8Array>({
       pull(controller) {
         if (firstConnReadIndex < firstConnResponses.length) {
-          controller.enqueue(encoder.encode(firstConnResponses[firstConnReadIndex++]))
+          controller.enqueue(
+            encoder.encode(firstConnResponses[firstConnReadIndex++]),
+          )
         } else controller.close()
       },
     })
@@ -343,7 +363,9 @@ Deno.test(
     const firstConnWritable = new WritableStream<Uint8Array>({
       write() {
         firstConnWriteCount++
-        if (firstConnWriteCount > 15) throw new Error('Broken pipe (os error 32)')
+        if (firstConnWriteCount > 15) {
+          throw new Error('Broken pipe (os error 32)')
+        }
       },
     })
     const firstConn = {
@@ -366,11 +388,20 @@ Deno.test(
     const client = newClient()
     try {
       await client['initialize']()
-      await client.send({ to: 'dest@example.com', subject: 'Hello', content: 'body' })
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello',
+        content: 'body',
+      })
       assertEquals(client.isHealthy(), true)
 
       await assertRejects(
-        () => client.send({ to: 'dest@example.com', subject: 'Hello again', content: 'body' }),
+        () =>
+          client.send({
+            to: 'dest@example.com',
+            subject: 'Hello again',
+            content: 'body',
+          }),
         Error,
         'Expected code',
       )
@@ -409,7 +440,12 @@ Deno.test(
       await client['initialize']()
 
       await assertRejects(
-        () => client.send({ to: 'dest@example.com', subject: 'Hello', content: 'body' }),
+        () =>
+          client.send({
+            to: 'dest@example.com',
+            subject: 'Hello',
+            content: 'body',
+          }),
         Error,
         'Expected code',
       )
@@ -436,7 +472,10 @@ Deno.test(
       '334 P\r\n',
       '235 OK\r\n',
     ]
-    const conns = [makeFakeConn(handshakeResponses).conn, makeFakeConn(handshakeResponses).conn]
+    const conns = [
+      makeFakeConn(handshakeResponses).conn,
+      makeFakeConn(handshakeResponses).conn,
+    ]
 
     const original = Deno.connectTls
     let connectCount = 0
@@ -452,7 +491,12 @@ Deno.test(
       })
 
       await assertRejects(
-        () => client.send({ to: 'dest@example.com', subject: 'Hi', content: 'body' }),
+        () =>
+          client.send({
+            to: 'dest@example.com',
+            subject: 'Hi',
+            content: 'body',
+          }),
         Error,
         'Connection not ready!',
       )
@@ -464,7 +508,7 @@ Deno.test(
         password: 's3cr3t',
       })
 
-      await assertRejects(() => client2.close(), Error, 'Connection not ready!')
+      assertEquals(await client2.close(), false)
 
       // Let both background initialize() calls settle before the test ends.
       await client.isReady.catch(() => {})
@@ -514,7 +558,10 @@ Deno.test('SmtpClient: send() writes commands in order and marks the client heal
   assertStringIncludes(sendCommands[5], 'To:')
   assertEquals(sendCommands[6], `Date: ${new Date().toString()}\r\n`)
   assertEquals(sendCommands[7], 'MIME-Version: 1.0\r\n')
-  assertStringIncludes(sendCommands[8], 'Content-Type: text/html;charset=utf-8')
+  assertStringIncludes(
+    sendCommands[8],
+    'Content-Type: text/html;charset=utf-8',
+  )
   assertEquals(sendCommands[9], '<p>Hi</p>\r\n')
   assertEquals(sendCommands[10], '.\r\n')
 

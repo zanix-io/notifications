@@ -101,7 +101,9 @@ Deno.test(
 
 Deno.test('Handlebars runtime should return correct sms generic template content', async (t) => {
   await withFakeTime(async () => {
-    const output = await smsTemplates.generic({ content: `Your code is 123456. Don't share it.` })
+    const output = await smsTemplates.generic({
+      content: `Your code is 123456. Don't share it.`,
+    })
     await assertSnapshot(t, output)
   })
 })
@@ -114,7 +116,11 @@ Deno.test('Handlebars runtime should return correct sms otp template content', a
 })
 
 Deno.test('sms otp template includes the app name in the message when provided', async () => {
-  const output = await smsTemplates.otp({ code: '123456', ttl: 5, app: 'Zanix' })
+  const output = await smsTemplates.otp({
+    code: '123456',
+    ttl: 5,
+    app: 'Zanix',
+  })
   assertStringIncludes(output, 'Your Zanix verification code is 123456')
 })
 
@@ -138,6 +144,10 @@ Deno.test('Handlebars runtime should return correct whatsapp otp template conten
 })
 
 Deno.test('whatsapp otp template includes the app name in the message when provided', async () => {
-  const output = await whatsappTemplates.otp({ code: '123456', ttl: 15, app: 'Zanix' })
+  const output = await whatsappTemplates.otp({
+    code: '123456',
+    ttl: 15,
+    app: 'Zanix',
+  })
   assertStringIncludes(output, 'Your Zanix verification code is 123456')
 })

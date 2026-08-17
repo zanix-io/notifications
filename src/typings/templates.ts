@@ -55,18 +55,26 @@ export type GenericTemplateSchema = Partial<{
 }>
 
 /** Data accepted by the `welcome` transactional template. */
-export type WelcomeTemplateSchema = Omit<GenericTemplateSchema, 'message' | 'footer'> & {
-  app?: string
-}
+export type WelcomeTemplateSchema =
+  & Omit<GenericTemplateSchema, 'message' | 'footer'>
+  & {
+    app?: string
+  }
 
 /** Data accepted by the `password-changed` transactional template. */
 export type PasswordChangedTemplateSchema =
-  & Omit<GenericTemplateSchema, 'message' | 'footer' | 'buttonText' | 'buttonLink'>
+  & Omit<
+    GenericTemplateSchema,
+    'message' | 'footer' | 'buttonText' | 'buttonLink'
+  >
   & { app?: string }
 
 /** Data accepted by the `password-recovery` transactional template. */
 export type PasswordRecoveryTemplateSchema =
-  & Omit<GenericTemplateSchema, 'message' | 'footer' | 'buttonText' | 'buttonLink'>
+  & Omit<
+    GenericTemplateSchema,
+    'message' | 'footer' | 'buttonText' | 'buttonLink'
+  >
   & OTPTemplateSchema
 
 /** Data accepted by the `login-otp` transactional template. */

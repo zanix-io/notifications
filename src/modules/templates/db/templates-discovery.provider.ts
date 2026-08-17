@@ -16,7 +16,9 @@ import { TemplatesAdminRepository } from './templates.repository.ts'
  * to whenever this factory itself happens to run during composition, before the underlying Mongo
  * connector is necessarily ready.
  */
-export function createTemplatesDiscoveryProvider(): DiscoveryProvider<ZanixTemplateAttrs> {
+export function createTemplatesDiscoveryProvider(): DiscoveryProvider<
+  ZanixTemplateAttrs
+> {
   return {
     snapshot: () => ProgramModule.providers.get(TemplatesAdminRepository).list(),
   }
@@ -41,6 +43,12 @@ export function createTemplatesDiscoveryProvider(): DiscoveryProvider<ZanixTempl
  * })
  * ```
  */
-export function defineTemplatesDiscovery(options: { guards?: MiddlewareGuard[] } = {}): void {
-  ProgramModule.defineDiscovery('templates', createTemplatesDiscoveryProvider(), options)
+export function defineTemplatesDiscovery(
+  options: { guards?: MiddlewareGuard[] } = {},
+): void {
+  ProgramModule.defineDiscovery(
+    'templates',
+    createTemplatesDiscoveryProvider(),
+    options,
+  )
 }

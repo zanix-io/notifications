@@ -91,8 +91,8 @@ await provider.whatsapp({
 })
 ```
 
-`sendTemplate()` can also be called directly, with the same `useOneTimeWorker`/error-wrapping
-behavior as `sendMessage()` (see below). See
+`sendTemplate()` can also be called directly, with the same `useWorker`/error-wrapping behavior as
+`sendMessage()` (see below). See
 [Connectors](./connectors.md#freeform-text-vs-native-provider-templates) for the full
 native-template shapes.
 
@@ -120,8 +120,11 @@ unregistered name surfaces as a runtime error instead of a compile-time one.
 
 ## Queuing with a background worker
 
-Pass `useOneTimeWorker` to defer the actual send to a one-time Web Worker instead of sending inline
-— useful to avoid blocking a request on notification delivery:
+Pass `useWorker` to defer the actual send to a background worker instead of sending inline — useful
+to avoid blocking a request on notification delivery. The shorthand form selects a dispatch strategy
+— `'one-time'` (a fresh worker per flush) or `'persisted'` (the app's pooled `'worker'` core
+provider, via `@zanix/server`'s `dispatchWorkerTask` — falls back to `'one-time'` automatically
+outside a booted Zanix Core application, so it's always safe to request):
 
 ```ts
 await provider.email({
@@ -130,7 +133,16 @@ await provider.email({
   zanixTemplate: 'welcome',
   data: { buttonText: 'Click here' },
 }, {
-  useOneTimeWorker: {
+  useWorker: 'persisted',
+})
+```
+
+Pass an object instead of the shorthand string to also get a per-message `callback`/`timeout`:
+
+```ts
+await provider.email({/* ... */}, {
+  useWorker: {
+    mode: 'one-time',
     callback: (response) => {
       if (response.error) console.error('Failed to send:', response.error)
     },
@@ -138,15 +150,18 @@ await provider.email({
 })
 ```
 
-`useOneTimeWorker: true` works the same way without a callback. Queued messages are flushed by
-`onDestroy()` — inside the Zanix ecosystem this runs automatically when the provider instance is
-torn down at the end of a request; standalone, call it yourself once you're done queuing:
+Queued messages are flushed by `onDestroy()` — inside the Zanix ecosystem this runs automatically
+when the provider instance is torn down at the end of a request; standalone, call it yourself once
+you're done queuing:
 
 ```ts
 provider['onDestroy']()
 ```
 
-All queued messages (potentially spanning several channels) are sent from a single background worker
-invocation (`sendBackgroundMessage`), each one re-resolving its own channel's connector before
-sending. A send failure — inline or from the background worker — is always re-thrown as
-`Deno.errors.Interrupted`, with the original error attached as `.cause`.
+All queued messages (potentially spanning several channels, and potentially mixing `'one-time'`/
+`'persisted'` requests) are sent from a single background worker invocation
+(`sendBackgroundMessage`), each one re-resolving its own channel's connector before sending. When a
+batch mixes modes, `'persisted'` wins for the whole flush if any one queued message asked for it —
+never silently downgraded to `'one-time'` because another message didn't care either way. A send
+failure — inline or from the background worker — is always re-thrown as `Deno.errors.Interrupted`,
+with the original error attached as `.cause`.

@@ -70,14 +70,22 @@ Deno.test(
     try {
       const client1 = newClient()
       await client1['initialize']()
-      await client1.send({ to: 'dest@example.com', subject: 'Hello', content: 'body' })
+      await client1.send({
+        to: 'dest@example.com',
+        subject: 'Hello',
+        content: 'body',
+      })
       assertEquals(client1.isHealthy(), true)
 
       await client1.close() // should release to the pool, not send QUIT
 
       const client2 = newClient()
       await client2['initialize']() // should reuse the released connection, no new dial
-      await client2.send({ to: 'dest@example.com', subject: 'Hello again', content: 'body' })
+      await client2.send({
+        to: 'dest@example.com',
+        subject: 'Hello again',
+        content: 'body',
+      })
       assertEquals(client2.isHealthy(), true)
     } finally {
       Deno.connectTls = original
@@ -110,7 +118,9 @@ Deno.test(
     const firstConnReadable = new ReadableStream<Uint8Array>({
       pull(controller) {
         if (firstConnReadIndex < firstConnResponses.length) {
-          controller.enqueue(encoder.encode(firstConnResponses[firstConnReadIndex++]))
+          controller.enqueue(
+            encoder.encode(firstConnResponses[firstConnReadIndex++]),
+          )
         } else controller.close()
       },
     })
@@ -118,7 +128,9 @@ Deno.test(
     const firstConnWritable = new WritableStream<Uint8Array>({
       write() {
         firstConnWriteCount++
-        if (firstConnWriteCount > 15) throw new Error('Broken pipe (os error 32)')
+        if (firstConnWriteCount > 15) {
+          throw new Error('Broken pipe (os error 32)')
+        }
       },
     })
     const firstConn = {
@@ -146,12 +158,20 @@ Deno.test(
     try {
       const client = newClient()
       await client['initialize']()
-      await client.send({ to: 'dest@example.com', subject: 'Hello', content: 'body' })
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello',
+        content: 'body',
+      })
       assertEquals(client.isHealthy(), true)
 
       // Idle timeout: the pooled connection died, so this reconnects (a fresh dial, since the
       // dead one is discarded rather than released) and retries.
-      await client.send({ to: 'dest@example.com', subject: 'Hello again', content: 'body' })
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello again',
+        content: 'body',
+      })
       assertEquals(client.isHealthy(), true)
 
       await client.close() // releases the second (healthy) connection back to the pool

@@ -13,7 +13,8 @@ import { Connector } from '@zanix/server'
 /** Connector DSL definition */
 const registerConnector = () => {
   if (
-    !Deno.env.has('SMTP_PORT') || !Deno.env.has('SMTP_HOST') || !Deno.env.has('SMTP_USER') ||
+    !Deno.env.has('SMTP_PORT') || !Deno.env.has('SMTP_HOST') ||
+    !Deno.env.has('SMTP_USER') ||
     !Deno.env.has('SMTP_PASSWORD')
   ) return
 

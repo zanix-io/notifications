@@ -15,7 +15,9 @@ import { NOTIFIER_CHANNELS } from 'utils/constants.ts'
  * second, standalone `ZanixMongoConnector` — `registerModel`'s registry is drained by whichever
  * connector initializes first, so a later, separate connector needs re-registering before it boots.
  */
-export function templateModelDefinition(): MongoModelDefinition<ZanixTemplateAttrs> {
+export function templateModelDefinition(): MongoModelDefinition<
+  ZanixTemplateAttrs
+> {
   return {
     definition: {
       channel: { type: String, required: true, enum: NOTIFIER_CHANNELS },

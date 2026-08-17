@@ -25,7 +25,10 @@ const record: ZanixTemplateAttrs = {
 
 /** Records the last `fetch` call and lets tests control the (fake) response — mirrors `twilio-adapter.test.ts`'s own helper. */
 async function withFakeFetch<T>(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
   fn: () => Promise<T> | T,
 ): Promise<T> {
   const original = globalThis.fetch
@@ -48,10 +51,18 @@ async function withFakeFetch<T>(
  * exactly what they did before. The dedicated sync-trigger tests further down don't use this.
  */
 function autoSync(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
-): (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response> {
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
+): (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Response | Promise<Response> {
   return (input, init) => {
-    if (init?.method === 'POST' && String(input).endsWith('/admin/templates/sync')) {
+    if (
+      init?.method === 'POST' && String(input).endsWith('/admin/templates/sync')
+    ) {
       return new Response(JSON.stringify({ seeded: 0, resynced: 0 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +101,10 @@ Deno.test(
       () => freshBackend().resolve('email', 'welcome'),
     )
 
-    assertEquals(capturedUrl, 'https://templates.internal.example/admin/templates/email/welcome')
+    assertEquals(
+      capturedUrl,
+      'https://templates.internal.example/admin/templates/email/welcome',
+    )
     assertEquals(capturedInit?.method, 'GET')
 
     const headers = capturedInit?.headers as Record<string, string>
@@ -129,7 +143,10 @@ Deno.test(
       autoSync(() => new Response('server exploded', { status: 500 })),
       async () => {
         const backend = freshBackend()
-        await assertRejects(() => backend.resolve('email', 'welcome'), HttpError)
+        await assertRejects(
+          () => backend.resolve('email', 'welcome'),
+          HttpError,
+        )
       },
     )
   },
@@ -284,7 +301,9 @@ Deno.test(
   async () => {
     await withFakeFetch(
       (_$, init) => {
-        if (init?.method === 'POST') return new Response('server exploded', { status: 500 })
+        if (init?.method === 'POST') {
+          return new Response('server exploded', { status: 500 })
+        }
         return new Response(JSON.stringify(record), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -397,7 +416,11 @@ Deno.test(
 
         if (url.endsWith('/admin/service-token')) {
           return new Response(
-            JSON.stringify({ accessToken: 'exchanged-token', expiresIn: 1800, serviceId: 'hub' }),
+            JSON.stringify({
+              accessToken: 'exchanged-token',
+              expiresIn: 1800,
+              serviceId: 'hub',
+            }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
           )
         }
@@ -435,7 +458,11 @@ Deno.test(
     )
     // The sync POST and the resolve GET both carry the exchanged token — only the exchange
     // call itself (first) has none, since it's what obtains the token in the first place.
-    assertEquals(headersSent, [null, 'Bearer exchanged-token', 'Bearer exchanged-token'])
+    assertEquals(headersSent, [
+      null,
+      'Bearer exchanged-token',
+      'Bearer exchanged-token',
+    ])
   },
 )
 

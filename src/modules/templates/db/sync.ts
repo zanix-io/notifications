@@ -59,14 +59,24 @@ export function planTemplateSync(
   staticEntries: StaticTemplateEntry[],
   existing: ExistingTemplateEntry[],
 ): TemplateSyncPlan {
-  const versionById = new Map(existing.map((entry) => [entry._id, entry.version]))
+  const versionById = new Map(
+    existing.map((entry) => [entry._id, entry.version]),
+  )
 
   const plan = planCodeSync<StaticTemplateEntry>(
-    staticEntries.map((entry) => ({ key: `${entry.channel}:${entry.name}`, value: entry })),
+    staticEntries.map((entry) => ({
+      key: `${entry.channel}:${entry.name}`,
+      value: entry,
+    })),
     existing.map((entry) => ({
       _id: entry._id,
       key: `${entry.channel}:${entry.name}`,
-      value: { channel: entry.channel, name: entry.name, hbs: entry.hbs, hash: '' },
+      value: {
+        channel: entry.channel,
+        name: entry.name,
+        hbs: entry.hbs,
+        hash: '',
+      },
       lastSyncedValue: entry.lastSyncedHbs === undefined ? undefined : {
         channel: entry.channel,
         name: entry.name,

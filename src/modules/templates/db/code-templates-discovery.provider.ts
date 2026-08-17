@@ -61,6 +61,12 @@ export function createCodeTemplatesDiscoveryProvider(): DiscoveryProvider<
  * })
  * ```
  */
-export function defineCodeTemplatesDiscovery(options: { guards?: MiddlewareGuard[] } = {}): void {
-  ProgramModule.defineDiscovery('code-templates', createCodeTemplatesDiscoveryProvider(), options)
+export function defineCodeTemplatesDiscovery(
+  options: { guards?: MiddlewareGuard[] } = {},
+): void {
+  ProgramModule.defineDiscovery(
+    'code-templates',
+    createCodeTemplatesDiscoveryProvider(),
+    options,
+  )
 }

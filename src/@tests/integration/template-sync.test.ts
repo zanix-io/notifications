@@ -9,7 +9,9 @@ const welcome: StaticTemplateEntry = {
   hash: 'hash-v1',
 }
 
-function existing(overrides: Partial<ExistingTemplateEntry> = {}): ExistingTemplateEntry {
+function existing(
+  overrides: Partial<ExistingTemplateEntry> = {},
+): ExistingTemplateEntry {
   return {
     _id: 'id-1',
     channel: 'email',
@@ -132,7 +134,13 @@ Deno.test('planTemplateSync: handles several channels/names independently in one
     [welcome, smsGeneric],
     [
       existing(),
-      existing({ _id: 'id-2', channel: 'sms', name: 'generic', hbs: '', lastSyncedHbs: '' }),
+      existing({
+        _id: 'id-2',
+        channel: 'sms',
+        name: 'generic',
+        hbs: '',
+        lastSyncedHbs: '',
+      }),
     ],
   )
 

@@ -27,7 +27,9 @@ Deno.test(
     const viaName = ProgramModule.providers.get('notifications')
 
     if (!(viaClass instanceof NotifierProvider)) {
-      throw new Error('Expected this.providers.get(NotifierProvider) to resolve a NotifierProvider')
+      throw new Error(
+        'Expected this.providers.get(NotifierProvider) to resolve a NotifierProvider',
+      )
     }
     if (viaName !== viaClass) {
       throw new Error(
@@ -47,9 +49,13 @@ Deno.test(
     // DIFFERENT, unreachable class identity — this.providers.get(TemplateProvider) would throw
     // (see `templates/core.ts`'s own doc comment for why).
     // deno-lint-ignore no-explicit-any
-    const instance = (new NotifierProvider() as any).providers.get(TemplateProvider)
+    const instance = (new NotifierProvider() as any).providers.get(
+      TemplateProvider,
+    )
     if (!(instance instanceof TemplateProvider)) {
-      throw new Error('Expected this.providers.get(TemplateProvider) to resolve a TemplateProvider')
+      throw new Error(
+        'Expected this.providers.get(TemplateProvider) to resolve a TemplateProvider',
+      )
     }
   },
 )
@@ -72,7 +78,9 @@ Deno.test(
         threw = true
       }
       if (!threw) {
-        throw new Error('Expected templates/core.ts to throw when both env vars are set')
+        throw new Error(
+          'Expected templates/core.ts to throw when both env vars are set',
+        )
       }
     } finally {
       Deno.env.delete('TEMPLATES_SERVICE_URL')
@@ -84,7 +92,9 @@ Deno.test(
 Deno.test(
   'email/defs.ts skips connector registration when SMTP env vars are missing',
   async () => {
-    for (const key of ['SMTP_PORT', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']) {
+    for (
+      const key of ['SMTP_PORT', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']
+    ) {
       Deno.env.delete(key)
     }
 
@@ -101,7 +111,13 @@ Deno.test(
 Deno.test(
   'sms/defs.ts skips connector registration when Twilio env vars are missing',
   async () => {
-    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER']) {
+    for (
+      const key of [
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN',
+        'TWILIO_FROM_NUMBER',
+      ]
+    ) {
       Deno.env.delete(key)
     }
 

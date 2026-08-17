@@ -55,7 +55,10 @@ export class MetaCloudWhatsappAdapter extends RestClient implements WhatsappProv
           components: message.templateParams?.length
             ? [{
               type: 'body',
-              parameters: message.templateParams.map((text) => ({ type: 'text', text })),
+              parameters: message.templateParams.map((text) => ({
+                type: 'text',
+                text,
+              })),
             }]
             : undefined,
         },
@@ -67,6 +70,8 @@ export class MetaCloudWhatsappAdapter extends RestClient implements WhatsappProv
         text: { body: message.content },
       }
 
-    return this.http.post(`${this.#phoneNumberId}/messages`, { body: JSON.stringify(payload) })
+    return this.http.post(`${this.#phoneNumberId}/messages`, {
+      body: JSON.stringify(payload),
+    })
   }
 }

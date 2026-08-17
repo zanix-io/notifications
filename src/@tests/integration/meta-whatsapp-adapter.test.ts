@@ -9,7 +9,10 @@ const config = {
 
 /** Records the last `fetch` call and lets tests control the (fake) response. */
 async function withFakeFetch<T>(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
   fn: () => Promise<T> | T,
 ): Promise<T> {
   const original = globalThis.fetch
@@ -33,7 +36,9 @@ Deno.test(
       (input, init) => {
         capturedUrl = String(input)
         capturedInit = init
-        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), {
+          status: 200,
+        })
       },
       () =>
         new MetaCloudWhatsappAdapter(config).send({
@@ -77,7 +82,10 @@ Deno.test('MetaCloudWhatsappAdapter: send() uses the configured apiVersion when 
       }),
   )
 
-  assertEquals(capturedUrl, `https://graph.facebook.com/v19.0/${config.phoneNumberId}/messages`)
+  assertEquals(
+    capturedUrl,
+    `https://graph.facebook.com/v19.0/${config.phoneNumberId}/messages`,
+  )
 })
 
 Deno.test(
@@ -88,7 +96,9 @@ Deno.test(
     await withFakeFetch(
       (_input, init) => {
         capturedInit = init
-        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), {
+          status: 200,
+        })
       },
       () =>
         new MetaCloudWhatsappAdapter(config).send({
@@ -107,7 +117,10 @@ Deno.test(
       template: {
         name: 'otp_code',
         language: { code: 'en_US' },
-        components: [{ type: 'body', parameters: [{ type: 'text', text: '123456' }] }],
+        components: [{
+          type: 'body',
+          parameters: [{ type: 'text', text: '123456' }],
+        }],
       },
     })
   },
@@ -121,7 +134,9 @@ Deno.test(
     await withFakeFetch(
       (_input, init) => {
         capturedInit = init
-        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), {
+          status: 200,
+        })
       },
       () =>
         new MetaCloudWhatsappAdapter(config).send({
@@ -147,7 +162,9 @@ Deno.test(
     await withFakeFetch(
       () =>
         new Response(
-          JSON.stringify({ error: { message: 'Invalid OAuth access token.', code: 190 } }),
+          JSON.stringify({
+            error: { message: 'Invalid OAuth access token.', code: 190 },
+          }),
           { status: 401 },
         ),
       async () => {
@@ -156,7 +173,10 @@ Deno.test(
           () => adapter.send({ to: '+15551234567', content: 'hi' }),
           HttpError,
         )
-        assertStringIncludes((error.cause as Error).message, 'Invalid OAuth access token')
+        assertStringIncludes(
+          (error.cause as Error).message,
+          'Invalid OAuth access token',
+        )
       },
     )
   },

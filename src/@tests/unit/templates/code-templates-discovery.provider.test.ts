@@ -10,7 +10,9 @@ Deno.test({
 
     assertEquals(entries.length, CODE_TEMPLATES.length)
     for (const entry of entries) {
-      assert(CODE_TEMPLATES.some((t) => t.channel === entry.channel && t.name === entry.name))
+      assert(
+        CODE_TEMPLATES.some((t) => t.channel === entry.channel && t.name === entry.name),
+      )
       assert(entry.hbs.length > 0)
       assert(/^[0-9a-f]{64}$/.test(entry.hash))
     }

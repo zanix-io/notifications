@@ -1,12 +1,20 @@
 import { assert } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
+import '../fixtures.ts'
+import '../../../src/modules/templates/core.ts'
 
 console.error = () => {}
 
 await loadTestEnv()
 
-const REQUIRED_ENV = ['SMTP_PORT', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'TEST_EMAIL_TO']
+const REQUIRED_ENV = [
+  'SMTP_PORT',
+  'SMTP_HOST',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'TEST_EMAIL_TO',
+]
 const TEST_NAME = 'Send an email using NotifierProvider'
 
 // Functional test — hits a real SMTP server. Copy .env.test.example to .env.test (gitignored)
@@ -29,7 +37,8 @@ Deno.test({
         data: { buttonText: 'Click here' },
         // content:'text'
       }, {
-        useOneTimeWorker: {
+        useWorker: {
+          mode: 'one-time',
           callback: (response) => {
             if (response.error) resolve(false)
             else resolve(true)

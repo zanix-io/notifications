@@ -75,7 +75,9 @@ const templates: {
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
-  'password-recovery': (data?: PasswordRecoveryTemplateSchema) => Promise<string>
+  'password-recovery': (
+    data?: PasswordRecoveryTemplateSchema,
+  ) => Promise<string>
 
   /**
    * Renders a login OTP notification template.

@@ -41,7 +41,10 @@ Deno.test(
       await withFakeFetch(
         (input) => {
           capturedUrl = String(input)
-          return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+          return new Response(
+            JSON.stringify({ messages: [{ id: 'wamid.1' }] }),
+            { status: 200 },
+          )
         },
         async () => {
           // Instance config sets a different phoneNumberId; the static one must win.
@@ -73,10 +76,15 @@ Deno.test(
     await withFakeFetch(
       (input) => {
         capturedUrl = String(input)
-        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), { status: 200 })
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), {
+          status: 200,
+        })
       },
       async () => {
-        const client = new WhatsappClient({ ...metaConfig, autoInitialize: false })
+        const client = new WhatsappClient({
+          ...metaConfig,
+          autoInitialize: false,
+        })
         client['initialize']()
         await client.send({ to: '+15551234567', content: 'hi' })
       },

@@ -28,20 +28,29 @@ interface FakeTemplateModel {
   ): { lean(): Promise<Array<ZanixTemplateAttrs & { _id: string }>> }
   updateOne(
     filter: { _id: string } | Pick<ZanixTemplateAttrs, 'channel' | 'name'>,
-    update: { $set?: Partial<ZanixTemplateAttrs>; $setOnInsert?: ZanixTemplateAttrs },
+    update: {
+      $set?: Partial<ZanixTemplateAttrs>
+      $setOnInsert?: ZanixTemplateAttrs
+    },
     options?: { upsert?: boolean },
   ): Promise<{ upsertedCount: number }>
   insertMany(docs: ZanixTemplateAttrs[]): Promise<unknown>
 }
 
 function fakeTemplateModel(seed: ZanixTemplateAttrs[] = []) {
-  let docs: Array<ZanixTemplateAttrs & { _id: string }> = seed.map((doc, i) => ({
+  let docs: Array<ZanixTemplateAttrs & { _id: string }> = seed.map((
+    doc,
+    i,
+  ) => ({
     ...doc,
     _id: `seed-${i}`,
   }))
   let nextId = docs.length
 
-  function matches(doc: ZanixTemplateAttrs, filter: Partial<ZanixTemplateAttrs>): boolean {
+  function matches(
+    doc: ZanixTemplateAttrs,
+    filter: Partial<ZanixTemplateAttrs>,
+  ): boolean {
     return Object.entries(filter).every(([key, value]) => (doc as never)[key] === value)
   }
 
@@ -58,11 +67,15 @@ function fakeTemplateModel(seed: ZanixTemplateAttrs[] = []) {
         return Promise.resolve({ upsertedCount: 0 })
       }
       const existing = docs.find((doc) => matches(doc, filter))
-      if (existing || !options?.upsert) return Promise.resolve({ upsertedCount: 0 })
+      if (existing || !options?.upsert) {
+        return Promise.resolve({ upsertedCount: 0 })
+      }
       docs.push(
-        { ...filter, ...update.$setOnInsert, _id: `new-${nextId++}` } as ZanixTemplateAttrs & {
-          _id: string
-        },
+        { ...filter, ...update.$setOnInsert, _id: `new-${nextId++}` } as
+          & ZanixTemplateAttrs
+          & {
+            _id: string
+          },
       )
       return Promise.resolve({ upsertedCount: 1 })
     },

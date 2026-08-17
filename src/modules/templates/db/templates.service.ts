@@ -52,7 +52,11 @@ export class TemplatesAdminService extends ZanixInteractor {
   }
 
   /** See {@link TemplatesAdminRepository.remove}. */
-  public remove(channel: Notifiers, name: string, updatedBy: string): Promise<void> {
+  public remove(
+    channel: Notifiers,
+    name: string,
+    updatedBy: string,
+  ): Promise<void> {
     return this.repository.remove(channel, name, updatedBy)
   }
 

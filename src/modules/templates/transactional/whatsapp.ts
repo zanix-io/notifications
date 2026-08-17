@@ -7,7 +7,9 @@ import type {
 import { execTemplate } from '../mod.ts'
 
 /** Renders a generic WhatsApp message. */
-export const generic = (data: WhatsappGenericTemplateSchema): Promise<string> => {
+export const generic = (
+  data: WhatsappGenericTemplateSchema,
+): Promise<string> => {
   return execTemplate('whatsapp/generic', data)
 }
 
@@ -17,7 +19,9 @@ export const generic = (data: WhatsappGenericTemplateSchema): Promise<string> =>
  * `TemplateProvider.resolve()`'s database-backed parent-chain walk can apply the exact same
  * mapping when falling back to a database-edited `generic` instead of the compiled code version.
  */
-export const otpToGeneric = (data: OTPTemplateSchema): WhatsappGenericTemplateSchema => ({
+export const otpToGeneric = (
+  data: OTPTemplateSchema,
+): WhatsappGenericTemplateSchema => ({
   content: `Your ${data.app ? data.app + ' ' : ''}verification code is ${data.code}.
 It expires in ${data.ttl} minutes. Don't share this code with anyone.`,
 })
@@ -29,7 +33,12 @@ export const otp = (data: OTPTemplateSchema): Promise<string> => {
 
 /** This channel's derived templates — see `transactional/sms.ts`'s `derivedTemplates` for the full rationale. */
 export const derivedTemplates: DerivedTemplateDeclaration[] = [
-  { channel: 'whatsapp', name: 'otp', parent: 'generic', transform: otpToGeneric },
+  {
+    channel: 'whatsapp',
+    name: 'otp',
+    parent: 'generic',
+    transform: otpToGeneric,
+  },
 ]
 
 /**

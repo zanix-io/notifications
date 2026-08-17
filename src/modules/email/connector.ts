@@ -64,7 +64,9 @@ export class SmtpClient extends ZanixNotifierConnector {
    * @param config Per-instance connection settings, merged with `SmtpClient.config`, plus the
    * connector's own `contextId`/`autoInitialize` options.
    */
-  constructor({ contextId, autoInitialize, ...config }: ServerConfig & ConnectorOptions) {
+  constructor(
+    { contextId, autoInitialize, ...config }: ServerConfig & ConnectorOptions,
+  ) {
     super({ contextId, autoInitialize })
 
     this.#config = { ...config, ...SmtpClient.config }
@@ -97,7 +99,7 @@ export class SmtpClient extends ZanixNotifierConnector {
    * enabled, or terminated for good (QUIT + socket close) otherwise.
    */
   public async close() {
-    if (!this.#session) throw new Error('Connection not ready!')
+    if (!this.#session) return false
 
     const session = this.#session
     this.#session = undefined
@@ -105,6 +107,8 @@ export class SmtpClient extends ZanixNotifierConnector {
     const pool = getSmtpPool()
     if (pool) pool.release(session)
     else await session.terminate()
+
+    return true
   }
 
   /**
@@ -133,7 +137,9 @@ export class SmtpClient extends ZanixNotifierConnector {
     if (!this.#session) throw new Error('Connection not ready!')
     const session = this.#session
 
-    const [fromAddr, fromFull] = this.#parseEmail(email.from ?? this.#config.username)
+    const [fromAddr, fromFull] = this.#parseEmail(
+      email.from ?? this.#config.username,
+    )
     const [toAddr, toFull] = this.#parseEmail(email.to)
     const date = email.date ?? new Date().toString()
 

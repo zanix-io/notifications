@@ -3,7 +3,11 @@
 import { dirname, fromFileUrl, join } from '@std/path'
 import logger from 'jsr:@zanix/utils@2.*/logger'
 
-const ENV_TEST_PATH = join(dirname(fromFileUrl(import.meta.url)), '..', '.env.test')
+const ENV_TEST_PATH = join(
+  dirname(fromFileUrl(import.meta.url)),
+  '..',
+  '.env.test',
+)
 
 /**
  * Loads `src/@tests/.env.test` (gitignored, real credentials — see the sibling

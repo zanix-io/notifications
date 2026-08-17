@@ -87,7 +87,8 @@ export class LocalTemplateBackend implements TemplateBackend {
 
     // `source: CODE_SOURCE` records always carry a real `hbs` (only `DERIVED_TEMPLATES`' seeded
     // fallback records, always `source: 'database'`, ever omit it — see `ZanixTemplateAttrs.hbs`).
-    const existing = await Model.find({ source: CODE_SOURCE }).lean() as ExistingTemplateEntry[]
+    const existing = await Model.find({ source: CODE_SOURCE })
+      .lean() as ExistingTemplateEntry[]
     const plan = planTemplateSync(staticEntries, existing)
     const now = new Date()
 
@@ -114,13 +115,17 @@ export class LocalTemplateBackend implements TemplateBackend {
     // database-only template or a derived-template fallback stub sharing a `{channel, name}` with
     // a template that just gained real code content is otherwise invisible to `planTemplateSync`.
     const allExisting = await Model.find({}).lean()
-    const allExistingByKey = new Map(allExisting.map((doc) => [`${doc.channel}:${doc.name}`, doc]))
+    const allExistingByKey = new Map(
+      allExisting.map((doc) => [`${doc.channel}:${doc.name}`, doc]),
+    )
 
     if (plan.toSeed.length) {
       const toInsert: typeof plan.toSeed = []
 
       const toPromote = plan.toSeed.flatMap((entry) => {
-        const collision = allExistingByKey.get(`${entry.channel}:${entry.name}`)
+        const collision = allExistingByKey.get(
+          `${entry.channel}:${entry.name}`,
+        )
         if (!collision) {
           toInsert.push(entry)
           return []
@@ -188,17 +193,25 @@ export class LocalTemplateBackend implements TemplateBackend {
     return Model
   }
 
-  public async preload(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined> {
+  public async preload(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined> {
     const Model = await this.#ensureSynced()
-    return (await Model.findOne({ channel, name, active: true }).lean()) ?? undefined
+    return (await Model.findOne({ channel, name, active: true }).lean()) ??
+      undefined
   }
 
-  public async resolve(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined> {
+  public async resolve(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined> {
     const preloadedTemplates = getPreloadedDBTemplates()
     if (preloadedTemplates.has(`znx:${channel}:${name}`)) {
       return preloadedTemplates.get(`znx:${channel}:${name}`)
     }
     const Model = await this.#ensureSynced()
-    return (await Model.findOne({ channel, name, active: true }).lean()) ?? undefined
+    return (await Model.findOne({ channel, name, active: true }).lean()) ??
+      undefined
   }
 }

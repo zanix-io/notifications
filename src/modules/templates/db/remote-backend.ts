@@ -141,7 +141,9 @@ export interface RemoteTemplateBackendConfig {
  * @returns The real HTTP status code, or `undefined` if `error` isn't a `RestClient`-shaped `HttpError`.
  */
 function realHttpStatus(error: unknown): number | undefined {
-  if (!(error instanceof HttpError) || !(error.cause instanceof Error)) return undefined
+  if (!(error instanceof HttpError) || !(error.cause instanceof Error)) {
+    return undefined
+  }
   const match = error.cause.message.match(/^\[HTTP (\d+)\]/)
   return match ? Number(match[1]) : undefined
 }
@@ -205,7 +207,9 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
    * as "no token provided" anyway, just with a more confusing error.
    */
   async #authHeaders(): Promise<Record<string, string> | undefined> {
-    if (this.#staticToken) return { [API_AUTH_HEADER]: `Bearer ${this.#staticToken}` }
+    if (this.#staticToken) {
+      return { [API_AUTH_HEADER]: `Bearer ${this.#staticToken}` }
+    }
     if (authClient && this.#exchangeUrl) {
       // `targetServiceId` is only ever used internally as this client's own cache key — there's
       // exactly one central service per `RemoteTemplateBackend`, so any constant works here.
@@ -280,7 +284,10 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
    * `TemplateProvider.resolve()`'s existing `logger.warn` fires on every real failure, not just the
    * first one during an outage.
    */
-  public async resolve(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined> {
+  public async resolve(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined> {
     await this.#ensureSynced()
 
     const key = `${channel}:${name}`
@@ -289,9 +296,12 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
 
     let value: ZanixTemplateAttrs | undefined
     try {
-      value = await this.http.get<ZanixTemplateAttrs>(`admin/templates/${channel}/${name}`, {
-        headers: await this.#authHeaders(),
-      })
+      value = await this.http.get<ZanixTemplateAttrs>(
+        `admin/templates/${channel}/${name}`,
+        {
+          headers: await this.#authHeaders(),
+        },
+      )
     } catch (error) {
       if (realHttpStatus(error) === 404) {
         value = undefined
@@ -300,7 +310,10 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
       }
     }
 
-    remoteFetchCache.set(key, { value, expiresAt: Date.now() + this.#cacheTtlMs })
+    remoteFetchCache.set(key, {
+      value,
+      expiresAt: Date.now() + this.#cacheTtlMs,
+    })
     return value
   }
 }

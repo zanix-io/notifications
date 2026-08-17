@@ -42,7 +42,11 @@ export class SmsClient extends ZanixNotifierConnector {
    * @param config Per-instance provider settings, merged with `SmsClient.config`, plus the
    * connector's own `contextId`/`autoInitialize` options.
    */
-  constructor({ contextId, autoInitialize, ...config }: SmsClientConfig & ConnectorOptions) {
+  constructor(
+    { contextId, autoInitialize, ...config }:
+      & SmsClientConfig
+      & ConnectorOptions,
+  ) {
     super({ contextId, autoInitialize })
 
     this.#config = { ...config, ...SmsClient.config }
@@ -59,7 +63,8 @@ export class SmsClient extends ZanixNotifierConnector {
   protected initialize(): void {
     // Config fields beyond `adapter` are trusted to be Twilio-shaped when no custom adapter is
     // given; an incomplete config fails naturally on first send (see above), not here.
-    this.#adapter = this.#config.adapter ?? new TwilioSmsAdapter(this.#config as TwilioConfig)
+    this.#adapter = this.#config.adapter ??
+      new TwilioSmsAdapter(this.#config as TwilioConfig)
   }
 
   /** No-op: a provider adapter is a stateless HTTP client, there's no connection to close. */
@@ -76,7 +81,11 @@ export class SmsClient extends ZanixNotifierConnector {
   public async send(message: NotifyMessage): Promise<void> {
     if (!this.#adapter) throw new Error('SmsClient not initialized!')
 
-    await this.#adapter.send({ to: message.to, content: message.content, from: message.from })
+    await this.#adapter.send({
+      to: message.to,
+      content: message.content,
+      from: message.from,
+    })
   }
 
   /**

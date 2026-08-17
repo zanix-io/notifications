@@ -2,11 +2,18 @@ import { assert } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
 
-//console.error = () => {}
+import '../fixtures.ts'
+import '../../../src/modules/templates/core.ts'
+
+console.error = () => {}
 
 await loadTestEnv()
 
-const REQUIRED_META_ENV = ['META_PHONE_NUMBER_ID', 'META_ACCESS_TOKEN', 'TEST_WHATSAPP_TO']
+const REQUIRED_META_ENV = [
+  'META_PHONE_NUMBER_ID',
+  'META_ACCESS_TOKEN',
+  'TEST_WHATSAPP_TO',
+]
 const TEST_META_NAME = 'Send a whatsapp using Meta NotifierProvider'
 
 // Functional test — hits the real WhatsApp Cloud API. Copy .env.test.example to .env.test
@@ -29,7 +36,8 @@ Deno.test({
         templateLanguage: 'en_US',
         templateParams: ['Pepito', '123', 'tomorrow'],*/
       }, {
-        useOneTimeWorker: {
+        useWorker: {
+          mode: 'one-time',
           callback: (response) => {
             if (response.error) resolve(false)
             else resolve(true)
@@ -47,7 +55,11 @@ Deno.test({
   },
 })
 
-const REQUIRED_TW_ENV = ['TWILIO_WHATSAPP_FROM', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN']
+const REQUIRED_TW_ENV = [
+  'TWILIO_WHATSAPP_FROM',
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+]
 const TEST_TW_NAME = 'Send a whatsapp using Twilio NotifierProvider'
 
 // Functional test — hits the real WhatsApp Cloud API. Copy .env.test.example to .env.test
@@ -69,7 +81,8 @@ Deno.test({
         /*contentSid: 'HXb5b62575e6e4ff6129ad7c8efe1f983e',
         templateParams: ['12/1', '3pm'],*/
       }, {
-        useOneTimeWorker: {
+        useWorker: {
+          mode: 'one-time',
           callback: (response) => {
             if (response.error) resolve(false)
             else resolve(true)

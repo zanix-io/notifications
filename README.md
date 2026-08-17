@@ -70,8 +70,11 @@ It provides a unified and extensible system for:
   - See [Notifier Provider](./docs/notifier-provider.md).
 
 - **Message Queuing & Worker**
-  - When using the worker (`useOneTimeWorker: { callback: ... }`), messages are queued for
-    background processing instead of sent inline.
+  - When using the worker (`useWorker: 'one-time' | 'persisted'`, or the same shape as an object
+    with `{ mode, callback, timeout }`), messages are queued for background processing instead of
+    sent inline. `'persisted'` reuses the app's pooled `'worker'` core provider (via
+    `@zanix/server`'s `dispatchWorkerTask`), falling back to `'one-time'` automatically outside a
+    booted Zanix Core application.
   - Queued messages are flushed via `provider.onDestroy()` — inside the Zanix ecosystem this is
     called automatically when the provider is destroyed, so no extra workers are spawned
     unnecessarily.
@@ -129,7 +132,8 @@ await provider.email({
   zanixTemplate: 'welcome',
   data: { buttonText: 'Click here' },
 }, {
-  useOneTimeWorker: {
+  useWorker: {
+    mode: 'one-time',
     callback: (response) => {
       if (response.error) console.error('Failed to send:', response.error)
     },
@@ -142,7 +146,11 @@ provider['onDestroy']() // flushes the queued message via a one-time background 
 `.sms()` and `.whatsapp()` work the same way, against that channel's own templates:
 
 ```ts
-await provider.sms({ to: '+15551234567', zanixTemplate: 'otp', data: { code: '123456', ttl: 5 } })
+await provider.sms({
+  to: '+15551234567',
+  zanixTemplate: 'otp',
+  data: { code: '123456', ttl: 5 },
+})
 
 await provider.whatsapp({
   to: '+15551234567',

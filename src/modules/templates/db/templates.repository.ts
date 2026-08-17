@@ -73,7 +73,9 @@ export type SyncCodeTemplatesResult = {
  * genuine code-catalog entries — how the ORIGIN service classified an entry internally is its own
  * business, not something the puller needs to know or preserve.
  */
-export function toSyncCodeTemplateEntries(entries: ZanixTemplateAttrs[]): SyncCodeTemplateEntry[] {
+export function toSyncCodeTemplateEntries(
+  entries: ZanixTemplateAttrs[],
+): SyncCodeTemplateEntry[] {
   return entries
     .filter((entry) => entry.active && entry.hbs)
     .map((entry) => ({
@@ -118,7 +120,10 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
    *
    * @throws {HttpError} `NOT_FOUND` if no entry exists for `{channel, name}`.
    */
-  public async get(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs> {
+  public async get(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs> {
     const Model = await this.model()
     const entry = await Model.findOne({ channel, name })
     if (!entry) throw new HttpError('NOT_FOUND', { meta: { channel, name } })
@@ -138,7 +143,10 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
     await assertValidTemplate(input.hbs)
 
     const Model = await this.model()
-    const existing = await Model.findOne({ channel: input.channel, name: input.name })
+    const existing = await Model.findOne({
+      channel: input.channel,
+      name: input.name,
+    })
     if (existing) {
       throw new HttpError('CONFLICT', {
         meta: {
@@ -178,14 +186,25 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
 
     return Model.findOneAndUpdate(
       { channel, name },
-      { $set: { ...changes, version: entry.version + 1, hash: generateUUID(), updatedBy } },
+      {
+        $set: {
+          ...changes,
+          version: entry.version + 1,
+          hash: generateUUID(),
+          updatedBy,
+        },
+      },
       { new: true },
     ).then((res) => res?.toJSON() || res) as Promise<ZanixTemplateAttrs>
   }
 
   /** Soft delete — flips `active: false`, the same mechanism `TemplateProvider.resolve()` already
    * treats as "not found". A real deletion isn't offered: it would break `hash`/`version` history. */
-  public async remove(channel: Notifiers, name: string, updatedBy: string): Promise<void> {
+  public async remove(
+    channel: Notifiers,
+    name: string,
+    updatedBy: string,
+  ): Promise<void> {
     await this.update(channel, name, { active: false }, updatedBy)
   }
 
@@ -227,7 +246,10 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
 
     const existingDocs = await Model.find({ source: 'code' })
     const plan = planCodeSync<SyncCodeTemplateEntry>(
-      entries.map((entry) => ({ key: `${entry.channel}:${entry.name}`, value: entry })),
+      entries.map((entry) => ({
+        key: `${entry.channel}:${entry.name}`,
+        value: entry,
+      })),
       existingDocs.map((doc) => ({
         _id: doc._id,
         key: `${doc.channel}:${doc.name}`,
@@ -235,7 +257,12 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
         // real `hbs` content — `?? ''` is just satisfying `ZanixTemplateAttrs.hbs`'s general
         // optionality (a database-only "fallback" record can lack it), mirroring `lastSyncedHash`'s
         // own fallback just below.
-        value: { channel: doc.channel, name: doc.name, hbs: doc.hbs ?? '', hash: doc.hash },
+        value: {
+          channel: doc.channel,
+          name: doc.name,
+          hbs: doc.hbs ?? '',
+          hash: doc.hash,
+        },
         lastSyncedValue: doc.lastSyncedHbs === undefined ? undefined : {
           channel: doc.channel,
           name: doc.name,
@@ -306,7 +333,9 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
     const derivedSeeded = DERIVED_TEMPLATES.length
       ? await seedMissingDerivedTemplates(
         Model,
-        new Set((await Model.find({})).map((doc) => `${doc.channel}:${doc.name}`)),
+        new Set(
+          (await Model.find({})).map((doc) => `${doc.channel}:${doc.name}`),
+        ),
         updatedBy,
       )
       : 0

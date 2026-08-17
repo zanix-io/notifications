@@ -21,7 +21,10 @@ export interface TemplateBackend {
    * auth, 5xx, sync error) must `throw` instead — `TemplateProvider.resolve()` is the sole place
    * that catches, warns, and falls back to the code registry.
    */
-  resolve(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined>
+  resolve(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined>
 
   /**
    * Fetches the live `{ hbs, hash, ... }` record for `{channel, name}` — the same lookup as
@@ -35,5 +38,8 @@ export interface TemplateBackend {
    * @param name The `zanixTemplate` name to preload.
    * @returns The matching, active record, or `undefined` if none exists.
    */
-  preload(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs | undefined>
+  preload(
+    channel: Notifiers,
+    name: string,
+  ): Promise<ZanixTemplateAttrs | undefined>
 }

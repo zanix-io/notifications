@@ -2,7 +2,11 @@ import { assertEquals, assertRejects, assertStrictEquals } from 'jsr:@std/assert
 import { SmsClient } from 'modules/sms/connector.ts'
 import type { SmsMessage, SmsProviderAdapter } from 'typings/sms.ts'
 
-const twilioConfig = { accountSid: 'AC_sid', authToken: 'token', from: '+15005550006' }
+const twilioConfig = {
+  accountSid: 'AC_sid',
+  authToken: 'token',
+  from: '+15005550006',
+}
 
 /** Stubs `globalThis.fetch`, restoring the original afterward. */
 async function withFakeFetch<T>(
@@ -43,7 +47,10 @@ Deno.test('SmsClient: merges static config with instance config, static config w
       },
       async () => {
         // Instance config sets a different accountSid; the static one must win.
-        const client = new SmsClient({ accountSid: 'AC_instance_sid', autoInitialize: false })
+        const client = new SmsClient({
+          accountSid: 'AC_instance_sid',
+          autoInitialize: false,
+        })
         client['initialize']()
         await client.send({ to: '+15551234567', content: 'hi' })
       },
@@ -71,7 +78,10 @@ Deno.test(
         return new Response(JSON.stringify({ sid: 'SM1' }), { status: 201 })
       },
       async () => {
-        const client = new SmsClient({ ...twilioConfig, autoInitialize: false })
+        const client = new SmsClient({
+          ...twilioConfig,
+          autoInitialize: false,
+        })
         client['initialize']()
         await client.send({ to: '+15551234567', content: 'hi' })
       },
@@ -92,7 +102,11 @@ Deno.test('SmsClient: a custom adapter bypasses the built-in Twilio adapter enti
   await client.send({ to: '+15551234567', content: 'hi there' })
 
   assertEquals(sent.length, 1)
-  assertEquals(sent[0], { to: '+15551234567', content: 'hi there', from: undefined })
+  assertEquals(sent[0], {
+    to: '+15551234567',
+    content: 'hi there',
+    from: undefined,
+  })
 })
 
 Deno.test('SmsClient: send() throws before initialize() has run', async () => {
@@ -138,6 +152,10 @@ Deno.test(
     })
 
     assertStrictEquals(sent.length, 1)
-    assertEquals(sent[0], { to: '+15551234567', from: '+19998887777', content: 'the actual text' })
+    assertEquals(sent[0], {
+      to: '+15551234567',
+      from: '+19998887777',
+      content: 'the actual text',
+    })
   },
 )

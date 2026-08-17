@@ -66,7 +66,9 @@ export const DERIVED_TEMPLATES: ReadonlyArray<DerivedTemplateDeclaration> = [
 export async function loadCodeTemplates(): Promise<CodeTemplateEntry[]> {
   return await Promise.all(
     CODE_TEMPLATES.map(async ({ channel, name }) => {
-      const { source, styles } = await import(`../handlebars/${channel}/${name}/main.js`)
+      const { source, styles } = await import(
+        `../handlebars/${channel}/${name}/main.js`
+      )
       return { channel, name, hbs: source as string, styles: styles as string }
     }),
   )
@@ -74,7 +76,10 @@ export async function loadCodeTemplates(): Promise<CodeTemplateEntry[]> {
 
 /** Hashes `text` (SHA-256, hex-encoded) — used for `ZanixTemplate.hash`/`lastSyncedHash`. */
 export async function hashContent(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(text),
+  )
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(
     '',
   )

@@ -29,7 +29,10 @@ interface FakeTemplateModel {
   ): { lean(): Promise<Array<ZanixTemplateAttrs & { _id: string }>> }
   updateOne(
     filter: { _id: string } | Pick<ZanixTemplateAttrs, 'channel' | 'name'>,
-    update: { $set?: Partial<ZanixTemplateAttrs>; $setOnInsert?: ZanixTemplateAttrs },
+    update: {
+      $set?: Partial<ZanixTemplateAttrs>
+      $setOnInsert?: ZanixTemplateAttrs
+    },
     options?: { upsert?: boolean },
   ): Promise<{ upsertedCount: number }>
   insertMany(docs: ZanixTemplateAttrs[]): Promise<unknown>
@@ -37,13 +40,19 @@ interface FakeTemplateModel {
 
 /** An in-memory stand-in for a `ZanixTemplate` model, matching the `FakeTemplateModel` shape `TemplateProvider` relies on. */
 function fakeTemplateModel(seed: ZanixTemplateAttrs[] = []) {
-  let docs: Array<ZanixTemplateAttrs & { _id: string }> = seed.map((doc, i) => ({
+  let docs: Array<ZanixTemplateAttrs & { _id: string }> = seed.map((
+    doc,
+    i,
+  ) => ({
     ...doc,
     _id: `seed-${i}`,
   }))
   let nextId = docs.length
 
-  function matches(doc: ZanixTemplateAttrs, filter: Partial<ZanixTemplateAttrs>): boolean {
+  function matches(
+    doc: ZanixTemplateAttrs,
+    filter: Partial<ZanixTemplateAttrs>,
+  ): boolean {
     return Object.entries(filter).every(([key, value]) => (doc as never)[key] === value)
   }
 
@@ -60,11 +69,15 @@ function fakeTemplateModel(seed: ZanixTemplateAttrs[] = []) {
         return Promise.resolve({ upsertedCount: 0 })
       }
       const existing = docs.find((doc) => matches(doc, filter))
-      if (existing || !options?.upsert) return Promise.resolve({ upsertedCount: 0 })
+      if (existing || !options?.upsert) {
+        return Promise.resolve({ upsertedCount: 0 })
+      }
       docs.push(
-        { ...filter, ...update.$setOnInsert, _id: `new-${nextId++}` } as ZanixTemplateAttrs & {
-          _id: string
-        },
+        { ...filter, ...update.$setOnInsert, _id: `new-${nextId++}` } as
+          & ZanixTemplateAttrs
+          & {
+            _id: string
+          },
       )
       return Promise.resolve({ upsertedCount: 1 })
     },
@@ -89,11 +102,16 @@ function countFindOne(model: FakeTemplateModel): () => number {
 }
 
 /** Installs a fake `this.database` on a `TemplateProvider` instance, and enables the feature. */
-function withDatabaseEnabled(provider: TemplateProvider, model: FakeTemplateModel) {
+function withDatabaseEnabled(
+  provider: TemplateProvider,
+  model: FakeTemplateModel,
+) {
   Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
   Object.defineProperty(provider, 'database', {
     configurable: true,
-    get: () => ({ getModel: () => model as unknown as AdaptedModel<ZanixTemplateAttrs> }),
+    get: () => ({
+      getModel: () => model as unknown as AdaptedModel<ZanixTemplateAttrs>,
+    }),
   })
 }
 
@@ -133,10 +151,13 @@ templateTest(
   },
 )
 
-templateTest('templatesModelName() reflects TEMPLATES_MODEL_NAME when it is set', () => {
-  Deno.env.set(TEMPLATES_MODEL_ENV, 'custom-templates-collection')
-  assertEquals(templatesModelName(), 'custom-templates-collection')
-})
+templateTest(
+  'templatesModelName() reflects TEMPLATES_MODEL_NAME when it is set',
+  () => {
+    Deno.env.set(TEMPLATES_MODEL_ENV, 'custom-templates-collection')
+    assertEquals(templatesModelName(), 'custom-templates-collection')
+  },
+)
 
 templateTest(
   'TemplateProvider: resolve() uses the in-memory code registry with the feature disabled, no database access at all',
@@ -145,7 +166,9 @@ templateTest(
     const provider = freshProvider()
     // No `this.database` stub installed — if resolve() touched it, this would throw.
 
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     assertStringIncludes(content, 'Click here')
   },
@@ -161,7 +184,9 @@ templateTest(
     // test, or a genuine misconfiguration): `this.database` throws (`TargetError`,
     // `INVALID_INSTANCE`), and `resolve()` must still succeed via the code fallback rather than
     // failing the whole send.
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     assertStringIncludes(content, 'Click here')
   },
@@ -189,7 +214,11 @@ templateTest(
     // resolve if the (real, matching) database record is used — proving the kill switch, not a
     // missing-record fallback, is what's forcing the code path here.
     await assertRejects(
-      () => provider.resolve('sms', 'invoice-created', { invoiceId: '42', amount: '$10' }),
+      () =>
+        provider.resolve('sms', 'invoice-created', {
+          invoiceId: '42',
+          amount: '$10',
+        }),
       Error,
       'Template not found',
     )
@@ -206,7 +235,9 @@ templateTest(
     // First sync seeds `generic` from code AND a content-less `welcome` stub with
     // `parent: 'generic'` (see `db/manifest.ts`'s `DERIVED_TEMPLATES`) — 'welcome' has no `.hbs`
     // of its own, so this exercises the chain walk, not a direct hit.
-    const original = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const original = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
     assertStringIncludes(original, 'Click here')
     assertStringIncludes(original, 'Welcome, Astronaut!')
 
@@ -217,7 +248,9 @@ templateTest(
     generic.hbs = '<p>EDITED: {{title}} / {{content}}</p>'
     generic.hash = 'edited-hash'
 
-    const edited = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const edited = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
     assertStringIncludes(edited, 'EDITED: Welcome, Astronaut!')
     // Not the original compiled layout's wrapping markup — proves the edited hbs rendered,
     // rather than silently reusing the code-compiled version.
@@ -241,7 +274,9 @@ templateTest(
     generic.active = false
     generic.hbs = '<p>SHOULD NEVER RENDER: {{title}}</p>'
 
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     // Falls all the way through to the real code registry — same content a pure code-only
     // consumer would get, and definitely not the deactivated record's hbs.
@@ -299,7 +334,10 @@ templateTest(
 
     // Sync seeds `generic` + the `welcome` stub, then preloadChain does one `findOne` per hop
     // (welcome, then generic) — both ending up in the cache.
-    assertEquals([...cache.keys()].sort(), ['znx:email:generic', 'znx:email:welcome'])
+    assertEquals([...cache.keys()].sort(), [
+      'znx:email:generic',
+      'znx:email:welcome',
+    ])
     assertEquals(findOneCalls(), 2)
   },
 )
@@ -336,7 +374,10 @@ templateTest(
 
     // otp -> auth (no transform registered for 'auth', data passes through unchanged) -> generic
     // (code-compiled, `{{{content}}}`), applying `otp`'s own registered transform at the first hop.
-    const original = await provider.resolve('sms', 'otp', { code: '999999', ttl: 7 })
+    const original = await provider.resolve('sms', 'otp', {
+      code: '999999',
+      ttl: 7,
+    })
     assertStringIncludes(original, '999999')
 
     // Edit `generic` — two hops away from `otp` — and confirm it still propagates end to end.
@@ -344,7 +385,10 @@ templateTest(
     generic.hbs = 'EDITED-CHAIN: {{{content}}}'
     generic.hash = 'edited-hash'
 
-    const edited = await provider.resolve('sms', 'otp', { code: '999999', ttl: 7 })
+    const edited = await provider.resolve('sms', 'otp', {
+      code: '999999',
+      ttl: 7,
+    })
     assertStringIncludes(edited, 'EDITED-CHAIN:')
     assertStringIncludes(edited, '999999')
   },
@@ -369,7 +413,10 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+    const content = await provider.resolve('email', 'generic', {
+      title: 'Hi',
+      content: 'World',
+    })
 
     assertStringIncludes(content, 'World')
     const generic = docs().filter((doc) => doc.name === 'generic' && doc.channel === 'email')[0]
@@ -396,7 +443,10 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+    const content = await provider.resolve('email', 'generic', {
+      title: 'Hi',
+      content: 'World',
+    })
 
     assertStringIncludes(content, 'ADMIN-OWNED: World')
     const generic = docs().filter((doc) => doc.name === 'generic' && doc.channel === 'email')[0]
@@ -471,23 +521,28 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     assertStringIncludes(content, 'Click here')
   },
 )
 
-templateTest('TemplateProvider: resolve() throws when the template exists nowhere', async () => {
-  const { model } = fakeTemplateModel()
-  const provider = freshProvider()
-  withDatabaseEnabled(provider, model)
+templateTest(
+  'TemplateProvider: resolve() throws when the template exists nowhere',
+  async () => {
+    const { model } = fakeTemplateModel()
+    const provider = freshProvider()
+    withDatabaseEnabled(provider, model)
 
-  await assertRejects(
-    () => provider.resolve('email', 'does-not-exist', {}),
-    Error,
-    'Template not found',
-  )
-})
+    await assertRejects(
+      () => provider.resolve('email', 'does-not-exist', {}),
+      Error,
+      'Template not found',
+    )
+  },
+)
 
 templateTest(
   'TemplateProvider: resolve() caches the compiled render and only recompiles when the hash changes',
@@ -504,16 +559,25 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    assertEquals(await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }), 'v1: x')
+    assertEquals(
+      await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }),
+      'v1: x',
+    )
 
     // Mutate the stored hbs WITHOUT changing the hash — resolve() must still use the cached
     // compile (stale content is expected here; this is exactly what `hash` exists to detect).
     docs()[0].hbs = 'v2: {{value}}'
-    assertEquals(await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }), 'v1: x')
+    assertEquals(
+      await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }),
+      'v1: x',
+    )
 
     // Now bump the hash too — the cache must invalidate and recompile against the new content.
     docs()[0].hash = 'hash-b'
-    assertEquals(await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }), 'v2: x')
+    assertEquals(
+      await provider.resolve('whatsapp', 'invoice-created', { value: 'x' }),
+      'v2: x',
+    )
   },
 )
 
@@ -533,10 +597,15 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('sms', 'no-longer-in-code', { value: 'y' })
+    const content = await provider.resolve('sms', 'no-longer-in-code', {
+      value: 'y',
+    })
 
     assertEquals(content, 'still renders: y')
-    assertEquals(docs().find((doc) => doc.name === 'no-longer-in-code')?.source, 'database')
+    assertEquals(
+      docs().find((doc) => doc.name === 'no-longer-in-code')?.source,
+      'database',
+    )
   },
 )
 
@@ -544,7 +613,10 @@ templateTest(
   'TemplateProvider: resolve() throws synchronously, uncaught, when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set',
   async () => {
     Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     const provider = freshProvider()
     // No `this.database` stub and no fake fetch installed — if this were caught and fell back
     // to the warn-and-fallback path instead of rethrowing, one of those would have to run.
@@ -560,7 +632,10 @@ templateTest(
 templateTest(
   'TemplateProvider: resolve() throws synchronously when TEMPLATES_SERVICE_URL is set without TEMPLATES_SERVICE_ID',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     const provider = freshProvider()
     // No `this.database` stub and no fake fetch installed — this must throw before either is
     // ever touched.
@@ -590,7 +665,9 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     assertStringIncludes(content, 'Click here')
   },
@@ -614,7 +691,10 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+    const content = await provider.resolve('email', 'generic', {
+      title: 'Hi',
+      content: 'World',
+    })
 
     assertStringIncludes(content, 'World')
     const generic = docs().find((doc) => doc.name === 'generic' && doc.channel === 'email')
@@ -664,7 +744,10 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    const content = await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+    const content = await provider.resolve('email', 'generic', {
+      title: 'Hi',
+      content: 'World',
+    })
 
     assertStringIncludes(content, 'World')
     // No duplicate `generic` inserted for any channel — each collision was promoted in place.
@@ -739,7 +822,9 @@ templateTest(
     assertEquals(findOneCalls(), 1)
 
     // Worker side: sendBackgroundMessage() hydrates its own cache from what was preloaded.
-    resetPreloadedDBTemplates(new Map([['znx:sms:invoice-created', preloaded]]))
+    resetPreloadedDBTemplates(
+      new Map([['znx:sms:invoice-created', preloaded]]),
+    )
 
     const content = await provider.resolve('sms', 'invoice-created', {
       invoiceId: '42',

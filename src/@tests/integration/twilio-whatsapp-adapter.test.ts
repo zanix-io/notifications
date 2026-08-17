@@ -10,7 +10,10 @@ const config = {
 
 /** Records the last `fetch` call and lets tests control the (fake) response. */
 async function withFakeFetch<T>(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
   fn: () => Promise<T> | T,
 ): Promise<T> {
   const original = globalThis.fetch
@@ -34,11 +37,17 @@ Deno.test(
       (input, init) => {
         capturedUrl = String(input)
         capturedInit = init
-        return new Response(JSON.stringify({ sid: 'SM123', status: 'queued' }), { status: 201 })
+        return new Response(
+          JSON.stringify({ sid: 'SM123', status: 'queued' }),
+          { status: 201 },
+        )
       },
       async () => {
         const adapter = new TwilioWhatsappAdapter(config)
-        await adapter.send({ to: '+15551234567', content: 'Your code is 123456' })
+        await adapter.send({
+          to: '+15551234567',
+          content: 'Your code is 123456',
+        })
       },
     )
 
@@ -70,7 +79,10 @@ Deno.test(
     await withFakeFetch(
       (_input, init) => {
         capturedInit = init
-        return new Response(JSON.stringify({ sid: 'SM123', status: 'queued' }), { status: 201 })
+        return new Response(
+          JSON.stringify({ sid: 'SM123', status: 'queued' }),
+          { status: 201 },
+        )
       },
       () =>
         new TwilioWhatsappAdapter(config).send({
@@ -84,7 +96,10 @@ Deno.test(
     assertEquals(body.get('To'), 'whatsapp:+15551234567')
     assertEquals(body.get('From'), `whatsapp:${config.from}`)
     assertEquals(body.get('ContentSid'), 'HX229f5a04fd0510ce1b071852155d3e75')
-    assertEquals(body.get('ContentVariables'), JSON.stringify({ '1': '409173' }))
+    assertEquals(
+      body.get('ContentVariables'),
+      JSON.stringify({ '1': '409173' }),
+    )
     assertEquals(body.get('Body'), null)
   },
 )
@@ -120,7 +135,10 @@ Deno.test(
     await withFakeFetch(
       (_input, init) => {
         capturedInit = init
-        return new Response(JSON.stringify({ sid: 'SM123', status: 'queued' }), { status: 201 })
+        return new Response(
+          JSON.stringify({ sid: 'SM123', status: 'queued' }),
+          { status: 201 },
+        )
       },
       () => new TwilioWhatsappAdapter(config).send({ to: '+15551234567' }),
     )
@@ -165,7 +183,10 @@ Deno.test(
     await withFakeFetch(
       () =>
         new Response(
-          JSON.stringify({ code: 63016, message: 'Failed to send freeform message' }),
+          JSON.stringify({
+            code: 63016,
+            message: 'Failed to send freeform message',
+          }),
           { status: 400 },
         ),
       async () => {
@@ -175,7 +196,10 @@ Deno.test(
           HttpError,
         )
 
-        assertStringIncludes((error.cause as Error).message, 'Failed to send freeform message')
+        assertStringIncludes(
+          (error.cause as Error).message,
+          'Failed to send freeform message',
+        )
       },
     )
   },

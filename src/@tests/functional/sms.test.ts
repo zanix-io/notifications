@@ -2,7 +2,10 @@ import { assert } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
 
-//console.error = () => {}
+import '../fixtures.ts'
+import '../../../src/modules/templates/core.ts'
+
+console.error = () => {}
 
 await loadTestEnv()
 
@@ -32,7 +35,8 @@ Deno.test({
         data: { code: '123456', ttl: 3 },
         // content: 'text'
       }, {
-        useOneTimeWorker: {
+        useWorker: {
+          mode: 'one-time',
           callback: (response) => {
             if (response.error) resolve(false)
             else resolve(true)

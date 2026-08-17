@@ -52,7 +52,10 @@ Or the lower-level `execTemplate(name, data)`, which loads a compiled template b
 ```ts
 import { execTemplate } from '@zanix/notifications'
 
-const html = await execTemplate('email/generic', { title: 'Hi', content: 'Welcome aboard!' })
+const html = await execTemplate('email/generic', {
+  title: 'Hi',
+  content: 'Welcome aboard!',
+})
 ```
 
 ## Database-backed templates
@@ -203,9 +206,15 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   `@zanix/core`'s `admin` option, an `'admin'`-Application listener on its own port — anchored
   (id-prefixed) whenever that service's own `ADMIN_SERVER_ID` is set, not the service's
   default-Application port). Do not include the `/admin/templates` suffix; `TemplateProvider`
-  appends it per call. **Mutually exclusive with `TEMPLATES_MODEL_NAME`** — setting both throws
-  immediately, at boot (importing `@zanix/notifications/core`) and on every `resolve()` call, rather
-  than silently picking one.
+  appends it per call. **Mutually exclusive with `TEMPLATES_MODEL_NAME` — including its
+  `DATABASE_TEMPLATES=true` convenience spelling** — setting either alongside
+  `TEMPLATES_SERVICE_URL` throws immediately, at boot (importing `@zanix/notifications/core`) and on
+  every `resolve()` call, rather than silently picking one. This matters in practice for a
+  deployment where two processes read the SAME `.env` file with opposite needs (one is a Mode C
+  consumer, the other is the central service that itself needs `DATABASE_TEMPLATES=true`) — set
+  `TEMPLATES_MODEL_NAME`/ `DATABASE_TEMPLATES` explicitly in the process that needs it (e.g.
+  `Deno.env.set(...)` at that process's own entrypoint) rather than relying on one shared file to
+  serve both.
 - **`TEMPLATES_SERVICE_ID`** — this service's own identity, as registered in the central service's
   `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) mapped to a
   base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint

@@ -33,7 +33,10 @@ const record: ZanixTemplateAttrs = {
 
 /** Records the last `fetch` call and lets tests control the (fake) response — mirrors `twilio-adapter.test.ts`'s own helper. */
 async function withFakeFetch<T>(
-  respond: (input: string | URL | Request, init?: RequestInit) => Response | Promise<Response>,
+  respond: (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => Response | Promise<Response>,
   fn: () => Promise<T> | T,
 ): Promise<T> {
   const original = globalThis.fetch
@@ -69,7 +72,10 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
 templateTest(
   'TemplateProvider#backend(): only TEMPLATES_SERVICE_URL set selects the remote backend, this.database is never touched',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
     // No `this.database` stub installed at all — if resolve() fell through to LocalTemplateBackend
@@ -91,14 +97,19 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): DATABASE_TEMPLATES=false disables the remote path too, even with TEMPLATES_SERVICE_URL set',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     Deno.env.set(DATABASE_TEMPLATES_ENV, 'false')
     const provider = freshProvider()
 
     // No fake fetch installed — if resolve() attempted the remote path, this would throw
     // (an unmocked `fetch` call against a fake hostname).
-    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
 
     assertStringIncludes(content, 'Click here')
   },
@@ -107,7 +118,10 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote 404 falls back to code silently (no warning), same as a missing local record',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
@@ -141,7 +155,10 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote network failure falls back to code with a warning',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
@@ -159,7 +176,10 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote database-only template (source: "database") renders as-is, same as the local backend',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
@@ -177,7 +197,11 @@ templateTest(
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
-      () => provider.resolve('sms', 'invoice-created', { invoiceId: '42', amount: '$10' }),
+      () =>
+        provider.resolve('sms', 'invoice-created', {
+          invoiceId: '42',
+          amount: '$10',
+        }),
     )
 
     assertEquals(content, 'Invoice #42 for $10 is ready')
@@ -187,7 +211,10 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): throws when the template exists nowhere (remote 404 and no code fallback)',
   async () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     const provider = freshProvider()
 
@@ -204,9 +231,32 @@ templateTest(
 )
 
 templateTest(
+  'assertTemplatesConfigNotConflicting: throws when DATABASE_TEMPLATES=true and ' +
+    'TEMPLATES_SERVICE_URL are both set, instead of silently doing nothing (previously: no ' +
+    'error, no warning, DATABASE_TEMPLATES=true was just never applied)',
+  () => {
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
+    Deno.env.set(DATABASE_TEMPLATES_ENV, 'true')
+
+    assertThrows(
+      () => assertTemplatesConfigNotConflicting(),
+      InternalError,
+      'mutually exclusive',
+    )
+  },
+)
+
+templateTest(
   'assertTemplatesConfigNotConflicting: throws when TEMPLATES_SERVICE_AUTH_ID is set but no matching JWK_PRI_<id> resolves and no TEMPLATES_SERVICE_TOKEN fallback exists',
   () => {
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     Deno.env.set(TEMPLATES_SERVICE_AUTH_ID_ENV, 'billing-service')
     // Deliberately no JWK_PRI_billing-service and no TEMPLATES_SERVICE_TOKEN registered.
@@ -227,7 +277,10 @@ templateTest(
   'TemplateProvider#backend(): TEMPLATES_SERVICE_AUTH_ID + JWK_PRI_<id> (no TEMPLATES_SERVICE_TOKEN) signs+exchanges a real credential end to end',
   async () => {
     const { privateKey } = await generateRSAKeys()
-    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    Deno.env.set(
+      TEMPLATES_SERVICE_URL_ENV,
+      'https://templates.internal.example',
+    )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
     Deno.env.set(TEMPLATES_SERVICE_AUTH_ID_ENV, 'billing-service')
     Deno.env.set('JWK_PRI_billing-service', btoa(privateKey))
@@ -242,11 +295,17 @@ templateTest(
           calls.push(url)
           if (url.endsWith('/admin/service-token')) {
             return new Response(
-              JSON.stringify({ accessToken: 'exchanged', expiresIn: 1800, serviceId: 'hub' }),
+              JSON.stringify({
+                accessToken: 'exchanged',
+                expiresIn: 1800,
+                serviceId: 'hub',
+              }),
               { status: 200, headers: { 'Content-Type': 'application/json' } },
             )
           }
-          if (init?.method === 'POST' && url.endsWith('/admin/templates/sync')) {
+          if (
+            init?.method === 'POST' && url.endsWith('/admin/templates/sync')
+          ) {
             return new Response(JSON.stringify({ seeded: 0, resynced: 0 }), {
               status: 200,
               headers: { 'Content-Type': 'application/json' },
@@ -261,7 +320,10 @@ templateTest(
       )
 
       assertStringIncludes(content, 'Click here')
-      assertEquals(calls[0], 'https://templates.internal.example/admin/service-token')
+      assertEquals(
+        calls[0],
+        'https://templates.internal.example/admin/service-token',
+      )
     } finally {
       Deno.env.delete('JWK_PRI_billing-service')
     }

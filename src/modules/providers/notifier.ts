@@ -14,12 +14,11 @@ import type { WhatsappTemplateMessage } from 'typings/whatsapp.ts'
 import type { WhatsappClient } from '../whatsapp/connector.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
-import type { CoreModules } from '@zanix/server'
+import type { CoreModules, WorkerDispatchMode } from '@zanix/server'
 
 import { resetPreloadedDBTemplates } from '../templates/db/manifest.ts'
-import { ZanixProvider } from '@zanix/server'
+import { dispatchWorkerTask, ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
-import { WorkerManager } from '@zanix/workers'
 import { TemplateProvider } from '../templates/provider.ts'
 
 /**
@@ -82,6 +81,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
     message: AnyNotifyMessageWithTemplate | WhatsappTemplateMessage
     callback?: TaskCallback
     timeout: number
+    mode: WorkerDispatchMode
   }[] = []
 
   /**
@@ -111,7 +111,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    */
   public email<T extends DefaultTemplates>(
     message: NotifyMessageWithTemplate<T>,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void> {
     return this.sendMessage('email', message, options)
   }
@@ -125,7 +125,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    */
   public sms<T extends SmsTemplates>(
     message: SmsNotifyMessageWithTemplate<T>,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void> {
     return this.sendMessage('sms', message, options)
   }
@@ -141,7 +141,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    */
   public whatsapp<T extends WhatsappTemplates>(
     message: WhatsappNotifyMessageWithTemplate<T> | WhatsappTemplateMessage,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void> {
     if (isTemplateMessage(message)) return this.sendTemplate(message, options)
     return this.sendMessage('whatsapp', message, options)
@@ -155,7 +155,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    * Distinct from `sendMessage`'s Handlebars-based `zanixTemplate`/`data`: this always goes
    * straight to the provider's own template mechanism, required to initiate a WhatsApp
    * conversation outside the 24h customer-service session window. Supports the same
-   * `useOneTimeWorker` queueing and error wrapping as `sendMessage`.
+   * `useWorker` queueing and error wrapping as `sendMessage`.
    *
    * @param message Recipient plus the template identification for whichever provider is configured.
    * @param options See `sendMessage`.
@@ -163,7 +163,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    */
   public sendTemplate(
     message: WhatsappTemplateMessage,
-    options: { useOneTimeWorker?: WithWorker } = {},
+    options: { useWorker?: WithWorker } = {},
   ): Promise<void> {
     return this.#dispatch('whatsapp', 'template', message, options)
   }
@@ -180,19 +180,19 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
    * @param {Notifiers} notifier - The notifier type used to select the appropriate notification client.
    * @param {NotifyMessageWithTemplate} message - The message payload to be sent — either plain
    *    `content` text, or a local `zanixTemplate` name plus its `data` (see `MessageContent`).
-   * @param {WithWorker} [options.useOneTimeWorker] - When enabled, a temporary Web Worker is created to process the message and is terminated once the task completes.
+   * @param {WithWorker} [options.useWorker] - When set, offloads the message to a background worker (see WithWorker) instead of sending it inline.
    * @returns {Promise<void>} Resolves when the message has been sent.
    */
   public sendMessage<T extends DefaultTemplates>(
     notifier: 'email',
     message: NotifyMessageWithTemplate<T>,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void>
   /** Sends an SMS notification. Same behavior as the `'email'` overload, for the `sms` channel. */
   public sendMessage<T extends SmsTemplates>(
     notifier: 'sms',
     message: SmsNotifyMessageWithTemplate<T>,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void>
   /**
    * Sends a WhatsApp notification. Same behavior as the `'email'` overload, for the `whatsapp`
@@ -201,7 +201,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
   public sendMessage<T extends WhatsappTemplates>(
     notifier: 'whatsapp',
     message: WhatsappNotifyMessageWithTemplate<T>,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void>
   /**
    * Sends a notification message using a dynamically-known notifier (i.e. `notifier`'s value
@@ -212,7 +212,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
   public sendMessage(
     notifier: Notifiers,
     message: AnyNotifyMessageWithTemplate,
-    options?: { useOneTimeWorker?: WithWorker },
+    options?: { useWorker?: WithWorker },
   ): Promise<void>
   public sendMessage(
     notifier: Notifiers,
@@ -223,33 +223,34 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
     // of any single channel's message type into that union.
     // deno-lint-ignore no-explicit-any
     message: any,
-    options: { useOneTimeWorker?: WithWorker } = {},
+    options: { useWorker?: WithWorker } = {},
   ): Promise<void> {
     return this.#dispatch(notifier, 'message', message, options)
   }
 
   /**
-   * Shared implementation behind `sendMessage()` and `sendTemplate()`: queues (if
-   * `useOneTimeWorker` is set), or resolves the channel's connector and sends immediately,
-   * wrapping any failure as `Deno.errors.Interrupted`.
+   * Shared implementation behind `sendMessage()` and `sendTemplate()`: queues (if `useWorker` is
+   * set), or resolves the channel's connector and sends immediately, wrapping any failure as
+   * `Deno.errors.Interrupted`.
    */
   async #dispatch(
     notifier: Notifiers,
     kind: 'message' | 'template',
     message: AnyNotifyMessageWithTemplate | WhatsappTemplateMessage,
-    options: { useOneTimeWorker?: WithWorker },
+    options: { useWorker?: WithWorker },
   ): Promise<void> {
-    const { useOneTimeWorker } = options
-    if (useOneTimeWorker) {
-      const oneTimeData = typeof useOneTimeWorker === 'boolean'
-        ? { callback: undefined, timeout: undefined }
-        : useOneTimeWorker
+    const { useWorker } = options
+    if (useWorker) {
+      const workerData = typeof useWorker === 'string'
+        ? { mode: useWorker, callback: undefined, timeout: undefined }
+        : useWorker
       this.#queue.push({
-        callback: oneTimeData.callback,
+        callback: workerData.callback,
         notifier,
         kind,
         message,
-        timeout: oneTimeData.timeout ?? 20_000,
+        timeout: workerData.timeout ?? 20_000,
+        mode: workerData.mode,
       })
       return
     }
@@ -285,12 +286,14 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
   }
 
   /**
-   * Flushes any messages queued via `sendMessage()`'s `useOneTimeWorker` option.
+   * Flushes any messages queued via `sendMessage()`'s `useWorker` option.
    *
    * Called by the framework when this (scoped) provider instance is torn down at the end of a
-   * request; a no-op if nothing was queued. Queued messages are handed off to a one-time
-   * `WorkerManager` task (`sendBackgroundMessage`) so they're sent after this instance's own
-   * lifecycle ends, invoking each message's `callback` (if any) with the worker's response.
+   * request; a no-op if nothing was queued. Queued messages are handed off to `@zanix/server`'s
+   * `dispatchWorkerTask` (`'persisted'`, via `this.worker`, falling back to `'one-time'`
+   * automatically when that provider isn't available — see `WithWorker`) so they're sent after
+   * this instance's own lifecycle ends, invoking each message's `callback` (if any) with the
+   * worker's response.
    */
   protected override async onDestroy(): Promise<void> {
     if (!this.#queue.length) return
@@ -304,34 +307,42 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
     const templateProvider = this.providers.get(TemplateProvider)
 
     let totalTimeout = 0
-    const messages = this.#queue.map(({ callback, timeout, ...msg }) => {
-      if (callback) callbacks.push(callback)
+    // 'persisted' wins for the whole batch if any queued message asked for it — see `WithWorker`.
+    let mode: WorkerDispatchMode = 'one-time'
+    const messages = this.#queue.map(
+      ({ callback, timeout, mode: itemMode, ...msg }) => {
+        if (callback) callbacks.push(callback)
+        if (itemMode === 'persisted') mode = 'persisted'
 
-      const zanixTemplate = msg.kind !== 'template'
-        ? (msg.message as AnyNotifyMessageWithTemplate).zanixTemplate
-        : undefined
+        const zanixTemplate = msg.kind !== 'template'
+          ? (msg.message as AnyNotifyMessageWithTemplate).zanixTemplate
+          : undefined
 
-      if (zanixTemplate) {
-        preloads.push(
-          templateProvider.preloadChain(msg.notifier, zanixTemplate, templates),
-        )
-      }
-      totalTimeout = +timeout
-      return msg
-    })
+        if (zanixTemplate) {
+          preloads.push(
+            templateProvider.preloadChain(
+              msg.notifier,
+              zanixTemplate,
+              templates,
+            ),
+          )
+        }
+        totalTimeout = +timeout
+        return msg
+      },
+    )
 
     await Promise.all(preloads)
 
-    // One Time Worker
-    const worker = new WorkerManager()
-    return worker.task(sendBackgroundMessage, {
+    dispatchWorkerTask(sendBackgroundMessage, {
+      mode,
       metaUrl: import.meta.url,
-      autoClose: true,
-      onFinish: (response) => {
+      provider: () => this.worker,
+      callback: (response) => {
         callbacks.forEach((callback) => callback(response))
       },
       timeout: totalTimeout,
-    }).invoke(messages, templates)
+    })(messages, templates)
   }
 }
 
@@ -340,8 +351,20 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
  *
  * Dynamically imports each distinct notifier's `defs.ts`, plus `templates/core.ts`
  * (`TemplateProvider`'s own registration — needed regardless of channel), so the worker's own
- * fresh module graph has everything `#dispatch()` resolves registered before constructing a
+ * module graph has everything `#dispatch()` resolves registered before constructing a
  * `NotifierProvider` to send through it.
+ *
+ * The `NotifierProvider` below is given a fresh, random `contextId` rather than none at all —
+ * deliberately, not a stylistic choice: a `SCOPED` connector (e.g. `SmtpClient`) is cached by the
+ * DI container under its resolving instance's `contextId`, and an omitted `contextId` resolves to
+ * the same fixed `undefined` bucket every time. With a one-time worker this went unnoticed by
+ * accident — a fresh worker means a fresh module graph, so that bucket starts empty on every call
+ * regardless. A `useWorker: 'persisted'` worker is reused across many `sendBackgroundMessage`
+ * calls, so its DI container's cache survives between them: a second call resolving that same
+ * `undefined` bucket would get back the *first* call's already-`close()`d connector instance
+ * instead of a fresh one, surfacing as e.g. `SmtpClient`'s "Connection not ready!". A unique
+ * `contextId` per batch keeps every call's connectors properly isolated regardless of which
+ * dispatch mode (or worker reuse) ran it.
  *
  * @param data The queued `{notifier, kind, message}` entries to send, potentially spanning
  * several channels in one batch.
@@ -375,7 +398,7 @@ export async function sendBackgroundMessage(
   // kind of message, regardless of a batch's message order/mix.
   resetPreloadedDBTemplates(templates)
 
-  const provider = new NotifierProvider()
+  const provider = new NotifierProvider(crypto.randomUUID())
 
   for await (const { notifier, kind, message } of data) {
     if (kind === 'template') {

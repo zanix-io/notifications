@@ -30,7 +30,9 @@ const TWILIO_WHATSAPP_ENV = {
 Deno.test(
   'email/defs.ts registers the SMTP connector and sets SmtpClient.config when SMTP env vars are present',
   async () => {
-    for (const [key, value] of Object.entries(SMTP_ENV)) Deno.env.set(key, value)
+    for (const [key, value] of Object.entries(SMTP_ENV)) {
+      Deno.env.set(key, value)
+    }
 
     try {
       await import('../../modules/email/defs.ts')
@@ -58,7 +60,9 @@ Deno.test(
 Deno.test(
   'sms/defs.ts registers the SMS connector and sets SmsClient.config when Twilio env vars are present',
   async () => {
-    for (const [key, value] of Object.entries(TWILIO_ENV)) Deno.env.set(key, value)
+    for (const [key, value] of Object.entries(TWILIO_ENV)) {
+      Deno.env.set(key, value)
+    }
 
     try {
       await import('../../modules/sms/defs.ts')
@@ -87,7 +91,9 @@ Deno.test(
 Deno.test(
   'whatsapp/defs.ts registers the WhatsApp connector and sets WhatsappClient.config when Meta env vars are present',
   async () => {
-    for (const [key, value] of Object.entries(META_ENV)) Deno.env.set(key, value)
+    for (const [key, value] of Object.entries(META_ENV)) {
+      Deno.env.set(key, value)
+    }
 
     try {
       await import('../../modules/whatsapp/defs.ts')
@@ -116,7 +122,9 @@ Deno.test(
 Deno.test(
   'whatsapp/defs.ts registers via TwilioWhatsappAdapter when only Twilio env vars are present (no Meta)',
   async () => {
-    for (const [key, value] of Object.entries(TWILIO_WHATSAPP_ENV)) Deno.env.set(key, value)
+    for (const [key, value] of Object.entries(TWILIO_WHATSAPP_ENV)) {
+      Deno.env.set(key, value)
+    }
 
     try {
       // Cache-busting query: the preceding test already imported this exact specifier (its

@@ -33,6 +33,13 @@ export const TEMPLATES_MODEL_ENV = 'TEMPLATES_MODEL_NAME'
  * own configuration (e.g. `MONGO_URI`) — this package has no reason to know that variable exists;
  * enabling the feature always requires this explicit opt-in, in every app, full or standalone.
  *
+ * **Mutually exclusive with `TEMPLATES_SERVICE_URL_ENV` (Mode C)** — same conflict
+ * `TEMPLATES_MODEL_NAME` itself has with it, enforced by the same
+ * `assertTemplatesConfigNotConflicting()`, which now throws for EITHER spelling of the conflict
+ * (this env var set to `'true'`, or `TEMPLATES_MODEL_NAME` set directly) rather than only the
+ * latter — setting this to `'true'` alongside `TEMPLATES_SERVICE_URL` is a boot-time error, never a
+ * silent no-op.
+ *
  * Set to `'false'` instead, it's a kill switch — mirrors `@zanix/datamaster`'s own
  * `DATABASE_SEEDERS === 'false'` convention: it disables database-backed templates entirely, even
  * when `TEMPLATES_MODEL_NAME` is explicitly set to something (see `isDatabaseTemplatesDisabled()`),
@@ -118,14 +125,22 @@ export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
  * (Modes A/B) at once, rather than silently picking one — called at boot (`templates/core.ts`) and
  * at the top of every `resolve()` call. Deliberately left uncaught by `resolve()`'s own
  * warn-and-fallback `try/catch`: silently falling back to the code registry would itself be
- * "silently picking one," exactly what this guards against. Also refuses `TEMPLATES_SERVICE_URL`
- * set without its required `TEMPLATES_SERVICE_ID` counterpart, and `TEMPLATES_SERVICE_AUTH_ID` set
- * without a resolvable matching `JWK_PRI_<id>` (and no `TEMPLATES_SERVICE_TOKEN` fallback either) —
- * a clear signal of intent to authenticate with nothing actually configured to authenticate with.
+ * "silently picking one," exactly what this guards against. The same conflict is refused whether
+ * `TEMPLATES_MODEL_NAME` was set directly OR only implied via `DATABASE_TEMPLATES=true` (the
+ * convenience toggle `defaultTemplatesModelName()` reads, `templates/core.ts`) — this check runs
+ * BEFORE that toggle resolves, so `DATABASE_TEMPLATES=true` alongside `TEMPLATES_SERVICE_URL` used
+ * to fail silently (the toggle's own `!Deno.env.has(TEMPLATES_SERVICE_URL_ENV)` guard just skipped
+ * setting `TEMPLATES_MODEL_NAME`, no error, no warning — a real bug: the explicit-name path threw a
+ * clear error for the identical conflict, the convenience path didn't). Also refuses
+ * `TEMPLATES_SERVICE_URL` set without its required `TEMPLATES_SERVICE_ID` counterpart, and
+ * `TEMPLATES_SERVICE_AUTH_ID` set without a resolvable matching `JWK_PRI_<id>` (and no
+ * `TEMPLATES_SERVICE_TOKEN` fallback either) — a clear signal of intent to authenticate with
+ * nothing actually configured to authenticate with.
  *
  * @throws If both `TEMPLATES_SERVICE_URL`/`TEMPLATES_MODEL_NAME` are set, if
- * `TEMPLATES_SERVICE_URL` is set without `TEMPLATES_SERVICE_ID`, or if `TEMPLATES_SERVICE_AUTH_ID`
- * is set without `TEMPLATES_SERVICE_TOKEN` or a resolvable `JWK_PRI_<id>`.
+ * `TEMPLATES_SERVICE_URL`/`DATABASE_TEMPLATES=true` are both set, if `TEMPLATES_SERVICE_URL` is set
+ * without `TEMPLATES_SERVICE_ID`, or if `TEMPLATES_SERVICE_AUTH_ID` is set without
+ * `TEMPLATES_SERVICE_TOKEN` or a resolvable `JWK_PRI_<id>`.
  */
 export function assertTemplatesConfigNotConflicting(): void {
   const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
@@ -134,6 +149,15 @@ export function assertTemplatesConfigNotConflicting(): void {
     throw new InternalError(
       `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" and "${TEMPLATES_MODEL_ENV}" are ` +
         `mutually exclusive — set only one, never both.`,
+    )
+  }
+
+  if (serviceUrl && Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true') {
+    throw new InternalError(
+      `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" and "${DATABASE_TEMPLATES_ENV}=true" are ` +
+        `mutually exclusive — set only one, never both. "${DATABASE_TEMPLATES_ENV}=true" only ` +
+        `names a default "${TEMPLATES_MODEL_ENV}"; it never overrides Mode C once ` +
+        `"${TEMPLATES_SERVICE_URL_ENV}" is set.`,
     )
   }
 
@@ -165,7 +189,10 @@ function templatesFor(channel: Notifiers): TemplateRegistry {
 }
 
 /** Compiled-render cache, keyed by `{channel}:{name}`, invalidated when the DB `hash` changes — module-level so it's shared across every `SCOPED` `TemplateProvider` instance, the same way `getSmtpPool()`'s pool is. */
-const renderCache = new Map<string, { hash: string; render: (data: unknown) => string }>()
+const renderCache = new Map<
+  string,
+  { hash: string; render: (data: unknown) => string }
+>()
 
 /**
  * Data transform applied by `resolve()`'s database-backed parent-chain walk (`#resolveChain()`)
@@ -177,7 +204,9 @@ const renderCache = new Map<string, { hash: string; render: (data: unknown) => s
  * `typings/templates.ts`'s `DerivedTemplateDeclaration`), never registered separately here too.
  */
 const derivedTemplateTransforms = new Map(
-  DERIVED_TEMPLATES.map((entry) => [`${entry.channel}:${entry.name}`, entry.transform]),
+  DERIVED_TEMPLATES.map((
+    entry,
+  ) => [`${entry.channel}:${entry.name}`, entry.transform]),
 )
 
 /** Resets every module-level template cache (sync memo, remote fetch cache, compiled-render cache) — test-only. */
@@ -234,7 +263,8 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
         // checked above by `assertTemplatesConfigNotConflicting()` — `createServiceAssertion`
         // resolves both again, lazily, at actual sign time, so neither has to pass through here.
         auth: !token && authServiceId ? { serviceId: authServiceId } : undefined,
-        cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) || undefined,
+        cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) ||
+          undefined,
       })
     }
 
@@ -365,7 +395,13 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     const backend = this.#backend()
     if (backend) {
       try {
-        const rendered = await this.#resolveChain(channel, name, data, backend, new Set())
+        const rendered = await this.#resolveChain(
+          channel,
+          name,
+          data,
+          backend,
+          new Set(),
+        )
         if (rendered !== undefined) return rendered
       } catch (error) {
         logger.warn(
@@ -403,8 +439,15 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     if (!record) return undefined
 
     if (record.hbs) {
-      const compile = await this.#compile(channel, name, record.hbs, record.hash)
-      if (record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)) {
+      const compile = await this.#compile(
+        channel,
+        name,
+        record.hbs,
+        record.hash,
+      )
+      if (
+        record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)
+      ) {
         return await this.#renderCodeBacked(channel, name, compile, data)
       }
       return compile(data)
@@ -414,6 +457,12 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
     const transform = derivedTemplateTransforms.get(`${channel}:${name}`)
     const parentData = transform ? transform(data as never) : data
-    return await this.#resolveChain(channel, record.parent, parentData, backend, visited)
+    return await this.#resolveChain(
+      channel,
+      record.parent,
+      parentData,
+      backend,
+      visited,
+    )
   }
 }

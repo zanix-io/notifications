@@ -74,5 +74,8 @@ export type CreateTemplateInput =
  * {@link CreateTemplateInput} for why this is derived rather than hand-declared.
  */
 export type UpdateTemplateInput = Partial<
-  Pick<ZanixTemplateAttrs, 'hbs' | 'active' | 'description' | 'availableVariables'>
+  Pick<
+    ZanixTemplateAttrs,
+    'hbs' | 'active' | 'description' | 'availableVariables'
+  >
 >

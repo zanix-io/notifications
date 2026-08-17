@@ -15,7 +15,9 @@ import { execTemplate } from '../../mod.ts'
  * `TemplateProvider.resolve()`'s database-backed parent-chain walk can apply the exact same
  * mapping when falling back to a database-edited `generic` instead of the compiled code version.
  */
-export const welcomeToGeneric = (data: WelcomeTemplateSchema = {}): GenericTemplateSchema => {
+export const welcomeToGeneric = (
+  data: WelcomeTemplateSchema = {},
+): GenericTemplateSchema => {
   const { app = 'Zanix', html = { title: 'Welcome Email' }, ...content } = data
   return {
     title: 'Welcome, Astronaut!',
@@ -52,7 +54,9 @@ export const passwordChangedToGeneric = (
   }
 }
 
-export const passwordChanged = (data: PasswordChangedTemplateSchema = {}): Promise<string> => {
+export const passwordChanged = (
+  data: PasswordChangedTemplateSchema = {},
+): Promise<string> => {
   return execTemplate('email/generic', passwordChangedToGeneric(data))
 }
 
@@ -108,7 +112,12 @@ export const passwordRecovery = (
 
 /** This channel's derived templates — see `transactional/sms.ts`'s `derivedTemplates` for the full rationale. */
 export const derivedTemplates: DerivedTemplateDeclaration[] = [
-  { channel: 'email', name: 'welcome', parent: 'generic', transform: welcomeToGeneric },
+  {
+    channel: 'email',
+    name: 'welcome',
+    parent: 'generic',
+    transform: welcomeToGeneric,
+  },
   {
     channel: 'email',
     name: 'password-changed',
@@ -121,5 +130,10 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
     parent: 'generic',
     transform: passwordRecoveryToGeneric,
   },
-  { channel: 'email', name: 'login-otp', parent: 'generic', transform: loginWithOTPToGeneric },
+  {
+    channel: 'email',
+    name: 'login-otp',
+    parent: 'generic',
+    transform: loginWithOTPToGeneric,
+  },
 ]

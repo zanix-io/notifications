@@ -10,7 +10,10 @@ import { decoder, encoder } from '@zanix/helpers'
  */
 export class SmtpConnectionClosedError extends Error {
   constructor(cause?: unknown) {
-    super('SMTP connection closed unexpectedly (idle timeout or remote reset)', { cause })
+    super(
+      'SMTP connection closed unexpectedly (idle timeout or remote reset)',
+      { cause },
+    )
     this.name = 'SmtpConnectionClosedError'
   }
 }
@@ -38,7 +41,10 @@ export class SmtpConnection {
 
   /** Dials the server and completes the SMTP handshake, returning a ready-to-use session. */
   public static async open(config: ServerConfig): Promise<SmtpConnection> {
-    const connection = await Deno.connectTls({ hostname: config.hostname, port: config.port })
+    const connection = await Deno.connectTls({
+      hostname: config.hostname,
+      port: config.port,
+    })
     const session = new SmtpConnection(
       connection.readable.getReader(),
       connection.writable.getWriter(),
@@ -47,8 +53,14 @@ export class SmtpConnection {
     await session.sendCommand(undefined, smtpResponseCode.READY)
     await session.sendCommand(`EHLO ${config.hostname}`, smtpResponseCode.OK)
     await session.sendCommand('AUTH LOGIN', smtpResponseCode.AUTH_NEXT)
-    await session.sendCommand(btoa(config.username), smtpResponseCode.AUTH_NEXT)
-    await session.sendCommand(btoa(config.password), smtpResponseCode.AUTH_SUCCESS)
+    await session.sendCommand(
+      btoa(config.username),
+      smtpResponseCode.AUTH_NEXT,
+    )
+    await session.sendCommand(
+      btoa(config.password),
+      smtpResponseCode.AUTH_SUCCESS,
+    )
 
     return session
   }
@@ -73,7 +85,9 @@ export class SmtpConnection {
       const lines = response.split('\r\n')
       // deno-lint-ignore no-non-null-assertion
       const code = parseInt(lines.at(-1)!.slice(0, 3).trim())
-      if (code !== expectedCode) throw new Error(`Expected code: ${expectedCode}, got: ${code}`)
+      if (code !== expectedCode) {
+        throw new Error(`Expected code: ${expectedCode}, got: ${code}`)
+      }
     }
   }
 
@@ -129,7 +143,9 @@ export class SmtpConnectionPool {
    * @param connect Creates a new authenticated connection; called on a capacity cache-miss, and
    * again later by `discard()` if this call ends up queued and gets serviced that way.
    */
-  public async acquire(connect: () => Promise<SmtpConnection>): Promise<SmtpConnection> {
+  public async acquire(
+    connect: () => Promise<SmtpConnection>,
+  ): Promise<SmtpConnection> {
     const idle = this.#idle.pop()
     if (idle) return idle
 

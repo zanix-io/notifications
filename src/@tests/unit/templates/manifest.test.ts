@@ -44,12 +44,18 @@ Deno.test(
   'seedMissingDerivedTemplates returns 0 without writing when every derived template already exists',
   async () => {
     let calls = 0
-    const existingKeys = new Set(DERIVED_TEMPLATES.map((d) => `${d.channel}:${d.name}`))
+    const existingKeys = new Set(
+      DERIVED_TEMPLATES.map((d) => `${d.channel}:${d.name}`),
+    )
     const Model = fakeModel(() => {
       calls++
       return Promise.resolve({ upsertedCount: 0 })
     })
-    const result = await seedMissingDerivedTemplates(Model, existingKeys, 'admin-1')
+    const result = await seedMissingDerivedTemplates(
+      Model,
+      existingKeys,
+      'admin-1',
+    )
     assertEquals(result, 0)
     assertEquals(calls, 0)
   },
@@ -63,7 +69,11 @@ Deno.test(
       Object.assign(error, { code: DUPLICATE_KEY_ERROR_CODE })
       return Promise.reject(error)
     })
-    const result = await seedMissingDerivedTemplates(Model, new Set(), 'admin-1')
+    const result = await seedMissingDerivedTemplates(
+      Model,
+      new Set(),
+      'admin-1',
+    )
     assertEquals(result, 0)
   },
 )

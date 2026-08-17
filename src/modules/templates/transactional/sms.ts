@@ -17,7 +17,9 @@ export const generic = (data: SmsGenericTemplateSchema): Promise<string> => {
  * `TemplateProvider.resolve()`'s database-backed parent-chain walk can apply the exact same
  * mapping when falling back to a database-edited `generic` instead of the compiled code version.
  */
-export const otpToGeneric = (data: OTPTemplateSchema): SmsGenericTemplateSchema => ({
+export const otpToGeneric = (
+  data: OTPTemplateSchema,
+): SmsGenericTemplateSchema => ({
   content: `Your ${data.app ? data.app + ' ' : ''}verification code is ${data.code}. 
 It expires in ${data.ttl} minutes. Don't share this code with anyone.`,
 })

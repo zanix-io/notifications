@@ -1,4 +1,5 @@
 import type { TaskCallback } from '@zanix/types'
+import type { WorkerDispatchMode } from '@zanix/server'
 
 import type emailTemplates from 'modules/templates/transactional/email/mod.ts'
 import type smsTemplates from 'modules/templates/transactional/sms.ts'
@@ -65,10 +66,16 @@ export type MessageContentOf<
 export type DefaultTemplates = keyof typeof emailTemplates
 
 /** Data payload accepted by a given `DefaultTemplates` entry. */
-export type TemplateData<T extends DefaultTemplates> = TemplateDataOf<typeof emailTemplates, T>
+export type TemplateData<T extends DefaultTemplates> = TemplateDataOf<
+  typeof emailTemplates,
+  T
+>
 
 /** Message content to send */
-export type MessageContent<T extends DefaultTemplates> = MessageContentOf<typeof emailTemplates, T>
+export type MessageContent<T extends DefaultTemplates> = MessageContentOf<
+  typeof emailTemplates,
+  T
+>
 
 /** Notify message options */
 export type NotifyMessageWithTemplate<T extends DefaultTemplates> =
@@ -82,10 +89,16 @@ export type NotifyMessageWithTemplate<T extends DefaultTemplates> =
 export type SmsTemplates = keyof typeof smsTemplates
 
 /** Data payload accepted by a given `SmsTemplates` entry. */
-export type SmsTemplateData<T extends SmsTemplates> = TemplateDataOf<typeof smsTemplates, T>
+export type SmsTemplateData<T extends SmsTemplates> = TemplateDataOf<
+  typeof smsTemplates,
+  T
+>
 
 /** SMS message content to send: either plain text, or a local template name plus its data. */
-export type SmsMessageContent<T extends SmsTemplates> = MessageContentOf<typeof smsTemplates, T>
+export type SmsMessageContent<T extends SmsTemplates> = MessageContentOf<
+  typeof smsTemplates,
+  T
+>
 
 /** Notify message options for the `sms` channel. */
 export type SmsNotifyMessageWithTemplate<T extends SmsTemplates> =
@@ -121,19 +134,28 @@ export type WhatsappNotifyMessageWithTemplate<T extends WhatsappTemplates> =
   & WhatsappMessageContent<T>
 
 /**
- * Controls whether `sendMessage()` offloads a message to a one-time background worker instead
- * of sending it inline (see `NotifierProvider.onDestroy`).
+ * Controls whether `sendMessage()` offloads a message to a background worker instead of sending
+ * it inline (see `NotifierProvider.onDestroy`), and which of `@zanix/server`'s `dispatchWorkerTask`
+ * dispatch strategies to use for it — `'one-time'` (a fresh worker per flush) or `'persisted'`
+ * (the app's pooled `'worker'` core provider, falling back to `'one-time'` automatically when
+ * that provider isn't available).
+ *
+ * When several queued messages request different modes before the batch flushes (see
+ * `NotifierProvider.onDestroy`), `'persisted'` wins for the whole batch if any one of them asked
+ * for it — never silently downgraded to `'one-time'` because of a message that didn't care either
+ * way.
  */
 export type WithWorker =
-  | boolean
+  | WorkerDispatchMode
   | {
+    /** Which dispatch strategy this message requests — see {@link WithWorker}. */
+    mode: WorkerDispatchMode
     /**
      * Callback function executed when the worker finishes processing.
-     * Should be used only if `useOneTimeWorker` is defined, as it handles post-processing
+     * Should be used only if `useWorker` is defined, as it handles post-processing
      * or cleanup after the log-saving task completes.
      */
-    callback: TaskCallback
+    callback?: TaskCallback
     /** Worker timout. Defaults 20_000 ms*/
     timeout?: number
   }
-  | { callback?: TaskCallback; timeout: number }
