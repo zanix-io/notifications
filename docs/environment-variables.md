@@ -9,8 +9,7 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 
 - [Connectors](./connectors.md) — what each variable configures, and the equivalent manual
   `*.config = {...}` setup.
-- [Templates](./templates.md#database-backed-templates) — what `TEMPLATES_MODEL_NAME` actually
-  enables.
+- [Templates](./templates.md#database-backed-templates) — what `TEMPLATES_BACKEND` actually selects.
 
 ---
 
@@ -24,7 +23,21 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 | `SMTP_PASSWORD`  | Yes      | SMTP password                                               | `your-smtp-password` |
 | `SMTP_POOL_SIZE` | No       | Shared connection pool size. `1` (default) disables pooling | `5`                  |
 
-## SMS (Twilio)
+## SMS
+
+`SMS_PROVIDER` (`'twilio'` | `'vonage'`) only needs to be set when BOTH Twilio's and Vonage's own
+required variables below are present at once — `registerSmsConnector()` throws rather than silently
+preferring one, unlike the pre-`SMS_PROVIDER` design (Twilio checked first, no error). With only one
+provider's variables set (the common case), auto-detection still works with zero extra config,
+exactly as before. See [Connectors](./connectors.md#smsclient-sms) and `CHANGELOG.md`.
+
+| Variable       | Required | Description                                                                                               | Example  |
+| -------------- | -------- | --------------------------------------------------------------------------------------------------------- | -------- |
+| `SMS_PROVIDER` | No¹      | Disambiguates `'twilio'` vs `'vonage'` when both providers' vars are set at once. Any other value throws. | `twilio` |
+
+¹ **Required if, and only if, both Twilio's and Vonage's own vars below are set at once.**
+
+### SMS (Twilio)
 
 | Variable             | Required | Description                                                                                                       | Example                             |
 | -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -33,7 +46,31 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 | `TWILIO_FROM_NUMBER` | Yes      | Default SMS sender number                                                                                         | `+15551234567`                      |
 | `TWILIO_API_BASE`    | No       | Overrides Twilio's REST API base URL (proxy, mock, alternate API version) — shared with WhatsApp's Twilio adapter | `https://api.twilio.com/2010-04-01` |
 
-## WhatsApp (Meta Cloud API — checked first)
+### SMS (Vonage)
+
+| Variable            | Required | Description                                              | Example                  |
+| ------------------- | -------- | -------------------------------------------------------- | ------------------------ |
+| `VONAGE_API_KEY`    | Yes      | Vonage API key                                           | `abcd1234`               |
+| `VONAGE_API_SECRET` | Yes      | Vonage API secret                                        | `...`                    |
+| `VONAGE_FROM`       | Yes      | Default sender number or alphanumeric sender ID          | `AcmeInc`                |
+| `VONAGE_API_BASE`   | No       | Overrides Vonage's SMS API base URL (proxy, mock server) | `https://rest.nexmo.com` |
+
+## WhatsApp
+
+`WHATSAPP_PROVIDER` (`'meta'` | `'twilio'`) only needs to be set when BOTH Meta's and Twilio's own
+required variables below are present at once — `registerWhatsappConnector()` throws rather than
+silently preferring one, unlike the pre-`WHATSAPP_PROVIDER` design (Meta checked first, no error).
+With only one provider's variables set (the common case), auto-detection still works with zero extra
+config, exactly as before. See [Connectors](./connectors.md#whatsappclient-whatsapp) and
+`CHANGELOG.md`.
+
+| Variable            | Required | Description                                                                                             | Example |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------- | ------- |
+| `WHATSAPP_PROVIDER` | No¹      | Disambiguates `'meta'` vs `'twilio'` when both providers' vars are set at once. Any other value throws. | `meta`  |
+
+¹ **Required if, and only if, both Meta's and Twilio's own vars below are set at once.**
+
+### WhatsApp (Meta Cloud API)
 
 | Variable               | Required | Description                                              | Example                      |
 | ---------------------- | -------- | -------------------------------------------------------- | ---------------------------- |
@@ -42,7 +79,7 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 | `META_API_VERSION`     | No       | Graph API version                                        | `v25.0`                      |
 | `META_API_BASE`        | No       | Overrides Meta's Graph API base URL (proxy, mock server) | `https://graph.facebook.com` |
 
-## WhatsApp (Twilio — used only if Meta's variables above aren't set)
+### WhatsApp (Twilio)
 
 | Variable               | Required | Description                                                                                                               | Example                             |
 | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -53,16 +90,25 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 
 ## Database-backed templates
 
-| Variable               | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Example           |
-| ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `TEMPLATES_MODEL_NAME` | No       | Enables database-backed templates (Modes A/B) and names the `ZanixTemplate` model. **Unset (default): fully disabled** — pure code rendering, no database access at all. Requires a registered `@zanix/datamaster` `ZanixMongoConnector` (`MONGO_URI`) — see [Templates](./templates.md#database-backed-templates). Mutually exclusive with `TEMPLATES_SERVICE_URL`.                                                                                                                                                                                                                                      | `zanix-templates` |
-| `DATABASE_TEMPLATES`   | No       | Set to `true` to enable database-backed templates under the default model name (`zanix-templates`) without naming it explicitly. **Set to `true` together with `TEMPLATES_SERVICE_URL`: a boot-time error, not a silent no-op** — the two modes are mutually exclusive, same as `TEMPLATES_MODEL_NAME` itself (see [Templates](./templates.md#mode-c-remote-only-templates)). Set to `false`, it's a kill switch: disables database-backed templates entirely, even if `TEMPLATES_MODEL_NAME` or `TEMPLATES_SERVICE_URL` is explicitly set (same convention as `@zanix/datamaster`'s `DATABASE_SEEDERS`). | `true`            |
+`TEMPLATES_BACKEND` is the single selector between Modes A/B (`'local'`) and Mode C (`'remote'`) —
+**breaking change**: replaces the earlier `DATABASE_TEMPLATES`/bare-`TEMPLATES_MODEL_NAME`
+mode-inference design, removed entirely with no dual-read. See
+[Templates](./templates.md#database-backed-templates) and `CHANGELOG.md`.
+
+| Variable               | Required | Description                                                                                                                                                                                                                                                                                                            | Example           |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `TEMPLATES_BACKEND`    | No       | Selects the persisted-backend mode: `'local'` (Modes A/B, a `@zanix/datamaster`-backed collection) or `'remote'` (Mode C, over HTTP). **Unset (default): fully disabled** — pure code rendering, no database access at all. Any other value throws at boot. See [Templates](./templates.md#database-backed-templates). | `local`           |
+| `TEMPLATES_MODEL_NAME` | No       | Names the `ZanixTemplate` model — only consulted when `TEMPLATES_BACKEND=local`; optional even then, defaulting to `zanix-templates`. Requires a registered `@zanix/datamaster` `ZanixMongoConnector` (`MONGO_URI`). Setting this without `TEMPLATES_BACKEND=local` has no effect.                                     | `zanix-templates` |
 
 ## Remote-only templates (Mode C)
 
-| Variable                         | Required                                   | Description                                                                                                                                                                                                                                                                                                   | Example                              |
-| -------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `TEMPLATES_SERVICE_URL`          | No                                         | Enables Mode C: resolves templates over HTTP against a central Notification/Template Service's _internal admin_ base URL, instead of a local database. Mutually exclusive with `TEMPLATES_MODEL_NAME` — see [Templates](./templates.md#mode-c-remote-only-templates).                                         | `https://templates.internal.example` |
-| `TEMPLATES_SERVICE_ID`           | **Yes, if `TEMPLATES_SERVICE_URL` is set** | This service's own identity, as registered in the central service's `ServiceRegistry` (`@zanix/admin`'s `ZANIX_ADMIN_SERVICES`), mapped to a base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint (see [Templates](./templates.md#mode-c-remote-only-templates)). | `billing`                            |
-| `TEMPLATES_SERVICE_TOKEN`        | No                                         | Pre-issued `type: 'api'` machine credential (RS256), sent as `X-Znx-Authorization: Bearer <token>` on every call to `TEMPLATES_SERVICE_URL`. Only meaningful alongside `TEMPLATES_SERVICE_URL`.                                                                                                               | `eyJhbGciOi...`                      |
-| `TEMPLATES_SERVICE_CACHE_TTL_MS` | No                                         | Overrides the default 45-second local fetch-cache TTL for the remote `{hbs,hash}` lookup. Only meaningful alongside `TEMPLATES_SERVICE_URL`.                                                                                                                                                                  | `30000`                              |
+Only consulted when `TEMPLATES_BACKEND=remote` (see above) — setting any of these without also
+selecting that mode has no effect.
+
+| Variable                         | Required                                   | Description                                                                                                                                                                                                                                                                                                                    | Example                              |
+| -------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `TEMPLATES_SERVICE_URL`          | **Yes, if `TEMPLATES_BACKEND=remote`**     | Resolves templates over HTTP against a central Notification/Template Service's _internal admin_ base URL, instead of a local database — see [Templates](./templates.md#mode-c-remote-only-templates).                                                                                                                          | `https://templates.internal.example` |
+| `TEMPLATES_SERVICE_ID`           | **Yes, if `TEMPLATES_SERVICE_URL` is set** | This service's own identity, as registered in the central service's `ServiceRegistry` (`@zanix/admin`'s `ZANIX_ADMIN_SERVICES`), mapped to a base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint (see [Templates](./templates.md#mode-c-remote-only-templates)).                  | `billing`                            |
+| `TEMPLATES_SERVICE_TOKEN`        | No                                         | Pre-issued `type: 'api'` machine credential (RS256), sent as `X-Znx-Authorization: Bearer <token>` on every call to `TEMPLATES_SERVICE_URL`. Only meaningful alongside `TEMPLATES_SERVICE_URL`.                                                                                                                                | `eyJhbGciOi...`                      |
+| `TEMPLATES_SERVICE_AUTH_ID`      | No                                         | Alternative to `TEMPLATES_SERVICE_TOKEN` for a Zanix-based central service: this service's own signing identity for a dynamic, short-lived credential exchange (`JWK_PRI_<id>[_<keyId>]`/`JWK_ID_<id>`). Ignored entirely when `TEMPLATES_SERVICE_TOKEN` is set. See [Templates](./templates.md#mode-c-remote-only-templates). | `billing-service`                    |
+| `TEMPLATES_SERVICE_CACHE_TTL_MS` | No                                         | Overrides the default 45-second local fetch-cache TTL for the remote `{hbs,hash}` lookup. Only meaningful alongside `TEMPLATES_SERVICE_URL`.                                                                                                                                                                                   | `30000`                              |

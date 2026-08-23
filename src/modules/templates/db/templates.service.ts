@@ -10,8 +10,11 @@ import { Interactor, ZanixInteractor } from '@zanix/server'
 import { TemplatesAdminRepository } from './templates.repository.ts'
 
 /**
- * Business logic behind `@zanix/admin`'s `/admin/templates`/`/templates` — see its own
- * `templates.handler.ts`.
+ * Business logic behind this package's own local `/templates` CRUD API — see
+ * `../templates-api/templates.handler.ts`'s `createTemplatesController`. `@zanix/admin` composes a
+ * separate, genuinely cross-service concern on top (`POST /templates/sync`, pulling a registered
+ * service's own code templates via `ServiceRegistry`/Discovery) — see its own
+ * `TemplatesSyncController`.
  *
  * Exported so a consuming app can extend or reuse this as the base for its own custom templates
  * API instead of duplicating the CRUD logic against `TemplatesAdminRepository` directly.

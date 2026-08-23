@@ -1,10 +1,11 @@
 {
   "name": "@zanix/notifications",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
   },
+  "links": [],
   "lint": {
     "rules": {
       "tags": [
@@ -32,7 +33,7 @@
       ".dist"
     ],
     "plugins": [
-      "jsr:@zanix/utils/linter/deno-zanix-plugin"
+      "jsr:@zanix/utils@^3.0.0/linter/deno-zanix-plugin"
     ],
     "report": "pretty"
   },
@@ -53,21 +54,23 @@
     "@std/testing": "jsr:@std/testing@1.0.16",
     "@std/path": "jsr:@std/path@0.224",
     "handlebars": "npm:handlebars@^4.7.8",
-    "@zanix/server": "jsr:@zanix/server@^3.2.0",
-    "@zanix/datamaster": "jsr:@zanix/datamaster@^1.3.0",
-    "@zanix/auth": "jsr:@zanix/auth@^0.7.0",
-    "@zanix/types": "jsr:@zanix/utils@^2.6.0/types",
-    "@zanix/helpers": "jsr:@zanix/utils@^2.6.0/helpers",
-    "@zanix/workers": "jsr:@zanix/utils@^2.6.0/workers",
-    "@zanix/logger": "jsr:@zanix/utils@^2.6.0/logger",
-    "@zanix/errors": "jsr:@zanix/utils@^2.6.0/errors",
+    "@zanix/server": "jsr:@zanix/server@^3.3.0",
+    "@zanix/datamaster": "jsr:@zanix/datamaster@^1.0.0",
+    "@zanix/auth": "jsr:@zanix/auth@^0.8.0",
+    "@zanix/types": "jsr:@zanix/utils@^3.0.0/types",
+    "@zanix/helpers": "jsr:@zanix/utils@^3.0.0/helpers",
+    "@zanix/workers": "jsr:@zanix/utils@^3.0.0/workers",
+    "@zanix/logger": "jsr:@zanix/utils@^3.0.0/logger",
+    "@zanix/errors": "jsr:@zanix/utils@^3.0.0/errors",
+    "@zanix/validator": "jsr:@zanix/utils@^3.0.0/validator",
     "typings/": "./src/typings/",
     "utils/": "./src/utils/",
     "modules/": "./src/modules/"
   },
   "exports": {
     ".": "./mod.ts",
-    "./core": "./src/modules/core.ts"
+    "./core": "./src/modules/core.ts",
+    "./templates-api": "./src/modules/templates/templates-api/mod.ts"
   },
   "nodeModulesDir": "auto",
   "publish": {
@@ -85,7 +88,6 @@
     "build-handlebars": "deno run -A ./src/modules/templates/handlebars/compiler.ts"
   },
   "zanix": {
-    "project": "library",
-    "hash": "pn287r"
+    "project": "library"
   }
 }

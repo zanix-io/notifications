@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { baseHtmlSchema, baseStylesSchema, defaultHtmlSchema } from '../../schema.ts'
+import { sanitizeHtml } from 'utils/sanitize-html.ts'
+import { sanitizeUrl } from '@zanix/helpers'
 
 // Ensure default styles are applied if not present
 const defaultStyles = {
@@ -30,11 +32,13 @@ export const genericSchema = z.object({
     return { ...defaultStyles, ...val }
   }, styleSchema),
   title: z.string(),
-  content: z.string(),
+  // Rendered unescaped in the template ({{{content}}}/{{{footer}}}) — see `sanitizeHtml`'s own
+  // doc for why that's intentional, and what this still strips before either reaches it.
+  content: z.string().transform(sanitizeHtml),
   buttonText: z.string().optional(),
-  buttonLink: z.string().optional(),
+  buttonLink: z.string().optional().transform((value) => value && sanitizeUrl(value)),
   message: z.string().optional(),
-  footer: z.string().optional(),
+  footer: z.string().optional().transform((value) => value && sanitizeHtml(value)),
 })
 
 export default genericSchema

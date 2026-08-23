@@ -2,6 +2,7 @@ import type {
   DerivedTemplateDeclaration,
   GenericTemplateSchema,
   LoginWithOTPTemplateSchema,
+  NewLoginEmailTemplateSchema,
   PasswordChangedTemplateSchema,
   PasswordRecoveryTemplateSchema,
   WelcomeTemplateSchema,
@@ -58,6 +59,38 @@ export const passwordChanged = (
   data: PasswordChangedTemplateSchema = {},
 ): Promise<string> => {
   return execTemplate('email/generic', passwordChangedToGeneric(data))
+}
+
+/** Transforms new-login data into `generic`'s shape — see `welcomeToGeneric()` above. */
+export const newLoginToGeneric = (
+  data: NewLoginEmailTemplateSchema,
+): GenericTemplateSchema => {
+  const {
+    app = 'Zanix',
+    html = { title: 'New Login Detected' },
+    device,
+    time,
+    location,
+    ...content
+  } = data
+  return {
+    title: 'New Login Detected',
+    content: `<p>We noticed a login to your account from a new device.</p>
+    <p><strong>Device:</strong> ${device}</p>
+    <p><strong>Time:</strong> ${time}</p>
+    ${location ? `<p><strong>Location:</strong> ${location}</p>` : ''}
+    <p>If this was you, no action is needed. If you don't recognize this activity,
+    please secure your account immediately.</p>`,
+    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    html,
+    ...content,
+  }
+}
+
+export const newLogin = (
+  data: NewLoginEmailTemplateSchema,
+): Promise<string> => {
+  return execTemplate('email/generic', newLoginToGeneric(data))
 }
 
 /** Transforms login-OTP data into `generic`'s shape — see `welcomeToGeneric()` above. */
@@ -135,5 +168,11 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
     name: 'login-otp',
     parent: 'generic',
     transform: loginWithOTPToGeneric,
+  },
+  {
+    channel: 'email',
+    name: 'new-login',
+    parent: 'generic',
+    transform: newLoginToGeneric,
   },
 ]

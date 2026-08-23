@@ -17,7 +17,11 @@ import { NotifierProvider, ZanixCoreNotificationsProvider } from './notifier.ts'
  * subclass, so `this.providers.get(NotifierProvider)` — the class every consumer actually imports
  * — resolves correctly. See `@zanix/auth`'s identical `providers/core.ts` for the full rationale.
  */
-const registerProvider = () => {
+// Exported (not just auto-run below) — kept consistent with every other `core.ts` loader's own
+// callable, re-invokable registration function across the Zanix ecosystem (see
+// `@zanix/datamaster`'s `storage/core.ts`'s own `registerSeaweedFSConnector` doc for the full
+// reasoning that pattern exists for).
+export const registerNotifierProvider = (): void => {
   Provider({ slot: 'notifications', lifetime: 'SCOPED' })(NotifierProvider)
 }
 
@@ -53,6 +57,6 @@ registerCoreProviderSlot('notifications', ZanixCoreNotificationsProvider, {
  *
  * @module
  */
-const zanixNotifierProvider: void = registerProvider()
+const zanixNotifierProvider: void = registerNotifierProvider()
 
 export default zanixNotifierProvider

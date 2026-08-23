@@ -7,10 +7,10 @@ import {
 import { generateRSAKeys } from '@zanix/helpers'
 import { InternalError } from '@zanix/errors'
 import {
-  assertTemplatesConfigNotConflicting,
-  DATABASE_TEMPLATES_ENV,
+  assertTemplatesBackendConfigValid,
   resetTemplateProviderState,
   TemplateProvider,
+  TEMPLATES_BACKEND_ENV,
   TEMPLATES_SERVICE_AUTH_ID_ENV,
   TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
@@ -62,7 +62,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
     } finally {
       Deno.env.delete(TEMPLATES_SERVICE_URL_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_ID_ENV)
-      Deno.env.delete(DATABASE_TEMPLATES_ENV)
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_AUTH_ID_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_TOKEN_ENV)
     }
@@ -70,8 +70,9 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
 }
 
 templateTest(
-  'TemplateProvider#backend(): only TEMPLATES_SERVICE_URL set selects the remote backend, this.database is never touched',
+  'TemplateProvider#backend(): TEMPLATES_BACKEND=remote (with TEMPLATES_SERVICE_URL/_ID set) selects the remote backend, this.database is never touched',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -95,14 +96,14 @@ templateTest(
 )
 
 templateTest(
-  'TemplateProvider#backend(): DATABASE_TEMPLATES=false disables the remote path too, even with TEMPLATES_SERVICE_URL set',
+  'TemplateProvider#backend(): TEMPLATES_SERVICE_URL/_ID set alone, with TEMPLATES_BACKEND unset, never selects the remote backend — the selector, not the URL, decides (replaces the removed DATABASE_TEMPLATES=false kill switch, see CHANGELOG)',
   async () => {
+    // Deliberately no TEMPLATES_BACKEND_ENV set — this is the exact case under test.
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
     )
     Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
-    Deno.env.set(DATABASE_TEMPLATES_ENV, 'false')
     const provider = freshProvider()
 
     // No fake fetch installed — if resolve() attempted the remote path, this would throw
@@ -118,6 +119,7 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote 404 falls back to code silently (no warning), same as a missing local record',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -155,6 +157,7 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote network failure falls back to code with a warning',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -176,6 +179,7 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): a remote database-only template (source: "database") renders as-is, same as the local backend',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -211,6 +215,7 @@ templateTest(
 templateTest(
   'TemplateProvider#backend(): throws when the template exists nowhere (remote 404 and no code fallback)',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -231,28 +236,54 @@ templateTest(
 )
 
 templateTest(
-  'assertTemplatesConfigNotConflicting: throws when DATABASE_TEMPLATES=true and ' +
-    'TEMPLATES_SERVICE_URL are both set, instead of silently doing nothing (previously: no ' +
-    'error, no warning, DATABASE_TEMPLATES=true was just never applied)',
+  'assertTemplatesBackendConfigValid: throws on an invalid TEMPLATES_BACKEND value instead of silently falling back to the pure code path (replaces the removed pre-TEMPLATES_BACKEND "DATABASE_TEMPLATES=true + TEMPLATES_SERVICE_URL" conflict test — that combination can no longer be represented at all)',
   () => {
-    Deno.env.set(
-      TEMPLATES_SERVICE_URL_ENV,
-      'https://templates.internal.example',
-    )
-    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
-    Deno.env.set(DATABASE_TEMPLATES_ENV, 'true')
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'both')
 
-    assertThrows(
-      () => assertTemplatesConfigNotConflicting(),
+    const error = assertThrows(
+      () => assertTemplatesBackendConfigValid(),
       InternalError,
-      'mutually exclusive',
+      'must be "local" or "remote"',
     )
+    assertEquals(error.code, 'NOTIFICATIONS_TEMPLATES_BACKEND_INVALID')
   },
 )
 
 templateTest(
-  'assertTemplatesConfigNotConflicting: throws when TEMPLATES_SERVICE_AUTH_ID is set but no matching JWK_PRI_<id> resolves and no TEMPLATES_SERVICE_TOKEN fallback exists',
+  'assertTemplatesBackendConfigValid: throws when TEMPLATES_BACKEND=remote is selected without TEMPLATES_SERVICE_URL',
   () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+    // Deliberately no TEMPLATES_SERVICE_URL_ENV set — this is the exact case under test.
+
+    const error = assertThrows(
+      () => assertTemplatesBackendConfigValid(),
+      InternalError,
+      'TEMPLATES_SERVICE_URL',
+    )
+    assertEquals(error.code, 'NOTIFICATIONS_TEMPLATES_REMOTE_SERVICE_URL_MISSING')
+  },
+)
+
+templateTest(
+  'assertTemplatesBackendConfigValid: throws when TEMPLATES_SERVICE_URL is set without its required TEMPLATES_SERVICE_ID counterpart',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://templates.internal.example')
+    // Deliberately no TEMPLATES_SERVICE_ID_ENV set — this is the exact case under test.
+
+    const error = assertThrows(
+      () => assertTemplatesBackendConfigValid(),
+      InternalError,
+      'TEMPLATES_SERVICE_ID',
+    )
+    assertEquals(error.code, 'NOTIFICATIONS_TEMPLATES_REMOTE_SERVICE_ID_MISSING')
+  },
+)
+
+templateTest(
+  'assertTemplatesBackendConfigValid: throws when TEMPLATES_BACKEND=remote is selected and TEMPLATES_SERVICE_AUTH_ID is set but no matching JWK_PRI_<id> resolves and no TEMPLATES_SERVICE_TOKEN fallback exists',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',
@@ -263,7 +294,7 @@ templateTest(
 
     try {
       assertThrows(
-        () => assertTemplatesConfigNotConflicting(),
+        () => assertTemplatesBackendConfigValid(),
         InternalError,
         'JWK_PRI_billing-service',
       )
@@ -277,6 +308,7 @@ templateTest(
   'TemplateProvider#backend(): TEMPLATES_SERVICE_AUTH_ID + JWK_PRI_<id> (no TEMPLATES_SERVICE_TOKEN) signs+exchanges a real credential end to end',
   async () => {
     const { privateKey } = await generateRSAKeys()
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',

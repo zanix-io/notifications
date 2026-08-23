@@ -1,7 +1,7 @@
 import { generateUUID } from '@zanix/helpers'
 import { assertNotEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
-import { TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
+import { TEMPLATES_BACKEND_ENV, TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 import { templateModelDefinition } from 'modules/templates/db/schema.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
 import { registerModel, ZanixMongoConnector } from '@zanix/datamaster'
@@ -43,6 +43,7 @@ Deno.test({
   fn: async () => {
     const MONGO_URI = Deno.env.get('MONGO_TEST_URI') as string
     Deno.env.set('MONGO_URI', MONGO_URI)
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
     Deno.env.set(TEMPLATES_MODEL_ENV, MODEL_NAME)
 
     // Registers the real Mongo connector under the 'database' core key (MONGO_URI is set) — the
@@ -120,6 +121,7 @@ Deno.test({
       // leak into every test file that runs afterward in the same `deno test` invocation (e.g.
       // `emails.test.ts` would then try the database path with no connector registered there).
       Deno.env.delete('MONGO_URI')
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_MODEL_ENV)
     }
   },
@@ -142,6 +144,7 @@ Deno.test({
   fn: async () => {
     const MONGO_URI = Deno.env.get('MONGO_TEST_URI') as string
     Deno.env.set('MONGO_URI', MONGO_URI)
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
     Deno.env.set(TEMPLATES_MODEL_ENV, MODEL_NAME)
 
     await import('@zanix/datamaster/core')
@@ -192,6 +195,7 @@ Deno.test({
         await db['close']()
       }
       Deno.env.delete('MONGO_URI')
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_MODEL_ENV)
     }
   },

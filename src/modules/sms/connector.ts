@@ -2,6 +2,7 @@ import type { SmsClientConfig, SmsProviderAdapter, TwilioConfig } from 'typings/
 import type { NotifyMessage } from 'typings/general.ts'
 import type { ConnectorOptions } from '@zanix/server'
 
+import { InternalError } from '@zanix/errors'
 import { ZanixNotifierConnector } from '../base.ts'
 import { TwilioSmsAdapter } from './twilio.ts'
 
@@ -79,7 +80,11 @@ export class SmsClient extends ZanixNotifierConnector {
    * `send()` throws (e.g. `HttpError`).
    */
   public async send(message: NotifyMessage): Promise<void> {
-    if (!this.#adapter) throw new Error('SmsClient not initialized!')
+    // A native `Error` here previously — calling `send()` before initialization completes is a
+    // programmer/lifecycle invariant, not something the message's own caller could have prevented.
+    if (!this.#adapter) {
+      throw new InternalError('SmsClient not initialized!', { code: 'SMS_CLIENT_NOT_INITIALIZED' })
+    }
 
     await this.#adapter.send({
       to: message.to,

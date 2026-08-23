@@ -11,7 +11,7 @@ export const NOTIFIER_CHANNELS: Notifiers[] = ['email', 'sms', 'whatsapp']
 /**
  * SMTP response codes used to interpret server replies.
  */
-export const smtpResponseCode = {
+export const SMTP_RESPONSE_CODE = {
   /** Server is ready (220) */
   READY: 220,
 

@@ -1,4 +1,4 @@
-import type { smtpResponseCode } from 'utils/constants.ts'
+import type { SMTP_RESPONSE_CODE } from 'utils/constants.ts'
 
 /**
  * Configuration for connecting to an SMTP server.
@@ -20,4 +20,4 @@ export interface ServerConfig {
 /**
  * SMTP response codes used to interpret server replies.
  */
-export type SmtpResponseCode = (typeof smtpResponseCode)[keyof typeof smtpResponseCode]
+export type SmtpResponseCode = (typeof SMTP_RESPONSE_CODE)[keyof typeof SMTP_RESPONSE_CODE]

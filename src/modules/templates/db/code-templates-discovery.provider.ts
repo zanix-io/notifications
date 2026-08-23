@@ -45,7 +45,7 @@ export function createCodeTemplatesDiscoveryProvider(): DiscoveryProvider<
 /**
  * Registers this service's `CODE_TEMPLATES` under `/.well-known/zanix/code-templates` — a plain,
  * re-callable function (never a decorator or cached side-effect import — see `@zanix/server`'s
- * `docs/HANDLERS.md`'s "Discovery" section for why), meant to be called from your own
+ * `docs/handlers.md`'s "Discovery" section for why), meant to be called from your own
  * `ProgramModule.defineApplication(...)` scope, the same way `@zanix/admin`'s
  * `defineAdminMetadata()` composes its own Discovery endpoints. This package has no bootstrap of
  * its own, so it cannot register this for you automatically.

@@ -15,64 +15,107 @@ import { CODE_SOURCE } from './db/sync.ts'
 import { LocalTemplateBackend, resetLocalTemplateBackendState } from './db/local-backend.ts'
 import {
   RemoteTemplateBackend,
-  resetRemoteTemplateBackendAuthClient,
   resetRemoteTemplateBackendCache,
   resetRemoteTemplateBackendSyncState,
 } from './db/remote-backend.ts'
-import { resolveServiceAssertionKeyId, resolveServiceAssertionPrivateKey } from '@zanix/auth'
-import { InternalError } from '@zanix/errors'
+import {
+  assertServiceAssertionKeyResolvable,
+  createRemoteTemplateAuthClient,
+  resetRemoteTemplateAuthClient,
+} from './db/remote-backend-auth.ts'
+import { ApplicationError, InternalError } from '@zanix/errors'
 
-/** Env var naming the `ZanixTemplate` model — presence enables database-backed template resolution (see `resolve()`). Absent, behavior is unchanged from the pure code-registry path. */
+/**
+ * Env var naming the `ZanixTemplate` model — only consulted when `TEMPLATES_BACKEND=local` (see
+ * `templatesBackendMode()`); optional even then, defaulting to `DEFAULT_TEMPLATES_MODEL_NAME` via
+ * `templatesModelName()`. Setting this alone, with `TEMPLATES_BACKEND` unset or set to `'remote'`,
+ * has no effect — it's simply never read, not a conflict to detect (see `templatesBackendMode()`'s
+ * own doc for why).
+ */
 export const TEMPLATES_MODEL_ENV = 'TEMPLATES_MODEL_NAME'
 
 /**
- * Env var that, set to `'true'`, enables database-backed templates under the default model name
- * (`'zanix-templates'`) without having to name it explicitly via `TEMPLATES_MODEL_NAME` — see
- * `templates/core.ts`. Never overrides `TEMPLATES_MODEL_NAME` if that's already set (including to
- * an explicit empty string, a valid opt-out). Deliberately NOT tied to any database connector's
- * own configuration (e.g. `MONGO_URI`) — this package has no reason to know that variable exists;
- * enabling the feature always requires this explicit opt-in, in every app, full or standalone.
+ * Env var selecting which mode `TemplateProvider` resolves templates against — the single source
+ * of truth for the local-vs-remote decision, replacing the pre-`TEMPLATES_BACKEND` design where the
+ * mode was *inferred* from which of `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/
+ * `TEMPLATES_SERVICE_URL` happened to be set (see `templatesBackendMode()`'s own doc for the full
+ * rationale). Breaking change from that design — see `CHANGELOG.md`.
  *
- * **Mutually exclusive with `TEMPLATES_SERVICE_URL_ENV` (Mode C)** — same conflict
- * `TEMPLATES_MODEL_NAME` itself has with it, enforced by the same
- * `assertTemplatesConfigNotConflicting()`, which now throws for EITHER spelling of the conflict
- * (this env var set to `'true'`, or `TEMPLATES_MODEL_NAME` set directly) rather than only the
- * latter — setting this to `'true'` alongside `TEMPLATES_SERVICE_URL` is a boot-time error, never a
- * silent no-op.
+ * - Unset (or empty string): the pure code-registry path — no database access, no HTTP calls,
+ *   nothing to configure.
+ * - `'local'`: Modes A/B — a `@zanix/datamaster`-backed `ZanixTemplate` collection, named by
+ *   `TEMPLATES_MODEL_ENV` (optional, defaults to `DEFAULT_TEMPLATES_MODEL_NAME`).
+ * - `'remote'`: Mode C — a central Notification/Template Service over HTTP, configured via
+ *   `TEMPLATES_SERVICE_URL_ENV`/`TEMPLATES_SERVICE_ID_ENV`/etc.
  *
- * Set to `'false'` instead, it's a kill switch — mirrors `@zanix/datamaster`'s own
- * `DATABASE_SEEDERS === 'false'` convention: it disables database-backed templates entirely, even
- * when `TEMPLATES_MODEL_NAME` is explicitly set to something (see `isDatabaseTemplatesDisabled()`),
- * for the same reason a deployment might want a single environment-level override that wins over
- * whatever an individual app happened to configure.
+ * Any other value throws — see `templatesBackendMode()`.
  */
-export const DATABASE_TEMPLATES_ENV = 'DATABASE_TEMPLATES'
+export const TEMPLATES_BACKEND_ENV = 'TEMPLATES_BACKEND'
+
+/** The two persisted-backend modes `TEMPLATES_BACKEND` selects between — see its own doc. `undefined` (unset/empty) is the third, implicit state: the pure code-registry path. */
+export type TemplatesBackendMode = 'local' | 'remote'
 
 /**
- * Whether `DATABASE_TEMPLATES=false` is explicitly disabling database-backed templates — checked
- * both at boot (`templates/core.ts`'s `registerModel()` gate) and at every `resolve()` call, so
- * the kill switch takes effect regardless of whether `TEMPLATES_MODEL_NAME` is also set.
+ * Reads and validates `TEMPLATES_BACKEND_ENV` — the explicit selector between Modes A/B (`'local'`)
+ * and Mode C (`'remote'`), replacing the mode-inference guard this package used to have
+ * (`assertTemplatesConfigNotConflicting()`, pre-`TEMPLATES_BACKEND`): that design picked the mode by
+ * checking which of `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/`TEMPLATES_SERVICE_URL` happened to
+ * be set, and only surfaced a conflicting combination (e.g. both a model name AND a service URL) as
+ * a thrown error once both were present — an invalid state the guard had to actively detect. With
+ * this selector, that invalid state can't be represented: the mode comes from exactly one place,
+ * and each mode's own vars (`TEMPLATES_MODEL_ENV` for `'local'`;
+ * `TEMPLATES_SERVICE_URL_ENV`/`TEMPLATES_SERVICE_ID_ENV`/`TEMPLATES_SERVICE_TOKEN_ENV`/
+ * `TEMPLATES_SERVICE_AUTH_ID_ENV`/`TEMPLATES_SERVICE_CACHE_TTL_ENV` for `'remote'`) are only ever
+ * read once that mode is actually selected — setting one mode's var while a different mode (or no
+ * mode) is selected simply has no effect, it's never consulted.
+ *
+ * @returns `'local'`, `'remote'`, or `undefined` for the pure code-registry path.
+ * @throws If `TEMPLATES_BACKEND_ENV` is set to anything other than `'local'`, `'remote'`, or empty.
  */
-export function isDatabaseTemplatesDisabled(): boolean {
-  return Deno.env.get(DATABASE_TEMPLATES_ENV) === 'false'
+export function templatesBackendMode(): TemplatesBackendMode | undefined {
+  const raw = Deno.env.get(TEMPLATES_BACKEND_ENV)
+  if (!raw) return undefined
+
+  if (raw !== 'local' && raw !== 'remote') {
+    throw new InternalError(
+      `[TemplateProvider] "${TEMPLATES_BACKEND_ENV}" must be "local" or "remote" (or unset, for ` +
+        `the pure code-registry path) — got "${raw}".`,
+      { code: 'NOTIFICATIONS_TEMPLATES_BACKEND_INVALID', meta: { value: raw } },
+    )
+  }
+
+  return raw
 }
 
-/** Default `ZanixTemplate` model name applied when `DATABASE_TEMPLATES=true` (see `templates/core.ts`'s `defaultTemplatesModelName()`). */
+/**
+ * Whether `TEMPLATES_BACKEND` currently selects `mode` — a convenience for a downstream consumer
+ * (e.g. `@zanix/admin`'s own `/admin/templates` REST/operations gating) that only cares about one
+ * specific mode being active, without comparing {@link templatesBackendMode}'s own three-state
+ * return value (`'local' | 'remote' | undefined`) itself. Takes `mode` explicitly rather than
+ * defaulting to `'local'` — "templates enabled" has no single meaning on its own: a deployment
+ * running Mode C (`'remote'`) has templates fully configured, just not `'local'`, so a caller must
+ * state which mode it means rather than this function silently assuming the local case.
+ */
+export const isTemplatesResourceEnabled = (mode: TemplatesBackendMode): boolean =>
+  templatesBackendMode() === mode
+
+/** Default `ZanixTemplate` model name applied when `TEMPLATES_BACKEND=local` and `TEMPLATES_MODEL_NAME` is unset — see `templatesModelName()`. */
 export const DEFAULT_TEMPLATES_MODEL_NAME = 'zanix-templates'
 
 /**
- * Resolves the effective templates collection name (only meaningful once DB mode is active —
- * see {@link isDatabaseTemplatesDisabled}), mirroring `TemplateProvider`'s own resolution.
+ * Resolves the effective templates collection name — only meaningful once `TEMPLATES_BACKEND=local`
+ * is selected (see `templatesBackendMode()`), mirroring `TemplateProvider`'s own resolution.
  */
 export const templatesModelName = (): string =>
   Deno.env.get(TEMPLATES_MODEL_ENV) || DEFAULT_TEMPLATES_MODEL_NAME
 
 /**
- * Env var naming the central Notification/Template Service's *internal admin* base URL — presence
- * enables Mode C (remote-only templates, see `docs/templates.md#mode-c-remote-only-templates`): no
- * local `ZanixTemplate` model is registered or synced against; every `resolve()` instead calls out
- * to this URL's `/admin/templates/:channel/:name`. Mutually exclusive with `TEMPLATES_MODEL_ENV` —
- * see `assertTemplatesConfigNotConflicting()`.
+ * Env var naming the central Notification/Template Service's *internal admin* base URL — required
+ * when `TEMPLATES_BACKEND=remote` is selected (see `templatesBackendMode()`; Mode C,
+ * `docs/templates.md#mode-c-remote-only-templates`): every `resolve()` call is then fetched against
+ * this URL's `/admin/templates/:channel/:name` instead of a local `ZanixTemplate` model. Setting
+ * this without also selecting `TEMPLATES_BACKEND=remote` has no effect — see
+ * `templatesBackendMode()`'s own doc.
  */
 export const TEMPLATES_SERVICE_URL_ENV = 'TEMPLATES_SERVICE_URL'
 
@@ -80,28 +123,32 @@ export const TEMPLATES_SERVICE_URL_ENV = 'TEMPLATES_SERVICE_URL'
  * Env var naming this service's own identity, as registered in the central service's
  * `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) under a
  * `serviceId` mapped to a reachable base URL for this process's own
- * `/.well-known/zanix/code-templates` endpoint (see `defineCodeTemplatesDiscovery`). Required
- * alongside `TEMPLATES_SERVICE_URL_ENV` — the central service pulls this service's code templates
- * by this identity, never as a request body.
+ * `/.well-known/zanix/code-templates` endpoint (see `defineCodeTemplatesDiscovery`). Only
+ * meaningful — and required — under `TEMPLATES_BACKEND=remote`, alongside `TEMPLATES_SERVICE_URL_ENV`
+ * — the central service pulls this service's code templates by this identity, never as a request
+ * body.
  */
 export const TEMPLATES_SERVICE_ID_ENV = 'TEMPLATES_SERVICE_ID'
 
 /**
  * Env var holding the pre-issued `type: 'api'` machine credential (see `@zanix/auth`'s
- * `X-Znx-Authorization` contract) sent on every call to `TEMPLATES_SERVICE_URL`. This package
- * never mints this token itself — issuance is the deploying operator's/central service's
- * responsibility, not something `RemoteTemplateBackend` does at runtime. Takes priority over
- * `TEMPLATES_SERVICE_AUTH_ID` below when both are set — the only option that works against a
- * central service outside the Zanix ecosystem.
+ * `X-Znx-Authorization` contract) sent on every call to `TEMPLATES_SERVICE_URL`, only meaningful
+ * under `TEMPLATES_BACKEND=remote`. This package never mints this token itself — issuance is the
+ * deploying operator's/central service's responsibility, not something `RemoteTemplateBackend` does
+ * at runtime. Takes priority over `TEMPLATES_SERVICE_AUTH_ID` below when both are set — the only
+ * option that works against a central service outside the Zanix ecosystem.
  */
 export const TEMPLATES_SERVICE_TOKEN_ENV = 'TEMPLATES_SERVICE_TOKEN'
 
 /**
  * Env var naming THIS service's own signing identity (the assertion's `iss`/`sub`) when
- * authenticating to the central service via `@zanix/auth`'s service-credential exchange —
- * see `RemoteTemplateBackendConfig.auth`. **Distinct from `TEMPLATES_SERVICE_ID_ENV`**: that one is
- * the lookup key the central service's own `ServiceRegistry` uses; this one is who this service
- * claims to be when signing an assertion. They're independent and don't need to match.
+ * authenticating to the central service via `@zanix/auth`'s service-credential exchange — see
+ * `RemoteTemplateBackendConfig.authClient`, built (from this value) by `#backend()` below via
+ * `remote-backend-auth.ts`'s `createRemoteTemplateAuthClient` — the one module in this package
+ * allowed to import `@zanix/auth` directly (see its own doc). **Distinct from
+ * `TEMPLATES_SERVICE_ID_ENV`**: that one is the lookup key the central service's own
+ * `ServiceRegistry` uses; this one is who this service claims to be when signing an assertion.
+ * They're independent and don't need to match.
  *
  * Neither the matching private key nor which key to sign with are separate env vars — both resolve
  * automatically via `@zanix/auth`'s own conventions: the private key as `JWK_PRI_<this value>` (or
@@ -110,72 +157,70 @@ export const TEMPLATES_SERVICE_TOKEN_ENV = 'TEMPLATES_SERVICE_TOKEN'
  * `@zanix/auth`'s `resolveServiceAssertionKey` convention on the *verifying* side
  * (`JWK_PUB_<serviceId>`/`JWK_PUB_<serviceId>_<keyId>`) — one naming scheme for "my key to sign as
  * X" and "the key I trust for X", not package-specific env var names to remember on top of it.
- * Ignored entirely when `TEMPLATES_SERVICE_TOKEN_ENV` is set.
+ * Ignored entirely when `TEMPLATES_SERVICE_TOKEN_ENV` is set. Only meaningful under
+ * `TEMPLATES_BACKEND=remote`.
  */
 export const TEMPLATES_SERVICE_AUTH_ID_ENV = 'TEMPLATES_SERVICE_AUTH_ID'
 
 /**
  * Env var overriding `RemoteTemplateBackend`'s default local fetch-cache TTL (milliseconds) — see
- * `db/remote-backend.ts`'s `DEFAULT_CACHE_TTL_MS`. Only meaningful alongside `TEMPLATES_SERVICE_URL`.
+ * `db/remote-backend.ts`'s `DEFAULT_CACHE_TTL_MS`. Only meaningful under `TEMPLATES_BACKEND=remote`.
  */
 export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
 
 /**
- * Refuses a configuration that sets both `TEMPLATES_SERVICE_URL` (Mode C) and `TEMPLATES_MODEL_NAME`
- * (Modes A/B) at once, rather than silently picking one — called at boot (`templates/core.ts`) and
- * at the top of every `resolve()` call. Deliberately left uncaught by `resolve()`'s own
- * warn-and-fallback `try/catch`: silently falling back to the code registry would itself be
- * "silently picking one," exactly what this guards against. The same conflict is refused whether
- * `TEMPLATES_MODEL_NAME` was set directly OR only implied via `DATABASE_TEMPLATES=true` (the
- * convenience toggle `defaultTemplatesModelName()` reads, `templates/core.ts`) — this check runs
- * BEFORE that toggle resolves, so `DATABASE_TEMPLATES=true` alongside `TEMPLATES_SERVICE_URL` used
- * to fail silently (the toggle's own `!Deno.env.has(TEMPLATES_SERVICE_URL_ENV)` guard just skipped
- * setting `TEMPLATES_MODEL_NAME`, no error, no warning — a real bug: the explicit-name path threw a
- * clear error for the identical conflict, the convenience path didn't). Also refuses
- * `TEMPLATES_SERVICE_URL` set without its required `TEMPLATES_SERVICE_ID` counterpart, and
- * `TEMPLATES_SERVICE_AUTH_ID` set without a resolvable matching `JWK_PRI_<id>` (and no
- * `TEMPLATES_SERVICE_TOKEN` fallback either) — a clear signal of intent to authenticate with
- * nothing actually configured to authenticate with.
+ * Validates the configuration required by whichever mode `TEMPLATES_BACKEND_ENV` currently selects
+ * (see `templatesBackendMode()`) — called at boot (`templates/core.ts`) and at the top of every
+ * `resolve()` call. Deliberately left uncaught by `resolve()`'s own warn-and-fallback `try/catch`:
+ * silently falling back to the code registry on a genuine misconfiguration would defeat the point
+ * of validating it eagerly.
  *
- * @throws If both `TEMPLATES_SERVICE_URL`/`TEMPLATES_MODEL_NAME` are set, if
- * `TEMPLATES_SERVICE_URL`/`DATABASE_TEMPLATES=true` are both set, if `TEMPLATES_SERVICE_URL` is set
- * without `TEMPLATES_SERVICE_ID`, or if `TEMPLATES_SERVICE_AUTH_ID` is set without
- * `TEMPLATES_SERVICE_TOKEN` or a resolvable `JWK_PRI_<id>`.
+ * A no-op for the pure code-registry path (`TEMPLATES_BACKEND` unset) and for `'local'`
+ * (`TEMPLATES_MODEL_NAME` is optional there, with no required counterpart to check — see
+ * `templatesModelName()`). For `'remote'`, refuses to proceed without `TEMPLATES_SERVICE_URL` and
+ * its required `TEMPLATES_SERVICE_ID` counterpart, and refuses `TEMPLATES_SERVICE_AUTH_ID` set
+ * without a resolvable matching `JWK_PRI_<id>` (and no `TEMPLATES_SERVICE_TOKEN` fallback either) —
+ * a clear signal of intent to authenticate with nothing actually configured to authenticate with.
+ *
+ * Replaces the pre-`TEMPLATES_BACKEND` `assertTemplatesConfigNotConflicting()`, which detected an
+ * invalid combination (both `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME`/
+ * `DATABASE_TEMPLATES=true` set at once) post-hoc. With the mode now selected explicitly by exactly
+ * one env var, that combination can no longer be represented — a stray `TEMPLATES_MODEL_NAME` left
+ * over from a different mode is simply never read, not a conflict to refuse.
+ *
+ * @throws If `TEMPLATES_BACKEND_ENV` is set to something other than `'local'`/`'remote'` (see
+ * `templatesBackendMode()`), if `'remote'` is selected without `TEMPLATES_SERVICE_URL`, if
+ * `TEMPLATES_SERVICE_URL` is set without `TEMPLATES_SERVICE_ID`, or if `TEMPLATES_SERVICE_AUTH_ID`
+ * is set without `TEMPLATES_SERVICE_TOKEN` or a resolvable `JWK_PRI_<id>`.
  */
-export function assertTemplatesConfigNotConflicting(): void {
-  const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
+export function assertTemplatesBackendConfigValid(): void {
+  if (!isTemplatesResourceEnabled('remote')) return
 
-  if (serviceUrl && Deno.env.get(TEMPLATES_MODEL_ENV)) {
+  if (!Deno.env.get(TEMPLATES_SERVICE_URL_ENV)) {
     throw new InternalError(
-      `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" and "${TEMPLATES_MODEL_ENV}" are ` +
-        `mutually exclusive — set only one, never both.`,
+      `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" is required when ` +
+        `"${TEMPLATES_BACKEND_ENV}=remote" is selected.`,
+      { code: 'NOTIFICATIONS_TEMPLATES_REMOTE_SERVICE_URL_MISSING' },
     )
   }
 
-  if (serviceUrl && Deno.env.get(DATABASE_TEMPLATES_ENV) === 'true') {
-    throw new InternalError(
-      `[TemplateProvider] "${TEMPLATES_SERVICE_URL_ENV}" and "${DATABASE_TEMPLATES_ENV}=true" are ` +
-        `mutually exclusive — set only one, never both. "${DATABASE_TEMPLATES_ENV}=true" only ` +
-        `names a default "${TEMPLATES_MODEL_ENV}"; it never overrides Mode C once ` +
-        `"${TEMPLATES_SERVICE_URL_ENV}" is set.`,
-    )
-  }
-
-  if (serviceUrl && !Deno.env.get(TEMPLATES_SERVICE_ID_ENV)) {
+  if (!Deno.env.get(TEMPLATES_SERVICE_ID_ENV)) {
     throw new InternalError(
       `[TemplateProvider] "${TEMPLATES_SERVICE_ID_ENV}" is required alongside ` +
         `"${TEMPLATES_SERVICE_URL_ENV}" — the central service pulls this service's code ` +
         `templates by that identity.`,
+      { code: 'NOTIFICATIONS_TEMPLATES_REMOTE_SERVICE_ID_MISSING' },
     )
   }
 
   const authServiceId = Deno.env.get(TEMPLATES_SERVICE_AUTH_ID_ENV)
   if (authServiceId && !Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV)) {
-    // Reuses `@zanix/auth`'s own resolvers rather than duplicating its `JWK_ID_<id>`/`JWK_PRI_<id>`/
-    // `JWK_PRI_<id>_<keyId>` naming rules here — throws `InternalError` (propagated as-is, already
-    // names the exact missing env var) if nothing is registered.
-    const keyId = resolveServiceAssertionKeyId(authServiceId)
-    resolveServiceAssertionPrivateKey(authServiceId, keyId)
+    // Delegates to `remote-backend-auth.ts`'s `assertServiceAssertionKeyResolvable` — this package's
+    // one real `@zanix/auth` import site (see its own doc) — rather than importing `@zanix/auth`'s
+    // `resolveServiceAssertionKeyId`/`resolveServiceAssertionPrivateKey` here directly. Throws
+    // `InternalError` (propagated as-is, already names the exact missing env var) if nothing is
+    // registered.
+    assertServiceAssertionKeyResolvable(authServiceId)
   }
 }
 
@@ -214,7 +259,7 @@ export function resetTemplateProviderState(): void {
   resetLocalTemplateBackendState()
   resetRemoteTemplateBackendCache()
   resetRemoteTemplateBackendSyncState()
-  resetRemoteTemplateBackendAuthClient()
+  resetRemoteTemplateAuthClient()
   renderCache.clear()
 }
 
@@ -224,10 +269,11 @@ export function resetTemplateProviderState(): void {
  * in-memory code registries (`transactional/{email,sms,whatsapp}`) and, when enabled, the
  * database-persisted `ZanixTemplate` collection.
  *
- * With `TEMPLATES_MODEL_NAME` unset, `resolve()` is exactly the pre-existing behavior: an in-memory
- * registry lookup, no database access at all. Set, it becomes the priority source at runtime for
- * any `{channel, name}` it holds — code is seed data and fallback only, never re-read once a
- * database record exists (see `docs/templates.md`).
+ * With `TEMPLATES_BACKEND` unset, `resolve()` is exactly the pre-existing behavior: an in-memory
+ * registry lookup, no database access at all. Set to `'local'` or `'remote'` (see
+ * `templatesBackendMode()`), the selected backend becomes the priority source at runtime for any
+ * `{channel, name}` it holds — code is seed data and fallback only, never re-read once a database
+ * record exists (see `docs/templates.md`).
  *
  * Registered `SCOPED` (see `templates/core.ts`), for the same reason `NotifierProvider` is: a
  * `SINGLETON` provider would pin `this.database`'s resolution to a fixed, non-request context
@@ -242,38 +288,41 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
    * `Deno.env.get(...)` on every call rather than once at construction, which also sidesteps any
    * assumption about env vars being set before a DI-constructed `TemplateProvider` exists.
    *
-   * `undefined` if neither `TEMPLATES_SERVICE_URL` nor `TEMPLATES_MODEL_NAME` is set, or if
-   * `DATABASE_TEMPLATES=false` — the pure code-registry path, unchanged from before Mode C existed.
+   * `undefined` when `TEMPLATES_BACKEND` is unset — the pure code-registry path. Which concrete
+   * backend gets built for `'local'`/`'remote'` is entirely `templatesBackendMode()`'s call; this
+   * method only ever reads that one selector to decide, never infers it from which of the
+   * mode-specific vars happen to be set.
    */
   #backend(): TemplateBackend | undefined {
-    if (isDatabaseTemplatesDisabled()) return undefined
+    if (!templatesBackendMode()) return undefined
 
-    const serviceUrl = Deno.env.get(TEMPLATES_SERVICE_URL_ENV)
-    if (serviceUrl) {
-      assertTemplatesConfigNotConflicting()
+    assertTemplatesBackendConfigValid()
+
+    if (isTemplatesResourceEnabled('remote')) {
       const token = Deno.env.get(TEMPLATES_SERVICE_TOKEN_ENV)
       const authServiceId = Deno.env.get(TEMPLATES_SERVICE_AUTH_ID_ENV)
       return new RemoteTemplateBackend({
-        url: serviceUrl,
+        url: Deno.env.get(TEMPLATES_SERVICE_URL_ENV) as string,
         serviceId: Deno.env.get(TEMPLATES_SERVICE_ID_ENV) as string,
         token,
-        // Only built when there's no static `token` — see `RemoteTemplateBackendConfig.auth`'s own
-        // doc on the priority between the two. `privateKey`/`keyId` deliberately omitted: their
-        // resolvability (`JWK_ID_<authServiceId>`/`JWK_PRI_<authServiceId>[_<keyId>]`) was already
-        // checked above by `assertTemplatesConfigNotConflicting()` — `createServiceAssertion`
-        // resolves both again, lazily, at actual sign time, so neither has to pass through here.
-        auth: !token && authServiceId ? { serviceId: authServiceId } : undefined,
+        // Only built when there's no static `token` — see `RemoteTemplateBackendConfig.authClient`'s
+        // own doc on the priority between the two. Built via `remote-backend-auth.ts`'s
+        // `createRemoteTemplateAuthClient` (this package's one real `@zanix/auth` import site, see
+        // its own doc) rather than passing raw options into `RemoteTemplateBackend` itself — it never
+        // imports `@zanix/auth`, see `remote-backend.ts`'s own `ServiceAuthClient` doc on why.
+        // `privateKey`/`keyId` deliberately omitted: their resolvability
+        // (`JWK_ID_<authServiceId>`/`JWK_PRI_<authServiceId>[_<keyId>]`) was already checked above by
+        // `assertTemplatesBackendConfigValid()` — `createServiceAssertion` resolves both again,
+        // lazily, at actual sign time, so neither has to pass through here.
+        authClient: !token && authServiceId
+          ? createRemoteTemplateAuthClient({ serviceId: authServiceId })
+          : undefined,
         cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) ||
           undefined,
       })
     }
 
-    const modelName = Deno.env.get(TEMPLATES_MODEL_ENV)
-    if (modelName) {
-      return new LocalTemplateBackend(() => this.database, modelName)
-    }
-
-    return undefined
+    return new LocalTemplateBackend(() => this.database, templatesModelName())
   }
 
   /** Whether `{channel, name}` owns a real `.hbs` in code (see `db/manifest.ts`). */
@@ -367,10 +416,10 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
   /**
    * Resolves `zanixTemplate` for `channel` against a persisted backend (Modes A/B via
-   * `TEMPLATES_MODEL_NAME`, or Mode C via `TEMPLATES_SERVICE_URL` — see `#backend()`) if one is
-   * configured, `DATABASE_TEMPLATES` isn't explicitly `'false'`, and a matching, active record
-   * exists anywhere in `name`'s `parent` chain (see `#resolveChain()`) — falling back to the
-   * in-memory code registry, for the original `name`/`data`, otherwise.
+   * `TEMPLATES_BACKEND=local`, or Mode C via `TEMPLATES_BACKEND=remote` — see `#backend()`) if that
+   * mode is selected and a matching, active record exists anywhere in `name`'s `parent` chain (see
+   * `#resolveChain()`) — falling back to the in-memory code registry, for the original `name`/
+   * `data`, otherwise.
    *
    * Any failure on the backend path — the connector not actually being configured, a sync error,
    * a network error calling the remote service, an invalid `hbs` record, etc. — is caught and
@@ -381,16 +430,17 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
    * @param channel The notifier channel `name` belongs to.
    * @param name The `zanixTemplate` name to resolve.
    * @param data The data to render the template with.
-   * @throws If `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME` are both set (see
-   * `assertTemplatesConfigNotConflicting()`), or if `name` doesn't exist in either the configured
-   * backend (nor anywhere in its `parent` chain) or the code registry for `channel`.
+   * @throws If `TEMPLATES_BACKEND` is set to an invalid value, or `'remote'` is selected without
+   * its required config (see `assertTemplatesBackendConfigValid()`), or if `name` doesn't exist in
+   * either the configured backend (nor anywhere in its `parent` chain) or the code registry for
+   * `channel`.
    */
   public async resolve(
     channel: Notifiers,
     name: string,
     data: Record<string, unknown>,
   ): Promise<string> {
-    assertTemplatesConfigNotConflicting()
+    assertTemplatesBackendConfigValid()
 
     const backend = this.#backend()
     if (backend) {
@@ -413,7 +463,15 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
     const registry = templatesFor(channel)
     const render = registry[name]
-    if (!render) throw new Error(`Template not found: ${channel}/${name}`)
+    // A native `Error` here previously — the caller asked for a `channel`/`name` pair that doesn't
+    // exist in either backend, a caller-supplied-bad-identifier, not an internal fault (see
+    // `@zanix/errors`' docs, "Choosing a class").
+    if (!render) {
+      throw new ApplicationError(`Template not found: ${channel}/${name}`, {
+        code: 'TEMPLATE_NOT_FOUND',
+        meta: { channel, name },
+      })
+    }
     return await render(data as never)
   }
 

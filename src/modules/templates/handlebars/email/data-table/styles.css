@@ -1,0 +1,117 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+  color: #333333;
+}
+.container {
+  max-width: 640px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 24px;
+}
+.header {
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+.header .sender-logo {
+  max-height: 48px;
+  max-width: 200px;
+  display: block;
+  margin-bottom: 8px;
+}
+.header .sender-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #162156;
+}
+.header .meta {
+  text-align: right;
+  vertical-align: top;
+  font-size: 13px;
+  color: #666666;
+}
+.header .reference-number {
+  font-size: 16px;
+  font-weight: bold;
+  color: #162156;
+}
+.title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #162156;
+  margin-bottom: 16px;
+}
+.recipient {
+  font-size: 14px;
+  color: #333333;
+  margin-bottom: 20px;
+  white-space: pre-line;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+.items-table th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666666;
+  border-bottom: 2px solid #e0e4e8;
+  padding: 8px 6px;
+}
+.items-table td {
+  font-size: 14px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #e0e4e8;
+}
+.items-table .col-quantity,
+.items-table .col-unit-price,
+.items-table .col-line-total {
+  text-align: right;
+  white-space: nowrap;
+}
+.totals {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 20px;
+}
+.totals td {
+  padding: 4px 6px;
+  font-size: 14px;
+  text-align: right;
+}
+.totals .label {
+  color: #666666;
+}
+.totals .total-row .label,
+.totals .total-row .value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #162156;
+  border-top: 2px solid #e0e4e8;
+  padding-top: 10px;
+}
+.notes {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e4e8;
+  font-size: 12px;
+  color: #888888;
+  white-space: pre-line;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .header .meta {
+    text-align: left;
+  }
+}

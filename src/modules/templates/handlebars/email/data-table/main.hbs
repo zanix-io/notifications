@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="{{html.lang}}">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{html.title}}</title>
+  <style>{{styles.css}}</style>
+  </head>
+  <body>
+    <div class="{{styles.containerClass}}">
+      <table class="{{styles.headerClass}}" role="presentation" width="100%">
+        <tr>
+          <td class="sender">
+            {{#if senderLogo}}
+              <img src="{{senderLogo}}" alt="{{senderName}}" class="sender-logo">
+            {{/if}}
+            {{#if senderName}}
+              <div class="sender-name">{{senderName}}</div>
+            {{/if}}
+          </td>
+          <td class="meta">
+            {{#if referenceNumber}}
+              <div class="reference-number">{{referenceNumber}}</div>
+            {{/if}}
+            {{#if date}}
+              <div class="date">{{date}}</div>
+            {{/if}}
+            {{#if dueDate}}
+              <div class="due-date">{{dueDate}}</div>
+            {{/if}}
+          </td>
+        </tr>
+      </table>
+
+      {{#if title}}
+        <div class="title">{{title}}</div>
+      {{/if}}
+
+      {{#if recipient}}
+        <div class="recipient">{{recipient}}</div>
+      {{/if}}
+
+      <table class="{{styles.tableClass}}" role="presentation" width="100%">
+        <thead>
+          <tr>
+            <th class="col-description">{{labels.description}}</th>
+            <th class="col-quantity">{{labels.quantity}}</th>
+            <th class="col-unit-price">{{labels.unitPrice}}</th>
+            <th class="col-line-total">{{labels.amount}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+            <tr>
+              <td class="col-description">{{this.description}}</td>
+              <td class="col-quantity">{{this.quantity}}</td>
+              <td class="col-unit-price">{{#if ../currency}}{{../currency}} {{/if}}{{this.unitPrice}}</td>
+              <td class="col-line-total">{{#if ../currency}}{{../currency}} {{/if}}{{this.lineTotal}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      <table class="{{styles.totalsClass}}" role="presentation" width="100%">
+        <tr>
+          <td class="label">{{labels.subtotal}}</td>
+          <td class="value">{{#if currency}}{{currency}} {{/if}}{{subtotal}}</td>
+        </tr>
+        {{#if tax}}
+          <tr>
+            <td class="label">{{labels.tax}}</td>
+            <td class="value">{{#if currency}}{{currency}} {{/if}}{{tax}}</td>
+          </tr>
+        {{/if}}
+        <tr class="total-row">
+          <td class="label">{{labels.total}}</td>
+          <td class="value">{{#if currency}}{{currency}} {{/if}}{{total}}</td>
+        </tr>
+      </table>
+
+      {{#if notes}}
+        <div class="{{styles.notesClass}}">{{notes}}</div>
+      {{/if}}
+    </div>
+  </body>
+</html>

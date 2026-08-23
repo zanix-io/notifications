@@ -166,7 +166,8 @@ p {
 ` + '\n' + data.styles.css
     return compiled(data);
   } catch (e) {
-    throw new Error(e.message)
+    // Keeps the real ZodError as `cause` instead of flattening to just `e.message`.
+    throw new Error(e.message, { cause: e })
   }
 }
 

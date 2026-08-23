@@ -1,6 +1,8 @@
-import { HttpError } from 'jsr:@zanix/utils@2.*/errors'
+import { HttpError } from '@zanix/errors'
 import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
+import { stub } from '@std/testing/mock'
 import { TwilioSmsAdapter } from 'modules/sms/twilio.ts'
+import logger from '@zanix/logger'
 
 const config = {
   accountSid: 'AC_test_sid',
@@ -123,6 +125,48 @@ Deno.test(
         )
       },
     )
+  },
+)
+
+Deno.test(
+  'TwilioSmsAdapter: send() logs via logger.error on a real send failure, without the message payload',
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+
+    try {
+      await withFakeFetch(
+        () =>
+          new Response(
+            JSON.stringify({
+              code: 21211,
+              message: "The 'To' number is not valid.",
+            }),
+            { status: 400 },
+          ),
+        () =>
+          assertRejects(
+            () =>
+              new TwilioSmsAdapter(config).send({
+                to: 'not-a-number',
+                content: 'this is the secret sms body',
+              }),
+            HttpError,
+          ),
+      )
+
+      assertEquals(errorStub.calls.length, 1)
+      const loggedArgs = errorStub.calls[0].args
+      const loggedText = JSON.stringify(loggedArgs)
+
+      // The message content, and the (arguably sensitive) recipient, must never appear in the log.
+      assertEquals(loggedText.includes('this is the secret sms body'), false)
+      assertEquals(loggedText.includes('not-a-number'), false)
+      // Only safe provider/channel metadata is logged.
+      assertStringIncludes(loggedText, 'twilio')
+      assertStringIncludes(loggedText, 'sms')
+    } finally {
+      errorStub.restore()
+    }
   },
 )
 

@@ -2,8 +2,10 @@
 
 Several built-in templates render through another template's content under different
 default/transformed data rather than owning any `.hbs` of their own — email's `welcome`,
-`password-changed`, `password-recovery`, and `login-otp` all render through `generic`;
-SMS/WhatsApp's `otp` does too. This only matters once
+`password-changed`, `password-recovery`, `login-otp`, and `new-login` all render through `generic`;
+SMS's `otp` and `new-login`, and WhatsApp's `otp`, do too (each channel's own `new-login` is
+independently declared — see [Adding a derived template](#adding-a-derived-template)'s note on
+registering the same name in more than one channel). This only matters once
 [database-backed templates](./templates.md#database-backed-templates) are enabled — in pure code
 mode it's invisible: each is a thin wrapper that transforms its own data and calls
 `execTemplate('{channel}/generic', ...)` directly.
@@ -54,8 +56,8 @@ await Model.updateOne(
   `parent` unchanged. Only the _original_ `zanixTemplate` name's registered transform (if any) ever
   runs; nothing re-transforms the data again at each subsequent hop.
 - **Only applies once a database record exists to walk from at all.** If the whole chain has no
-  content anywhere (e.g. `DATABASE_TEMPLATES=false`, or every DB record involved is inactive),
-  `resolve()` falls back to the compiled code version exactly as it always has.
+  content anywhere (e.g. `TEMPLATES_BACKEND` unset/not `'local'`, or every DB record involved is
+  inactive), `resolve()` falls back to the compiled code version exactly as it always has.
 - **A brand-new template with no code counterpart at all** can declare its own `parent` directly —
   an admin creating `promo-email` with `parent: 'generic'` via a CRUD API gets the same fallback
   behavior with zero code changes, as long as the data it's rendered with already matches the
@@ -187,3 +189,11 @@ before this feature — a plain code-only wrapper, `parent` chain and all). Ther
 "half-registered" state to worry about anymore — `parent` and `transform` are declared together in
 the same array entry, so it's not possible to wire one without the other the way it used to be when
 they lived in two separate files.
+
+**The same `name` can be registered independently in more than one channel** — e.g. email's
+`new-login` (`transactional/email/auth.ts`'s `derivedTemplates`) and SMS's `new-login`
+(`transactional/sms.ts`'s `derivedTemplates`) are two entirely separate declarations, each with its
+own transform and its own `parent` (`email/generic` and `sms/generic` respectively). Nothing links
+them beyond sharing a string — `{channel, name}` is always the real compound key, so there's no
+cross-channel registration step to remember and no risk of one channel's entry colliding with the
+other's.

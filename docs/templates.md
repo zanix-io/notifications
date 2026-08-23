@@ -18,11 +18,11 @@ selects one of these by name when sending a message.
 
 Each channel has its own template registry, exported from the root entrypoint:
 
-| Channel  | Registry export          | Templates                                                                  |
-| -------- | ------------------------ | -------------------------------------------------------------------------- |
-| Email    | `transactionalTemplates` | `welcome`, `generic`, `password-changed`, `password-recovery`, `login-otp` |
-| SMS      | `smsTemplates`           | `generic`, `otp`                                                           |
-| WhatsApp | `whatsappTemplates`      | `generic`, `otp`                                                           |
+| Channel  | Registry export          | Templates                                                                                             |
+| -------- | ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Email    | `transactionalTemplates` | `welcome`, `generic`, `password-changed`, `password-recovery`, `login-otp`, `new-login`, `data-table` |
+| SMS      | `smsTemplates`           | `generic`, `otp`, `new-login`                                                                         |
+| WhatsApp | `whatsappTemplates`      | `generic`, `otp`                                                                                      |
 
 A template name (e.g. `'welcome'`) passed as `zanixTemplate` is looked up in the registry matching
 the channel the message is sent through — SMS and WhatsApp each have their own `generic`/`otp`,
@@ -34,6 +34,49 @@ layout. `otp` (SMS/WhatsApp) takes `code: string`, `ttl: number` (minutes), and 
 name, and renders a canned verification-code message — there's no email `otp`; use `login-otp` or
 `password-recovery` instead, which take the same `code`/`ttl` shape plus the full `generic` email
 fields.
+
+`new-login` (email and SMS — each channel's own, unrelated to one another, same as `generic`/`otp`)
+renders a "login from a new device" security notification: `device: string` and `time: string` are
+required, `location`/`app` are optional. Like `otp`'s `ttl`, `time` is a caller-formatted display
+string, not a `Date` — this package never assumes a locale/timezone to format one in. There's no
+call-to-action button, same shape as `password-changed`.
+
+`data-table` (email only) renders a generic itemized-table document — an invoice, receipt, order
+confirmation, or quote; the schema makes no assumption which. `items`
+(`description`/`quantity`/`unitPrice`), `subtotal`, and `total` are the only required fields;
+`title` (a heading/description shown above the table), `referenceNumber`, `date`, `dueDate`,
+`senderName`, `senderLogo`, `recipient`, `currency`, `tax`, and `notes` are all optional.
+Deliberately generic: no hardcoded business name, no assumed currency symbol or decimal-place
+convention — `currency` is an opaque label rendered next to each amount, never interpreted, and
+`subtotal`/`tax`/`total` are always caller-supplied since tax rules (per-line vs. flat, inclusive
+vs. exclusive) are a business decision this library doesn't make. Each line item's
+`quantity * unitPrice` is computed for display — plain arithmetic, not a formatting decision.
+
+**The one template in this package with English text baked into its own markup — until `labels`
+fixed that.** Every other template (`welcome`, `generic`, `otp`, etc.) renders 100% caller-supplied
+copy; `data-table`'s column/row headings (`Description`/`Qty`/`Unit price`/`Amount`/`Subtotal`/
+`Tax`/`Total`) used to be hardcoded English strings directly in `main.hbs`. `labels` (all optional,
+defaulting to English) makes every one of them caller-overridable, so a non-English deployment
+configures its own copy once instead of being stuck with fixed text:
+
+```ts
+await transactionalTemplates['data-table']({
+  items: [{ description: 'Producto', quantity: 1, unitPrice: 10 }],
+  subtotal: 10,
+  total: 10,
+  labels: { description: 'Descripción', quantity: 'Cant.', subtotal: 'Subtotal', total: 'Total' },
+})
+```
+
+Email's `content`/`footer` accept real HTML and are never escaped — they're meant to carry rich
+formatting, including from a value your own app passes through unmodified. Before either reaches the
+rendered email, both are run through a denylist sanitizer (`<script>`/`<style>`/`<iframe>`/
+`<object>`/`<embed>` elements, `on*` event-handler attributes, and a `javascript:`/`vbscript:`/
+non-image `data:` URI in `href`/`src`/`action`/`formaction` are all stripped) — ordinary formatting
+markup passes through untouched. `buttonLink` is a URL, not HTML — it goes through the same
+`sanitizeUrl` scheme check (`@zanix/helpers`) as `data-table`'s `senderLogo`, not the HTML denylist
+sanitizer above. SMS/WhatsApp's `content` is plain text with no HTML involved, so nothing is
+stripped there.
 
 ## Rendering a template directly
 
@@ -61,14 +104,23 @@ const html = await execTemplate('email/generic', {
 ## Database-backed templates
 
 By default, every template above is rendered purely from code — nothing is read from a database.
-Setting the `TEMPLATES_MODEL_NAME` environment variable (see
+Setting `TEMPLATES_BACKEND=local` (see
 [Environment Variables](./environment-variables.md#database-backed-templates)) switches
-`TemplateProvider` (used internally by `NotifierProvider`) to a hybrid mode instead. If you don't
-need a custom model name, `DATABASE_TEMPLATES=true` enables the same hybrid mode under the default
-name (`zanix-templates`) without setting `TEMPLATES_MODEL_NAME` yourself. `DATABASE_TEMPLATES=false`
-is the opposite: a kill switch that disables database-backed templates entirely, even if
-`TEMPLATES_MODEL_NAME` is explicitly set — the same convention as `@zanix/datamaster`'s
-`DATABASE_SEEDERS`.
+`TemplateProvider` (used internally by `NotifierProvider`) to a hybrid mode instead, against a
+`ZanixTemplate` collection named by `TEMPLATES_MODEL_NAME` — optional even then, defaulting to
+`zanix-templates` when unset.
+
+> **Breaking change from `DATABASE_TEMPLATES`/bare `TEMPLATES_MODEL_NAME`.** Earlier versions
+> inferred the mode from which of
+> `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/`TEMPLATES_SERVICE_URL` happened to be set, with
+> `assertTemplatesConfigNotConflicting()` throwing if an invalid combination was detected.
+> `TEMPLATES_BACKEND` (`'local'` or `'remote'`) is now the single, explicit selector — see
+> [Environment Variables](./environment-variables.md#database-backed-templates) and `CHANGELOG.md`.
+> `DATABASE_TEMPLATES` is removed entirely, with no dual-read: its `=true` role is superseded by
+> `TEMPLATES_BACKEND=local` itself, and its `=false` kill-switch role is superseded by simply not
+> setting `TEMPLATES_BACKEND` to `'local'` — an explicit selector needs no separate override to say
+> "not this mode." Setting `TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_URL` without also setting
+> `TEMPLATES_BACKEND` to the matching mode has no effect — it's simply never read, not a conflict.
 
 - On first use, every code template (the ones listed under
   [Built-in templates](#built-in-templates)) is seeded into a `ZanixTemplate` collection, one
@@ -194,9 +246,11 @@ database connection to templates at all — is covered separately below.
 
 Modes A and B both assume the app holds a real `ZanixMongoConnector`. A service with **no local
 Mongo access to templates whatsoever** — only an HTTP call to a dedicated, central
-Notification/Template Service — sets `TEMPLATES_SERVICE_URL` instead of `TEMPLATES_MODEL_NAME`:
+Notification/Template Service — sets `TEMPLATES_BACKEND=remote` instead of
+`TEMPLATES_BACKEND=local`:
 
 ```ts
+Deno.env.set('TEMPLATES_BACKEND', 'remote')
 Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
 Deno.env.set('TEMPLATES_SERVICE_ID', 'billing')
 Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
@@ -206,20 +260,20 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   `@zanix/core`'s `admin` option, an `'admin'`-Application listener on its own port — anchored
   (id-prefixed) whenever that service's own `ADMIN_SERVER_ID` is set, not the service's
   default-Application port). Do not include the `/admin/templates` suffix; `TemplateProvider`
-  appends it per call. **Mutually exclusive with `TEMPLATES_MODEL_NAME` — including its
-  `DATABASE_TEMPLATES=true` convenience spelling** — setting either alongside
-  `TEMPLATES_SERVICE_URL` throws immediately, at boot (importing `@zanix/notifications/core`) and on
-  every `resolve()` call, rather than silently picking one. This matters in practice for a
-  deployment where two processes read the SAME `.env` file with opposite needs (one is a Mode C
-  consumer, the other is the central service that itself needs `DATABASE_TEMPLATES=true`) — set
-  `TEMPLATES_MODEL_NAME`/ `DATABASE_TEMPLATES` explicitly in the process that needs it (e.g.
-  `Deno.env.set(...)` at that process's own entrypoint) rather than relying on one shared file to
-  serve both.
+  appends it per call. **Required whenever `TEMPLATES_BACKEND=remote` is selected** — omitting it
+  throws immediately, at boot (importing `@zanix/notifications/core`) and on every `resolve()` call.
+  Setting it without also selecting `TEMPLATES_BACKEND=remote` has no effect — it's simply never
+  read. This matters in practice for a deployment where two processes read the SAME `.env` file with
+  opposite needs (one is a Mode C consumer, the other is the central service that itself needs
+  `TEMPLATES_BACKEND=local`) — set
+  `TEMPLATES_BACKEND`/`TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_URL` explicitly in the process that
+  needs them (e.g. `Deno.env.set(...)` at that process's own entrypoint) rather than relying on one
+  shared file to serve both.
 - **`TEMPLATES_SERVICE_ID`** — this service's own identity, as registered in the central service's
   `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) mapped to a
   base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint
   (see "Remote sync" below). **Required alongside `TEMPLATES_SERVICE_URL`** — omitting it throws the
-  same way the mutual-exclusivity check does.
+  same way the missing-`TEMPLATES_SERVICE_URL` check does.
 - **`TEMPLATES_SERVICE_TOKEN`** — a pre-issued machine credential, sent as
   `X-Znx-Authorization: Bearer <token>` (`@zanix/auth`'s `type: 'api'` contract — RS256, verified
   against `JWK_PUB`). This package never mints this token itself; issuing and rotating it is the
@@ -258,6 +312,7 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   `docs/service-credential.md#-rotating-a-services-key`).
 
   ```ts
+  Deno.env.set('TEMPLATES_BACKEND', 'remote')
   Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
   Deno.env.set('TEMPLATES_SERVICE_ID', 'billing')
   Deno.env.set('TEMPLATES_SERVICE_AUTH_ID', 'billing-service')
@@ -309,15 +364,16 @@ await ProgramModule.defineApplication('main', () => {
 
 `defineCodeTemplatesDiscovery` accepts an optional `{ guards }` — this package has no dependency on
 `@zanix/auth`, so it never assumes an auth scheme; pass a guard from your own bootstrap if this
-endpoint should require one (see `@zanix/server`'s `docs/HANDLERS.md`'s "Discovery" section on why
+endpoint should require one (see `@zanix/server`'s `docs/handlers.md`'s "Discovery" section on why
 omitting it is a deliberate, honest "unauthenticated," not a silently-broken "looks protected but
 isn't").
 
 Once the central service receives the sync POST, it resolves `serviceId` in its own
-`ServiceRegistry`, fetches this process's `/.well-known/zanix/code-templates` snapshot
-(`email/generic`, `sms/generic`, `whatsapp/generic`, each as `{channel, name, hbs, hash}`) — cross-
-service orchestration owned by `@zanix/admin` itself (`syncTemplatesFromRegisteredService`) — and
-reconciles it against its own database via this package's own
+`ServiceRegistry`, fetches this process's `/.well-known/zanix/code-templates` snapshot (every entry
+in [Built-in templates](#built-in-templates) that owns its own `.hbs` — `email/generic`,
+`email/data-table`, `sms/generic`, `whatsapp/generic` — each as `{channel, name, hbs, hash}`) —
+cross- service orchestration owned by `@zanix/admin` itself (`syncTemplatesFromRegisteredService`) —
+and reconciles it against its own database via this package's own
 `TemplatesAdminRepository.syncCodeTemplates`, using the exact same
 seed/resync/orphan/manual-edit-always-wins rules `LocalTemplateBackend` applies locally (see
 [Database-backed templates](#database-backed-templates) above), so a service running in this mode
@@ -343,27 +399,39 @@ is `ZanixTemplateAttrs.hash`, already computed server-side), any call made after
 `TEMPLATES_SERVICE_CACHE_TTL_MS` expires gets a cheap `304` instead of a full body whenever nothing
 actually changed. Requires a `@zanix/server` version that ships this (check its own changelog).
 
-### Reusing the admin CRUD layer
+### Reusing the templates CRUD layer
 
-This package owns the full CRUD/business-logic layer behind `/admin/templates`
-(`TemplatesAdminRepository`/`TemplatesAdminService`, exported directly from this package) —
-`@zanix/admin` (and, via its own re-export, `@zanix/core`) only composes them into an HTTP surface
-(`createTemplatesController`), the same "compose, don't own" role it already plays for triggers
-(owned by `@zanix/datamaster`). Rather than duplicating this CRUD logic, a consuming app that needs
+This package owns the full local `/templates` CRUD API — data access, business logic
+(`TemplatesAdminRepository`/`TemplatesAdminService`), and the HTTP surface fronting them
+(`@zanix/notifications/templates-api`'s `createTemplatesController`), the same "local API lives with
+its domain" shape `@zanix/datamaster` follows for its own triggers, and `@zanix/space` establishes
+for its own assets — see the "Local API vs Aggregator API" rule in the
+`zanix-libraries-architecture` skill. `@zanix/admin` separately composes a genuinely cross-service
+extension on top — `POST /templates/sync`, pulling a registered service's own code templates via
+`ServiceRegistry`/Discovery — mounted under the same `/templates` prefix but owned and authored by
+`@zanix/admin` itself, since that's the part that actually needs cross-service concerns this package
+deliberately knows nothing about. Rather than duplicating the CRUD logic, a consuming app that needs
 a custom templates API (different endpoints, extra fields, its own auth scheme) can import and
 extend it directly:
 
 ```ts
 import { TemplatesAdminRepository } from 'jsr:@zanix/notifications'
+import { createTemplatesController } from 'jsr:@zanix/notifications/templates-api'
+import { jwtValidationGuard } from 'jsr:@zanix/auth'
 
 class MyCustomTemplatesRepository extends TemplatesAdminRepository {
   // add/override methods as needed — the base CRUD (list/get/create/update/remove) is already
   // correct with respect to `source`, `version`, `hash`, and soft-delete semantics.
 }
+
+// createTemplatesController never assumes an auth mechanism — pass real guards explicitly.
+createTemplatesController({
+  guards: [jwtValidationGuard({ permissions: ['my-app:templates'], type: ['user'] })],
+})
 ```
 
-`@zanix/admin`/`@zanix/core` re-export the same classes too, so importing from either of those works
-identically — pick whichever you already depend on.
+`@zanix/admin` composes this same controller into its own `/templates` CRUD API — see its own
+`docs/templates-api.md`.
 
 ## Adding a custom template
 

@@ -13,6 +13,7 @@ import type { Notifiers } from 'typings/general.ts'
  * against. Discovered directly from which `main.hbs` files exist, not maintained by hand.
  */
 export const CODE_TEMPLATES: ReadonlyArray<{ channel: Notifiers; name: string }> = [
+  { channel: 'email', name: 'data-table' },
   { channel: 'email', name: 'generic' },
   { channel: 'sms', name: 'generic' },
   { channel: 'whatsapp', name: 'generic' },

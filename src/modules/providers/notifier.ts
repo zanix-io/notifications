@@ -16,6 +16,7 @@ import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
 import type { CoreModules, WorkerDispatchMode } from '@zanix/server'
 
+import { InternalError } from '@zanix/errors'
 import { resetPreloadedDBTemplates } from '../templates/db/manifest.ts'
 import { dispatchWorkerTask, ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
@@ -231,7 +232,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
   /**
    * Shared implementation behind `sendMessage()` and `sendTemplate()`: queues (if `useWorker` is
    * set), or resolves the channel's connector and sends immediately, wrapping any failure as
-   * `Deno.errors.Interrupted`.
+   * `InternalError`.
    */
   async #dispatch(
     notifier: Notifiers,
@@ -278,9 +279,15 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
 
       await client.send({ content: body, ...messageData })
     } catch (e) {
-      throw new Deno.errors.Interrupted(
+      // Everything this `try` can throw — connector resolution (`use()`), `isReady`, template
+      // resolution (`TemplateProvider.resolve()`), and the actual `send()`/`sendTemplate()` call
+      // to the channel's provider — is something the caller of `sendMessage`/`sendTemplate` had
+      // no control over (missing/misconfigured connector, a provider outage, a rejected send),
+      // not a mistake in the call itself. That's the `InternalError` case, not `ApplicationError`
+      // (see `@zanix/errors`' docs, "Choosing a class").
+      throw new InternalError(
         'NotifierProvider: An error occurred while sending a message in the background.',
-        { cause: e },
+        { code: 'NOTIFICATIONS_DISPATCH_FAILED', cause: e },
       )
     }
   }

@@ -1,8 +1,11 @@
 import { assertEquals, assertRejects, assertStrictEquals } from 'jsr:@std/assert@^1.0.15'
 import { WhatsappClient } from 'modules/whatsapp/connector.ts'
 import type { WhatsappMessage, WhatsappProviderAdapter } from 'typings/whatsapp.ts'
+import { InternalError } from '@zanix/errors'
 
 const metaConfig = { phoneNumberId: '123456789', accessToken: 'test_token' }
+
+console.error = () => {}
 
 /** Stubs `globalThis.fetch`, restoring the original afterward. */
 async function withFakeFetch<T>(
@@ -113,26 +116,30 @@ Deno.test(
 Deno.test('WhatsappClient: send() throws before initialize() has run', async () => {
   const client = new WhatsappClient({ ...metaConfig, autoInitialize: false })
 
-  await assertRejects(
+  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a plain
+  // `Error` here (a lifecycle invariant, not the caller's mistake).
+  const error = await assertRejects(
     () => client.send({ to: '+15551234567', content: 'hi' }),
-    Error,
+    InternalError,
     'not initialized',
   )
+  assertEquals(error.code, 'WHATSAPP_CLIENT_NOT_INITIALIZED')
 })
 
 Deno.test('WhatsappClient: sendTemplate() throws before initialize() has run', async () => {
   const client = new WhatsappClient({ ...metaConfig, autoInitialize: false })
 
-  await assertRejects(
+  const error = await assertRejects(
     () =>
       client.sendTemplate({
         to: '+15551234567',
         templateName: 'otp_code',
         templateLanguage: 'en_US',
       }),
-    Error,
+    InternalError,
     'not initialized',
   )
+  assertEquals(error.code, 'WHATSAPP_CLIENT_NOT_INITIALIZED')
 })
 
 Deno.test('WhatsappClient: sendTemplate() forwards template fields to the adapter', async () => {

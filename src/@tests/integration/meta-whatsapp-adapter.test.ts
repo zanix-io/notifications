@@ -1,6 +1,10 @@
-import { HttpError } from 'jsr:@zanix/utils@2.*/errors'
+import { HttpError } from '@zanix/errors'
 import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
+import { stub } from '@std/testing/mock'
 import { MetaCloudWhatsappAdapter } from 'modules/whatsapp/meta.ts'
+import logger from '@zanix/logger'
+
+console.error = () => {}
 
 const config = {
   phoneNumberId: '123456789',
@@ -196,5 +200,46 @@ Deno.test(
         assertStringIncludes((error.cause as Error).message, '[HTTP 500]')
       },
     )
+  },
+)
+
+Deno.test(
+  'MetaCloudWhatsappAdapter: send() logs via logger.error on a real send failure, without the message payload',
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+
+    try {
+      await withFakeFetch(
+        () =>
+          new Response(
+            JSON.stringify({
+              error: { message: 'Invalid OAuth access token.', code: 190 },
+            }),
+            { status: 401 },
+          ),
+        () =>
+          assertRejects(
+            () =>
+              new MetaCloudWhatsappAdapter(config).send({
+                to: '+15551234567',
+                content: 'this is the secret whatsapp body',
+              }),
+            HttpError,
+          ),
+      )
+
+      assertEquals(errorStub.calls.length, 1)
+      const loggedText = JSON.stringify(errorStub.calls[0].args)
+
+      // The message content, the recipient, and Meta's own error text must never appear.
+      assertEquals(loggedText.includes('this is the secret whatsapp body'), false)
+      assertEquals(loggedText.includes('+15551234567'), false)
+      assertEquals(loggedText.includes('Invalid OAuth access token'), false)
+      // Only safe provider/channel metadata is logged.
+      assertStringIncludes(loggedText, 'meta')
+      assertStringIncludes(loggedText, 'whatsapp')
+    } finally {
+      errorStub.restore()
+    }
   },
 )

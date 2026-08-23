@@ -40,10 +40,36 @@ export interface TwilioConfig {
 /**
  * Configuration for `SmsClient`.
  *
- * Provide `adapter` to use a custom SMS provider (Vonage, AWS SNS, etc.); otherwise the built-in
- * `TwilioSmsAdapter` is used, built from the remaining (Twilio-shaped) fields.
+ * Provide `adapter` to use a custom SMS provider (AWS SNS, etc.) — or the built-in `VonageSmsAdapter`
+ * (see `VonageConfig`) — otherwise the built-in `TwilioSmsAdapter` is used, built from the remaining
+ * (Twilio-shaped) fields.
  */
 export interface SmsClientConfig extends Partial<TwilioConfig> {
   /** Custom provider adapter; overrides the built-in Twilio adapter entirely when provided */
   adapter?: SmsProviderAdapter
+}
+
+/**
+ * Vonage (classic) SMS API credentials (see https://developer.vonage.com/en/api/sms).
+ *
+ * Unlike `TwilioConfig`, this is never merged into `SmsClientConfig` — `VonageSmsAdapter` is an
+ * alternative built-in adapter, not the default, so it's only ever constructed explicitly (see
+ * `sms/vonage.ts` and `sms/defs.ts`'s `VONAGE_*` env var handling), the same way
+ * `WhatsappClientConfig` keeps `TwilioConfig` separate from its own `MetaCloudConfig` fields.
+ */
+export interface VonageConfig {
+  /** Vonage API key */
+  apiKey: string
+
+  /** Vonage API secret */
+  apiSecret: string
+
+  /** Default sender phone number or alphanumeric sender ID, used when a message doesn't set its own `from` */
+  from: string
+
+  /**
+   * Vonage SMS API base URL. Defaults to `https://rest.nexmo.com`; override to point at a proxy,
+   * mock server, or a different API host.
+   */
+  apiBase?: string
 }

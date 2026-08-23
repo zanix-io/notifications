@@ -1,6 +1,9 @@
 import { assertEquals, assertRejects, assertStrictEquals } from 'jsr:@std/assert@^1.0.15'
 import { SmsClient } from 'modules/sms/connector.ts'
 import type { SmsMessage, SmsProviderAdapter } from 'typings/sms.ts'
+import { InternalError } from '@zanix/errors'
+
+console.error = () => {}
 
 const twilioConfig = {
   accountSid: 'AC_sid',
@@ -112,11 +115,14 @@ Deno.test('SmsClient: a custom adapter bypasses the built-in Twilio adapter enti
 Deno.test('SmsClient: send() throws before initialize() has run', async () => {
   const client = new SmsClient({ ...twilioConfig, autoInitialize: false })
 
-  await assertRejects(
+  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a plain
+  // `Error` here (an uninitialized-client call is a lifecycle invariant, not the caller's mistake).
+  const error = await assertRejects(
     () => client.send({ to: '+15551234567', content: 'hi' }),
-    Error,
+    InternalError,
     'not initialized',
   )
+  assertEquals(error.code, 'SMS_CLIENT_NOT_INITIALIZED')
 })
 
 Deno.test('SmsClient: isHealthy() is false before initialize() and true after', () => {

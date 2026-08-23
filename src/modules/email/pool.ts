@@ -1,18 +1,34 @@
 import type { ServerConfig, SmtpResponseCode } from 'typings/email.ts'
 
-import { smtpResponseCode } from 'utils/constants.ts'
+import { SMTP_RESPONSE_CODE } from 'utils/constants.ts'
 import { decoder, encoder } from '@zanix/helpers'
+import { ApplicationError, InternalError } from '@zanix/errors'
+import logger from '@zanix/logger'
+
+/**
+ * Env var naming the shared SMTP connection pool's size — read by `pool.ts`'s `getSmtpPool()`, not
+ * by `registerSmtpConnector()` itself. Exported from here (rather than from `pool.ts`, where it's
+ * consumed) so it lives alongside this module's other `SMTP_*_ENV` constants, the same single home
+ * every other SMTP env var name already has.
+ */
+export const SMTP_POOL_SIZE_ENV = 'SMTP_POOL_SIZE'
 
 /**
  * Thrown when an SMTP connection is found closed (idle timeout, remote reset, etc.) while being
- * used. Distinct from a generic `Error` so `SmtpClient.send()` can tell "connection died" apart
+ * used. Distinct from a generic error so `SmtpClient.send()` can tell "connection died" apart
  * from any other failure and react to it (reconnect and retry, or discard from the pool).
+ *
+ * Extends `ApplicationError` (not `Error` directly, as before) — gets `id`/`code`/`cause`/
+ * `shouldLog` for free while keeping its own distinct, `instanceof`-catchable type (see
+ * `@zanix/errors`' docs, "Choosing a class"). `ApplicationError`'s `shouldLog: false` default is
+ * deliberately kept: a closed connection here is expected/recoverable (the whole point of this
+ * class is that its caller reconnects and retries), not an `InternalError`-shaped surprise.
  */
-export class SmtpConnectionClosedError extends Error {
+export class SmtpConnectionClosedError extends ApplicationError {
   constructor(cause?: unknown) {
     super(
       'SMTP connection closed unexpectedly (idle timeout or remote reset)',
-      { cause },
+      { cause, code: 'SMTP_CONNECTION_CLOSED' },
     )
     this.name = 'SmtpConnectionClosedError'
   }
@@ -50,16 +66,16 @@ export class SmtpConnection {
       connection.writable.getWriter(),
     )
 
-    await session.sendCommand(undefined, smtpResponseCode.READY)
-    await session.sendCommand(`EHLO ${config.hostname}`, smtpResponseCode.OK)
-    await session.sendCommand('AUTH LOGIN', smtpResponseCode.AUTH_NEXT)
+    await session.sendCommand(undefined, SMTP_RESPONSE_CODE.READY)
+    await session.sendCommand(`EHLO ${config.hostname}`, SMTP_RESPONSE_CODE.OK)
+    await session.sendCommand('AUTH LOGIN', SMTP_RESPONSE_CODE.AUTH_NEXT)
     await session.sendCommand(
       btoa(config.username),
-      smtpResponseCode.AUTH_NEXT,
+      SMTP_RESPONSE_CODE.AUTH_NEXT,
     )
     await session.sendCommand(
       btoa(config.password),
-      smtpResponseCode.AUTH_SUCCESS,
+      SMTP_RESPONSE_CODE.AUTH_SUCCESS,
     )
 
     return session
@@ -81,12 +97,24 @@ export class SmtpConnection {
       const result = await this.#reader.read().catch((e) => this.#closeUnexpectedly(e))
       if (result.done) this.#closeUnexpectedly()
       const response = decoder.decode(result.value).trim()
-      if (!response) throw new Error('Invalid response from server')
+      // Native `Error`s here previously — an SMTP server misbehaving mid-protocol is exactly the
+      // "caller had no control over it" case `InternalError` is for, not the caller's mistake.
+      // No manual `logger.error` call needed at either throw below: `InternalError` defaults
+      // `shouldLog` to `true` (see `@zanix/errors`), so its own constructor already logs
+      // `this.message` + the full (already payload-safe — no raw response text, just the numeric
+      // `meta.expectedCode`/`actualCode`) error object. A manual call here would double-log the
+      // same event.
+      if (!response) {
+        throw new InternalError('Invalid response from server', { code: 'SMTP_INVALID_RESPONSE' })
+      }
       const lines = response.split('\r\n')
       // deno-lint-ignore no-non-null-assertion
       const code = parseInt(lines.at(-1)!.slice(0, 3).trim())
       if (code !== expectedCode) {
-        throw new Error(`Expected code: ${expectedCode}, got: ${code}`)
+        throw new InternalError(`Expected code: ${expectedCode}, got: ${code}`, {
+          code: 'SMTP_UNEXPECTED_RESPONSE_CODE',
+          meta: { expectedCode, actualCode: code },
+        })
       }
     }
   }
@@ -101,13 +129,21 @@ export class SmtpConnection {
    */
   public async terminate() {
     try {
-      await this.sendCommand('QUIT', smtpResponseCode.BYE)
+      await this.sendCommand('QUIT', SMTP_RESPONSE_CODE.BYE)
     } finally {
       await this.#writer.close().catch(() => {})
     }
   }
 
   #closeUnexpectedly(cause?: unknown): never {
+    // `warn`, not `error`: this is the recoverable case — `SmtpClient.send()` catches
+    // `SmtpConnectionClosedError` specifically to reconnect and retry once (see `connector.ts`).
+    // Only `cause`'s own `.message` (a low-level TCP/stream error string, never user payload) is
+    // logged, never the `cause` object itself.
+    logger.warn(
+      '[SmtpConnection] SMTP connection closed unexpectedly (idle timeout or remote reset) — will reconnect and retry.',
+      { cause: cause instanceof Error ? cause.message : undefined },
+    )
     throw new SmtpConnectionClosedError(cause)
   }
 }
@@ -193,7 +229,8 @@ let smtpPool: SmtpConnectionPool | undefined
 let smtpPoolResolved = false
 
 /**
- * Resolves the shared SMTP connection pool from the `SMTP_POOL_SIZE` env var, once per process.
+ * Resolves the shared SMTP connection pool from the `SMTP_POOL_SIZE_ENV` env var, once per
+ * process.
  *
  * `1` — the default, applied when the variable is unset or not a valid number greater than `1` —
  * disables pooling entirely: `SmtpClient` dials a fresh connection per request, exactly as before
@@ -202,7 +239,7 @@ let smtpPoolResolved = false
  */
 export function getSmtpPool(): SmtpConnectionPool | undefined {
   if (!smtpPoolResolved) {
-    const size = Number(Deno.env.get('SMTP_POOL_SIZE') ?? '1')
+    const size = Number(Deno.env.get(SMTP_POOL_SIZE_ENV) ?? '1')
     smtpPool = size > 1 ? new SmtpConnectionPool(size) : undefined
     smtpPoolResolved = true
   }

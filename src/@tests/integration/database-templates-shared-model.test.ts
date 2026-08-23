@@ -2,6 +2,7 @@ import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import {
   resetTemplateProviderState,
   TemplateProvider,
+  TEMPLATES_BACKEND_ENV,
   TEMPLATES_MODEL_ENV,
 } from 'modules/templates/provider.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
@@ -93,6 +94,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
     try {
       await fn()
     } finally {
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_MODEL_ENV)
     }
   })
@@ -102,6 +104,7 @@ templateTest(
   'TemplateProvider: a "db:name" TEMPLATES_MODEL_NAME reaches getModel() unsplit, Mode B works end-to-end',
   async () => {
     const sharedModelName = 'sharedDb:zanix-templates'
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
     Deno.env.set(TEMPLATES_MODEL_ENV, sharedModelName)
 
     const { model } = fakeTemplateModel([{

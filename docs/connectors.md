@@ -57,11 +57,13 @@ paying a fresh handshake per request without needing a shared instance.
 
 ## SmsClient (SMS)
 
-Sends SMS. The built-in adapter is `TwilioSmsAdapter`:
+Sends SMS. Two built-in adapters are available — `TwilioSmsAdapter` (default) and `VonageSmsAdapter`
+(alternative):
 
 ```ts
 import { SmsClient } from '@zanix/notifications'
 
+// Twilio (default adapter)
 SmsClient.config = {
   accountSid: 'AC...',
   authToken: '...',
@@ -71,19 +73,42 @@ SmsClient.config = {
 
 Or set `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_FROM_NUMBER` and import
 `@zanix/notifications/core` for zero-config registration. `TWILIO_API_BASE` optionally overrides the
-API base URL (proxy, mock server, alternate API version).
+API base URL (proxy, mock server, alternate API version). To use Vonage's SMS API instead, set
+`VONAGE_API_KEY`/`VONAGE_API_SECRET`/`VONAGE_FROM`. **If both providers' variables are set at once,
+`SMS_PROVIDER` (`'twilio'` | `'vonage'`) must be set to disambiguate — `registerSmsConnector()`
+throws rather than silently picking one.** With only one provider's variables set, `SMS_PROVIDER` is
+unnecessary — auto-detection still works exactly as before.
 
-> ⚠️ **Known caveat**: `TwilioSmsAdapter`/`TwilioWhatsappAdapter` extend `@zanix/server`'s
+You can also configure `VonageSmsAdapter` explicitly:
+
+```ts
+import { SmsClient, VonageSmsAdapter } from '@zanix/notifications'
+
+SmsClient.config = {
+  adapter: new VonageSmsAdapter({
+    apiKey: '...',
+    apiSecret: '...',
+    from: 'AcmeInc', // sender number or alphanumeric sender ID
+  }),
+}
+```
+
+> ⚠️ **Known caveat (`TwilioSmsAdapter`/`TwilioWhatsappAdapter`)**: both extend `@zanix/server`'s
 > `RestClient`, which normalizes every request path through `@zanix/helpers`' `cleanRoute()` —
 > including lowercasing the dynamic `accountSid` URL segment. Twilio's real endpoint has
 > case-sensitive path segments, so verify against a real Twilio account before relying on this in
 > production.
 
+> ⚠️ **Known caveat (`VonageSmsAdapter`), distinct from Twilio's**: Vonage's classic SMS API always
+> responds `HTTP 200` — even for a rejected/invalid send — and reports success/failure only via the
+> JSON body's `messages[].status` field (`"0"` = accepted, non-zero = rejected). `VonageSmsAdapter`
+> inspects that field itself and throws on a non-zero status, so `send()`'s "resolves only on real
+> acceptance" contract still holds; a plain non-2xx check alone would not have been enough here.
+
 ### Using a different SMS provider
 
-Any other vendor (Vonage, AWS SNS, etc.) can be plugged in by implementing the tiny
-`SmsProviderAdapter` contract — just `send(message: SmsMessage): Promise<void>` — and setting it as
-the adapter:
+Any other vendor (AWS SNS, etc.) can be plugged in by implementing the tiny `SmsProviderAdapter`
+contract — just `send(message: SmsMessage): Promise<void>` — and setting it as the adapter:
 
 ```ts
 import type { SmsProviderAdapter } from '@zanix/notifications'
@@ -116,8 +141,10 @@ Or set `META_PHONE_NUMBER_ID`/`META_ACCESS_TOKEN` (`META_API_VERSION`/`META_API_
 import `@zanix/notifications/core`. To use Twilio's WhatsApp API instead, set
 `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_WHATSAPP_FROM` — deliberately a separate variable
 from `SmsClient`'s `TWILIO_FROM_NUMBER`, since a WhatsApp-enabled Twilio sender is typically a
-different number than the plain SMS one, even under the same account. If both providers' variables
-are set, Meta wins.
+different number than the plain SMS one, even under the same account. **If both providers' variables
+are set at once, `WHATSAPP_PROVIDER` (`'meta'` | `'twilio'`) must be set to disambiguate —
+`registerWhatsappConnector()` throws rather than silently picking one.** With only one provider's
+variables set, `WHATSAPP_PROVIDER` is unnecessary — auto-detection still works exactly as before.
 
 You can also configure `TwilioWhatsappAdapter` explicitly:
 

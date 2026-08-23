@@ -93,9 +93,10 @@ const SYNC_ACTOR = 'system:remote-sync'
 /**
  * Data access for this package's own templates collection (`zanix-templates` by default, or
  * `TEMPLATES_MODEL_NAME`) — separate from `TemplateProvider`, which only exposes read+fallback
- * `resolve()`. Backs `@zanix/admin`'s `/admin/templates`/`/templates` API — this package owns the
- * schema/collection, `@zanix/admin` only composes this into an HTTP surface (see
- * `TemplatesAdminService`, and `@zanix/admin`'s own `templates.handler.ts`).
+ * `resolve()`. Backs this package's own local `/templates` CRUD API — this package owns both the
+ * schema/collection and the local HTTP surface fronting it (see `TemplatesAdminService`, and
+ * `../templates-api/templates.handler.ts`'s `createTemplatesController`). `@zanix/admin` composes a
+ * genuinely cross-service extension (`POST /templates/sync`) on top, under the same route prefix.
  *
  * Exported so a consuming app can reuse this same data-access layer to build its own custom
  * templates API instead of duplicating the CRUD logic (see this package's own `docs/templates.md`

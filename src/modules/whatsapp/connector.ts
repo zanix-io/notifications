@@ -6,6 +6,7 @@ import type {
 import type { NotifyMessage } from 'typings/general.ts'
 import type { ConnectorOptions } from '@zanix/server'
 
+import { InternalError } from '@zanix/errors'
 import { ZanixNotifierConnector } from '../base.ts'
 import { MetaCloudWhatsappAdapter } from './meta.ts'
 
@@ -94,7 +95,12 @@ export class WhatsappClient extends ZanixNotifierConnector {
    * `send()` throws (e.g. `HttpError`).
    */
   public async send(message: NotifyMessage): Promise<void> {
-    if (!this.#adapter) throw new Error('WhatsappClient not initialized!')
+    // A native `Error` here previously — a lifecycle invariant, not the message caller's mistake.
+    if (!this.#adapter) {
+      throw new InternalError('WhatsappClient not initialized!', {
+        code: 'WHATSAPP_CLIENT_NOT_INITIALIZED',
+      })
+    }
 
     await this.#adapter.send({ to: message.to, content: message.content })
   }
@@ -114,7 +120,12 @@ export class WhatsappClient extends ZanixNotifierConnector {
    * configured adapter's provider).
    */
   public async sendTemplate(message: WhatsappTemplateMessage): Promise<void> {
-    if (!this.#adapter) throw new Error('WhatsappClient not initialized!')
+    // A native `Error` here previously — a lifecycle invariant, not the message caller's mistake.
+    if (!this.#adapter) {
+      throw new InternalError('WhatsappClient not initialized!', {
+        code: 'WHATSAPP_CLIENT_NOT_INITIALIZED',
+      })
+    }
 
     await this.#adapter.send(message)
   }

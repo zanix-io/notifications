@@ -608,3 +608,286 @@ snapshot[`Handlebars runtime should return correct whatsapp otp template content
 It expires in 15 minutes. Don't share this code with anyone.
 "
 `;
+
+snapshot[`Handlebars runtime should return correct sms new-login template content 1`] = `
+"Zanix New login detected on your account from Chrome on Windows at Aug 19, 2026, 10:32 AM. If this wasn't you, secure your account immediately.
+"
+`;
+
+snapshot[`Handlebars runtime should return correct email new-login template content 1`] = `
+\`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Login Detected</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 600px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 20px;
+}
+h1 {
+  color: #162156;
+  text-align: center;
+}
+.container,
+p {
+  color: #333333;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+.button {
+  display: block;
+  width: fit-content;
+  margin: 20px auto;
+  padding: 15px 25px;
+  font-size: 24px;
+  font-weight: bold;
+  color: white !important;
+  background-color: #162156;
+  border-radius: 6px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #888888;
+  text-align: center;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .button {
+    font-size: 20px;
+    padding: 12px 20px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="title">New Login Detected</h1>
+      <div class="content"><p>We noticed a login to your account from a new device.</p>
+    <p><strong>Device:</strong> Chrome on Windows</p>
+    <p><strong>Time:</strong> Aug 19, 2026, 10:32 AM</p>
+    <p><strong>Location:</strong> Bogotá, Colombia</p>
+    <p>If this was you, no action is needed. If you don't recognize this activity,
+    please secure your account immediately.</p></div>
+
+      
+        <div class="footer">© 2025 Zanix. All rights reserved.</div> 
+    </div>
+  </body> 
+</html>\`
+`;
+
+snapshot[`Handlebars runtime should return correct data-table template content 1`] = `
+'<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zanix Template</title>
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f6f8;
+  margin: 0;
+  padding: 0;
+  color: #333333;
+}
+.container {
+  max-width: 640px;
+  margin: 40px auto;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  padding: 24px;
+}
+.header {
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+.header .sender-logo {
+  max-height: 48px;
+  max-width: 200px;
+  display: block;
+  margin-bottom: 8px;
+}
+.header .sender-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #162156;
+}
+.header .meta {
+  text-align: right;
+  vertical-align: top;
+  font-size: 13px;
+  color: #666666;
+}
+.header .reference-number {
+  font-size: 16px;
+  font-weight: bold;
+  color: #162156;
+}
+.title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #162156;
+  margin-bottom: 16px;
+}
+.recipient {
+  font-size: 14px;
+  color: #333333;
+  margin-bottom: 20px;
+  white-space: pre-line;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+.items-table th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666666;
+  border-bottom: 2px solid #e0e4e8;
+  padding: 8px 6px;
+}
+.items-table td {
+  font-size: 14px;
+  padding: 10px 6px;
+  border-bottom: 1px solid #e0e4e8;
+}
+.items-table .col-quantity,
+.items-table .col-unit-price,
+.items-table .col-line-total {
+  text-align: right;
+  white-space: nowrap;
+}
+.totals {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 20px;
+}
+.totals td {
+  padding: 4px 6px;
+  font-size: 14px;
+  text-align: right;
+}
+.totals .label {
+  color: #666666;
+}
+.totals .total-row .label,
+.totals .total-row .value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #162156;
+  border-top: 2px solid #e0e4e8;
+  padding-top: 10px;
+}
+.notes {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e4e8;
+  font-size: 12px;
+  color: #888888;
+  white-space: pre-line;
+}
+
+@media (max-width: 500px) {
+  .container {
+    padding: 15px;
+  }
+  .header .meta {
+    text-align: left;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="container">
+      <table class="header" role="presentation" width="100%">
+        <tr>
+          <td class="sender">
+              <div class="sender-name">Acme Corp</div>
+          </td>
+          <td class="meta">
+              <div class="reference-number">INV-0001</div>
+              <div class="date">Aug 19, 2026</div>
+              <div class="due-date">Sep 2, 2026</div>
+          </td>
+        </tr>
+      </table>
+
+        <div class="title">Invoice</div>
+
+        <div class="recipient">Jane Doe</div>
+
+      <table class="items-table" role="presentation" width="100%">
+        <thead>
+          <tr>
+            <th class="col-description">Description</th>
+            <th class="col-quantity">Qty</th>
+            <th class="col-unit-price">Unit price</th>
+            <th class="col-line-total">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+            <tr>
+              <td class="col-description">Widget</td>
+              <td class="col-quantity">2</td>
+              <td class="col-unit-price">USD 9.99</td>
+              <td class="col-line-total">USD 19.98</td>
+            </tr>
+            <tr>
+              <td class="col-description">Gadget</td>
+              <td class="col-quantity">1</td>
+              <td class="col-unit-price">USD 19.99</td>
+              <td class="col-line-total">USD 19.99</td>
+            </tr>
+        </tbody>
+      </table>
+
+      <table class="totals" role="presentation" width="100%">
+        <tr>
+          <td class="label">Subtotal</td>
+          <td class="value">USD 39.97</td>
+        </tr>
+          <tr>
+            <td class="label">Tax</td>
+            <td class="value">USD 3.2</td>
+          </tr>
+        <tr class="total-row">
+          <td class="label">Total</td>
+          <td class="value">USD 43.17</td>
+        </tr>
+      </table>
+
+        <div class="notes">Thank you for your business.</div>
+    </div>
+  </body>
+</html>
+'
+`;

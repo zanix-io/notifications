@@ -1,6 +1,7 @@
 import type { MetaCloudConfig, WhatsappMessage, WhatsappProviderAdapter } from 'typings/whatsapp.ts'
 
 import { RestClient } from '@zanix/server'
+import logger from '@zanix/logger'
 
 const DEFAULT_API_VERSION = 'v25.0'
 const GRAPH_API_BASE = 'https://graph.facebook.com'
@@ -70,8 +71,17 @@ export class MetaCloudWhatsappAdapter extends RestClient implements WhatsappProv
         text: { body: message.content },
       }
 
-    return this.http.post(`${this.#phoneNumberId}/messages`, {
+    return this.http.post<void>(`${this.#phoneNumberId}/messages`, {
       body: JSON.stringify(payload),
+    }).catch((error) => {
+      // Metadata only, per the send-path logging policy: provider/channel are safe to log, the
+      // WhatsApp `content`/`to`/template fields and Meta's own response body (which may echo
+      // request data back) are not — still available in the rethrown `error`'s `cause`.
+      logger.error('[MetaCloudWhatsappAdapter] WhatsApp send failed.', {
+        provider: 'meta',
+        channel: 'whatsapp',
+      })
+      throw error
     })
   }
 }

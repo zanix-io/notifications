@@ -26,9 +26,9 @@
 **Zanix Notifications** is a flexible and extensible notification system for sending transactional
 messages over **email**, **SMS**, and **WhatsApp**, with pre-built **Handlebars-based templates**
 for all three. Delivery for each channel is pluggable — built-in adapters cover SMTP (email), Twilio
-(SMS/WhatsApp), and Meta's WhatsApp Cloud API, and any other provider can be plugged in without
-touching application code. It also provides the option to **activate a background worker** for
-queued, non-blocking message delivery.
+(SMS/WhatsApp) and Vonage (SMS), and Meta's WhatsApp Cloud API, and any other provider can be
+plugged in without touching application code. It also provides the option to **activate a background
+worker** for queued, non-blocking message delivery.
 
 > 💡 If you're building a full application (not just sending notifications standalone), use
 > **[`@zanix/core`](https://jsr.io/@zanix/core)** as your entrypoint via
@@ -37,7 +37,8 @@ queued, non-blocking message delivery.
 
 It provides a unified and extensible system for:
 
-- Sending notifications via email (SMTP), SMS (Twilio), and WhatsApp (Meta Cloud API or Twilio)
+- Sending notifications via email (SMTP), SMS (Twilio or Vonage), and WhatsApp (Meta Cloud API or
+  Twilio)
 - Support for pre-defined templates (Handlebars-based), per channel
 - Native WhatsApp Business template messages (Meta/Twilio), for starting conversations outside the
   24h session window
@@ -51,7 +52,8 @@ It provides a unified and extensible system for:
 
 - **Multi-channel connectors**
   - `SmtpClient` — email over SMTP, with optional connection pooling (`SMTP_POOL_SIZE`).
-  - `SmsClient` — SMS via the built-in `TwilioSmsAdapter`, or any custom `SmsProviderAdapter`.
+  - `SmsClient` — SMS via `TwilioSmsAdapter` (default) or `VonageSmsAdapter`, or any custom
+    `SmsProviderAdapter`.
   - `WhatsappClient` — WhatsApp via `MetaCloudWhatsappAdapter` (default) or `TwilioWhatsappAdapter`,
     or any custom `WhatsappProviderAdapter`.
   - All three extend the same `ZanixNotifierConnector` base and register with zero app-side setup
@@ -81,13 +83,14 @@ It provides a unified and extensible system for:
 
 - **Handlebars Templates**
   - Per-channel registries: email's `welcome`, `generic`, `password-changed`, `password-recovery`,
-    `login-otp`; SMS/WhatsApp's own `generic`, `otp`.
+    `login-otp`, `new-login`, `data-table`; SMS's own `generic`, `otp`, `new-login`; WhatsApp's own
+    `generic`, `otp`.
   - Dynamic data injection into any template, and support for adding custom ones.
-  - Optional database-backed templates (`TEMPLATES_MODEL_NAME`) — code templates seed a
+  - Optional database-backed templates (`TEMPLATES_BACKEND=local`) — code templates seed a
     `ZanixTemplate` collection (via `@zanix/datamaster`), then a direct database edit takes effect
     on the next send, no redeploy needed.
   - Or, with no local database access to templates at all, remote-only templates
-    (`TEMPLATES_SERVICE_URL`) — `RemoteTemplateBackend` resolves each template from a central
+    (`TEMPLATES_BACKEND=remote`) — `RemoteTemplateBackend` resolves each template from a central
     Notification/Template Service instead, with a local TTL cache and automatic fallback to the code
     version on any remote failure.
   - See [Templates](./docs/templates.md).
@@ -186,16 +189,23 @@ Each channel registers automatically from its own environment variables when
 `@zanix/notifications/core` is imported — see the full reference in
 [Environment Variables](./docs/environment-variables.md). Quick summary:
 
-| Channel  | Provider          | Key variables                                                     |
-| -------- | ----------------- | ----------------------------------------------------------------- |
-| Email    | SMTP              | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`            |
-| SMS      | Twilio            | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`   |
-| WhatsApp | Meta Cloud API    | `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`                       |
-| WhatsApp | Twilio (fallback) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
+| Channel  | Provider       | Key variables                                                     |
+| -------- | -------------- | ----------------------------------------------------------------- |
+| Email    | SMTP           | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`            |
+| SMS      | Twilio         | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`   |
+| SMS      | Vonage         | `VONAGE_API_KEY`, `VONAGE_API_SECRET`, `VONAGE_FROM`              |
+| WhatsApp | Meta Cloud API | `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`                       |
+| WhatsApp | Twilio         | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
 
-Setting `TEMPLATES_MODEL_NAME` (with a `@zanix/datamaster` connector registered) additionally
+With only one of SMS's (or WhatsApp's) two providers' variables set, auto-detection works with zero
+extra config. If BOTH are set at once, `SMS_PROVIDER=twilio|vonage` (or
+`WHATSAPP_PROVIDER=meta|twilio`) must be set to disambiguate — registration throws rather than
+silently preferring one. See [Environment Variables](./docs/environment-variables.md#sms) for the
+full reference.
+
+Setting `TEMPLATES_BACKEND=local` (with a `@zanix/datamaster` connector registered) additionally
 enables [database-backed templates](./docs/templates.md#database-backed-templates). A service with
-no local database access to templates at all can set `TEMPLATES_SERVICE_URL` instead, for
+no local database access to templates at all can set `TEMPLATES_BACKEND=remote` instead, for
 [remote-only templates](./docs/templates.md#mode-c-remote-only-templates).
 
 ---

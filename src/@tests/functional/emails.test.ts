@@ -24,7 +24,11 @@ Deno.test({
   name: TEST_NAME,
   ignore: missingEnv(REQUIRED_ENV, TEST_NAME),
   fn: async () => {
-    await import('../../modules/email/defs.ts')
+    // Cache-busting query: `di-registration-env.test.ts` and `di-registration.test.ts` also
+    // import this exact specifier — without a unique query each would share Deno's module cache
+    // and only the first import across the whole test process would actually run
+    // `registerSmtpConnector()`'s top-level side effect.
+    await import('../../modules/email/defs.ts?functional-send-email')
 
     const provider = new NotifierProvider()
 

@@ -25,6 +25,20 @@ export type OTPTemplateSchema = {
 }
 
 /**
+ * Data accepted by the `sms/new-login` transactional template — also the core fields composed
+ * into `email/new-login`'s own schema (see {@link NewLoginEmailTemplateSchema}), same relationship
+ * {@link OTPTemplateSchema} has to {@link LoginWithOTPTemplateSchema}. `time` is a caller-formatted
+ * display string (e.g. `'Aug 19, 2026, 10:32 AM'`), not a `Date`/timestamp — this package never
+ * assumes a locale/timezone to format one in.
+ */
+export type NewLoginTemplateSchema = {
+  app?: string
+  device: string
+  time: string
+  location?: string
+}
+
+/**
  * Data accepted by the `generic` Handlebars template.
  *
  * Hand-written to mirror `handlebars/email/generic/schema.ts`'s real Zod shape exactly, rather
@@ -69,6 +83,14 @@ export type PasswordChangedTemplateSchema =
   >
   & { app?: string }
 
+/** Data accepted by the `new-login` transactional template. */
+export type NewLoginEmailTemplateSchema =
+  & Omit<
+    GenericTemplateSchema,
+    'message' | 'footer' | 'buttonText' | 'buttonLink'
+  >
+  & NewLoginTemplateSchema
+
 /** Data accepted by the `password-recovery` transactional template. */
 export type PasswordRecoveryTemplateSchema =
   & Omit<
@@ -79,6 +101,63 @@ export type PasswordRecoveryTemplateSchema =
 
 /** Data accepted by the `login-otp` transactional template. */
 export type LoginWithOTPTemplateSchema = PasswordRecoveryTemplateSchema
+
+/** A single billed line accepted by the `data-table` Handlebars template. */
+export type DataTableLineItemSchema = {
+  description: string
+  quantity: number
+  unitPrice: number
+}
+
+/** Every column/row label the `data-table` Handlebars template renders — see its own `schema.ts` doc for why these exist (the one template in this package with literal English text baked into its `.hbs`, until this). All optional, defaulting to English. */
+export type DataTableLabelsSchema = {
+  description?: string
+  quantity?: string
+  unitPrice?: string
+  amount?: string
+  subtotal?: string
+  tax?: string
+  total?: string
+}
+
+/**
+ * Data accepted by the `data-table` Handlebars template — hand-written to mirror
+ * `handlebars/email/data-table/schema.ts`'s real Zod shape exactly; see
+ * {@link GenericTemplateSchema}'s own doc comment for why this isn't derived via `z.infer`
+ * directly. Deliberately generic — a header/description block, an itemized table with computed
+ * line totals, and a totals/notes footer, with no hardcoded business name, currency, locale-specific
+ * number formatting, or (via `labels`) language; usable for an invoice, a receipt, an order
+ * confirmation, a quote, or any other itemized-table document, nothing here assumes which.
+ * `date`/`dueDate` are caller-formatted display strings (same convention as
+ * {@link NewLoginTemplateSchema.time}), `currency` is an opaque label rendered next to each amount
+ * rather than interpreted, and `subtotal`/`tax`/`total` are always caller-supplied since tax rules
+ * are a business decision this library doesn't make.
+ */
+export type DataTableTemplateSchema = {
+  html?: { lang?: string; title?: string }
+  styles?: {
+    containerClass?: string
+    headerClass?: string
+    tableClass?: string
+    totalsClass?: string
+    notesClass?: string
+    css?: string
+  }
+  title?: string
+  referenceNumber?: string
+  date?: string
+  dueDate?: string
+  senderName?: string
+  senderLogo?: string
+  recipient?: string
+  items: DataTableLineItemSchema[]
+  currency?: string
+  subtotal: number
+  tax?: number
+  total: number
+  notes?: string
+  labels?: DataTableLabelsSchema
+}
 
 /**
  * Data accepted by the `sms/generic` transactional template — hand-written to mirror

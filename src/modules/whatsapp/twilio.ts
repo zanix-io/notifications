@@ -2,6 +2,8 @@ import type { WhatsappMessage, WhatsappProviderAdapter } from 'typings/whatsapp.
 import type { TwilioConfig } from 'typings/sms.ts'
 
 import { RestClient } from '@zanix/server'
+import { ApplicationError } from '@zanix/errors'
+import logger from '@zanix/logger'
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
 
@@ -65,11 +67,16 @@ export class TwilioWhatsappAdapter extends RestClient implements WhatsappProvide
    */
   public async send(message: WhatsappMessage): Promise<void> {
     if (message.templateName && !message.contentSid) {
-      throw new Error(
+      // A native `Error` here previously — this is the caller of `send()` passing a message shape
+      // this adapter doesn't support, not an internal fault (see `@zanix/errors`' docs, "Choosing
+      // a class"). `ApplicationError`'s `shouldLog: false` default fits: an expected, recoverable
+      // misuse the caller can fix, not something that should auto-flood the log.
+      throw new ApplicationError(
         'TwilioWhatsappAdapter does not support message.templateName without a contentSid: ' +
           'Twilio identifies WhatsApp templates by a "Content SID" plus named content variables, ' +
           'not a name/language pair. Set message.contentSid (+ contentVariables) instead, send ' +
           'freeform text via `content`, or provide a custom WhatsappProviderAdapter.',
+        { code: 'TWILIO_WHATSAPP_TEMPLATE_MISSING_CONTENT_SID' },
       )
     }
 
@@ -89,8 +96,19 @@ export class TwilioWhatsappAdapter extends RestClient implements WhatsappProvide
       params.Body = message.content ?? ''
     }
 
-    await this.http.post(`Accounts/${accountSid}/Messages.json`, {
-      body: new URLSearchParams(params),
-    })
+    try {
+      await this.http.post(`Accounts/${accountSid}/Messages.json`, {
+        body: new URLSearchParams(params),
+      })
+    } catch (error) {
+      // Metadata only, per the send-path logging policy: provider/channel are safe to log, the
+      // WhatsApp `content`/`to`/content-template fields and Twilio's own response body (which may
+      // echo request data back) are not — still available in the rethrown `error`'s `cause`.
+      logger.error('[TwilioWhatsappAdapter] WhatsApp send failed.', {
+        provider: 'twilio',
+        channel: 'whatsapp',
+      })
+      throw error
+    }
   }
 }

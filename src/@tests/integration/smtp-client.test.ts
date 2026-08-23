@@ -1,7 +1,11 @@
 import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import { FakeTime } from '@std/testing/time'
+import { stub } from '@std/testing/mock'
 import { SmtpClient } from 'modules/email/connector.ts'
+import { SmtpConnectionClosedError } from 'modules/email/pool.ts'
 import { encoder } from '@zanix/helpers'
+import { InternalError } from '@zanix/errors'
+import logger from '@zanix/logger'
 
 console.error = () => {}
 
@@ -128,12 +132,16 @@ Deno.test('SmtpClient: initialize() throws when a response code does not match',
 
   await withFakeConnectTls(
     conn,
-    () =>
-      assertRejects(
+    async () => {
+      // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a
+      // plain `Error` here (an SMTP server responding with the wrong code, not the caller's fault).
+      const error = await assertRejects(
         () => client['initialize'](),
-        Error,
+        InternalError,
         'Expected code',
-      ),
+      )
+      assertEquals(error.code, 'SMTP_UNEXPECTED_RESPONSE_CODE')
+    },
   )
 })
 
@@ -149,10 +157,12 @@ Deno.test(
 
     await withFakeConnectTls(
       conn,
+      // Specifically `SmtpConnectionClosedError` (now extends `ApplicationError`, not `Error`
+      // directly — still its own distinct, `instanceof`-catchable type; see `pool.ts`'s own doc).
       () =>
         assertRejects(
           () => client['initialize'](),
-          Error,
+          SmtpConnectionClosedError,
           'SMTP connection closed unexpectedly',
         ),
     )
@@ -172,12 +182,16 @@ Deno.test(
 
     await withFakeConnectTls(
       conn,
-      () =>
-        assertRejects(
+      async () => {
+        // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a
+        // plain `Error` here (the SMTP server's own malformed reply, not the caller's fault).
+        const error = await assertRejects(
           () => client['initialize'](),
-          Error,
+          InternalError,
           'Invalid response from server',
-        ),
+        )
+        assertEquals(error.code, 'SMTP_INVALID_RESPONSE')
+      },
     )
   },
 )
@@ -206,7 +220,7 @@ Deno.test(
     await withFakeConnectTls(conn, () =>
       assertRejects(
         () => client['initialize'](),
-        Error,
+        SmtpConnectionClosedError,
         'SMTP connection closed unexpectedly',
       ))
 
@@ -234,7 +248,7 @@ Deno.test(
     await withFakeConnectTls(conn, () =>
       assertRejects(
         () => client['initialize'](),
-        Error,
+        SmtpConnectionClosedError,
         'SMTP connection closed unexpectedly',
       ))
 
@@ -395,16 +409,17 @@ Deno.test(
       })
       assertEquals(client.isHealthy(), true)
 
-      await assertRejects(
+      const error = await assertRejects(
         () =>
           client.send({
             to: 'dest@example.com',
             subject: 'Hello again',
             content: 'body',
           }),
-        Error,
+        InternalError,
         'Expected code',
       )
+      assertEquals(error.code, 'SMTP_UNEXPECTED_RESPONSE_CODE')
     } finally {
       Deno.connectTls = original
     }
@@ -439,16 +454,17 @@ Deno.test(
     try {
       await client['initialize']()
 
-      await assertRejects(
+      const error = await assertRejects(
         () =>
           client.send({
             to: 'dest@example.com',
             subject: 'Hello',
             content: 'body',
           }),
-        Error,
+        InternalError,
         'Expected code',
       )
+      assertEquals(error.code, 'SMTP_UNEXPECTED_RESPONSE_CODE')
     } finally {
       Deno.connectTls = original
     }
@@ -490,16 +506,17 @@ Deno.test(
         password: 's3cr3t',
       })
 
-      await assertRejects(
+      const error = await assertRejects(
         () =>
           client.send({
             to: 'dest@example.com',
             subject: 'Hi',
             content: 'body',
           }),
-        Error,
+        InternalError,
         'Connection not ready!',
       )
+      assertEquals(error.code, 'SMTP_CONNECTION_NOT_READY')
 
       const client2 = new SmtpClient({
         hostname: 'smtp.example.com',
@@ -566,6 +583,45 @@ Deno.test('SmtpClient: send() writes commands in order and marks the client heal
   assertEquals(sendCommands[10], '.\r\n')
 
   assertEquals(client.isHealthy(), true)
+})
+
+/**
+ * Regression coverage for a confirmed CRLF-injection vulnerability: `send()` must reject a
+ * `subject`/`to`/`from`/`date` carrying `\r`/`\n` before writing anything to the wire — an
+ * injected line there would let an attacker smuggle an extra SMTP header (a silent `Bcc`, a
+ * spoofed `From`). Proves the real `send()` is wired to `assertNoCrlf` (`@zanix/helpers`), not
+ * just that the predicate itself works in isolation (see `@zanix/utils`'s own tests for that).
+ */
+Deno.test('SmtpClient: send() rejects a CRLF-injected subject before writing to wire', async () => {
+  const { conn, written } = makeFakeConn([
+    '220 Ready\r\n',
+    '250 OK\r\n',
+    '334 U\r\n',
+    '334 P\r\n',
+    '235 OK\r\n',
+  ])
+
+  const client = newClient()
+
+  await withFakeConnectTls(conn, async () => {
+    await client['initialize']()
+    const writtenBefore = written.length
+
+    await assertRejects(
+      () =>
+        client.send({
+          to: 'dest@example.com',
+          subject: 'Hi\r\nBcc: attacker@evil.com',
+          content: '<p>Hi</p>',
+        }),
+      Error,
+      'line breaks',
+    )
+
+    // No MAIL FROM/RCPT TO/DATA/header line was ever written — the rejection happens before any
+    // wire traffic for this message, not mid-send.
+    assertEquals(written.length, writtenBefore)
+  })
 })
 
 Deno.test('SmtpClient: send() uses email.date, or falls back to now', async () => {
@@ -676,6 +732,183 @@ Deno.test('SmtpClient: close() sends QUIT, expects BYE, and closes the writer', 
   assertEquals(written.at(-1), 'QUIT\r\n')
   assertEquals(isWritableClosed(), true)
 })
+
+Deno.test(
+  "SmtpConnection: logger.error fires exactly once (via InternalError's own shouldLog:true auto-log — no manual duplicate) on an unexpected response code, without the raw response text",
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+    const { conn } = makeFakeConn([
+      '220 Ready\r\n',
+      '554 Transaction failed: relay not permitted for secret@example.com\r\n',
+    ])
+
+    const client = newClient()
+    try {
+      await withFakeConnectTls(
+        conn,
+        () =>
+          assertRejects(
+            () => client['initialize'](),
+            InternalError,
+            'Expected code',
+          ),
+      )
+
+      // Exactly one call: `InternalError` (shouldLog defaults to `true`) already logs itself when
+      // constructed (see `@zanix/errors`) — `pool.ts` deliberately does NOT add its own manual
+      // `logger.error` call here, since that would double-log the same event.
+      assertEquals(errorStub.calls.length, 1)
+      const loggedText = JSON.stringify(errorStub.calls[0].args)
+      // Only the numeric expected/actual SMTP codes end up in the (auto-)logged error's `message`/
+      // `meta` — never the raw response line, which could carry recipient/address details.
+      assertEquals(loggedText.includes('secret@example.com'), false)
+      assertEquals(loggedText.includes('relay not permitted'), false)
+      assertStringIncludes(loggedText, '554')
+    } finally {
+      errorStub.restore()
+    }
+  },
+)
+
+Deno.test(
+  "SmtpConnection: logger.error fires exactly once (via InternalError's own auto-log) on an empty/invalid response",
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+    const { conn } = makeFakeConn([''])
+
+    const client = newClient()
+    try {
+      await withFakeConnectTls(
+        conn,
+        () =>
+          assertRejects(
+            () => client['initialize'](),
+            InternalError,
+            'Invalid response from server',
+          ),
+      )
+
+      // Exactly one call, from `InternalError`'s own `shouldLog:true` auto-log — no manual
+      // duplicate added in `pool.ts`.
+      assertEquals(errorStub.calls.length, 1)
+    } finally {
+      errorStub.restore()
+    }
+  },
+)
+
+Deno.test(
+  'SmtpConnection: logs via logger.warn (not logger.error) when the connection closes unexpectedly — the recoverable case',
+  async () => {
+    const warnStub = stub(logger, 'warn', () => undefined)
+    const errorStub = stub(logger, 'error', () => undefined)
+    const { conn } = makeFakeConn([])
+
+    const client = newClient()
+    try {
+      await withFakeConnectTls(
+        conn,
+        () =>
+          assertRejects(
+            () => client['initialize'](),
+            SmtpConnectionClosedError,
+          ),
+      )
+
+      assertEquals(warnStub.calls.length, 1)
+      assertEquals(errorStub.calls.length, 0)
+    } finally {
+      warnStub.restore()
+      errorStub.restore()
+    }
+  },
+)
+
+Deno.test(
+  'SmtpClient: send() logs via logger.error when the reconnect-and-retry also fails, without the email payload',
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+
+    const firstConnResponses = [
+      '220 Ready\r\n',
+      '250 OK\r\n',
+      '334 U\r\n',
+      '334 P\r\n',
+      '235 OK\r\n',
+      '250 OK\r\n', // MAIL FROM
+      '250 OK\r\n', // RCPT TO
+      '354 Go ahead\r\n', // DATA
+      '250 OK\r\n', // final '.'
+    ]
+    let firstConnReadIndex = 0
+    const firstConnReadable = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (firstConnReadIndex < firstConnResponses.length) {
+          controller.enqueue(
+            encoder.encode(firstConnResponses[firstConnReadIndex++]),
+          )
+        } else controller.close()
+      },
+    })
+    let firstConnWriteCount = 0
+    const firstConnWritable = new WritableStream<Uint8Array>({
+      write() {
+        firstConnWriteCount++
+        if (firstConnWriteCount > 15) {
+          throw new Error('Broken pipe (os error 32)')
+        }
+      },
+    })
+    const firstConn = {
+      readable: firstConnReadable,
+      writable: firstConnWritable,
+    } as unknown as Deno.TlsConn
+
+    // The reconnect's own handshake gets rejected outright (e.g. credentials revoked meanwhile).
+    const { conn: secondConn } = makeFakeConn([
+      '220 Ready\r\n',
+      '554 Authentication failed\r\n',
+    ])
+
+    const conns = [firstConn, secondConn]
+    let connectCount = 0
+    const original = Deno.connectTls
+    // deno-lint-ignore require-await
+    Deno.connectTls = (async () => conns[connectCount++]) as typeof Deno.connectTls
+
+    const client = newClient()
+    try {
+      await client['initialize']()
+      await client.send({
+        to: 'dest@example.com',
+        subject: 'Hello',
+        content: 'body',
+      })
+
+      await assertRejects(
+        () =>
+          client.send({
+            to: 'dest@example.com',
+            subject: 'this is a secret subject',
+            content: 'this is the secret email body',
+          }),
+        InternalError,
+      )
+
+      // pool.ts logs the low-level protocol rejection, connector.ts logs the higher-level
+      // "retry exhausted, giving up" failure — at least the latter must be present.
+      assertEquals(errorStub.calls.length >= 1, true)
+      const loggedText = JSON.stringify(errorStub.calls.map((c) => c.args))
+      assertEquals(loggedText.includes('this is a secret subject'), false)
+      assertEquals(loggedText.includes('this is the secret email body'), false)
+      assertEquals(loggedText.includes('dest@example.com'), false)
+      assertStringIncludes(loggedText, 'giving up')
+    } finally {
+      Deno.connectTls = original
+      errorStub.restore()
+    }
+  },
+)
 
 Deno.test('SmtpClient: static config takes precedence over constructor config', async () => {
   const { conn, written } = makeFakeConn([

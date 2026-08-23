@@ -5,7 +5,185 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-08-23
+
+### Fixed
+
+- **Email's `content`/`footer` (`GenericTemplateSchema`) are now run through a denylist HTML
+  sanitizer before they reach the rendered email; `buttonLink` gets an equivalent URL-scheme
+  check.** Both `content` and `footer` are rendered unescaped in the Handlebars template
+  (`{{{content}}}`/`{{{footer}}}`) by design — a caller may supply real rich-HTML formatting, and
+  every built-in template's own default content already is one — but that same field is just as
+  reachable by a calling app that naively forwards user-influenced text (a comment, a support-ticket
+  body) into it. `sanitizeHtml` (`utils/sanitize-html.ts`) now strips
+  `<script>`/`<style>`/`<iframe>`/`<object>`/`<embed>` elements, every `on*` event-handler
+  attribute, and a `javascript:`/`vbscript:`/non-image `data:` URI in an
+  `href`/`src`/`action`/`formaction` attribute, applied via the schema's own `.transform()` —
+  ordinary formatting markup passes through untouched. `buttonLink` is a URL, not HTML, so it goes
+  through `sanitizeUrl`'s scheme check instead — not the HTML denylist above — even though
+  Handlebars already HTML-escapes it, since escaping alone doesn't stop a `javascript:`/`vbscript:`
+  link from running when clicked. SMS/WhatsApp's `content` is unaffected — it's plain text with no
+  HTML involved.
+- `deno lint`'s own `@zanix/utils` plugin (`deno-zanix-plugin`) is now version-pinned (`^2.6.1`),
+  matching every other `@zanix/utils` import in `deno.jsonc` — it used to resolve unpinned, so a
+  lint run could silently pick up a newer, unreviewed plugin version.
+- **`SmtpClient` rejects a `subject`/`to`/`from`/`date` that contains a carriage return or line feed
+  instead of sending it.** Each SMTP header is written as its own raw line terminated by `\r\n`
+  (`SmtpConnection.sendCommand`, `pool.ts`) — an unfiltered `\r`/`\n` in one of those fields let it
+  inject arbitrary extra header lines (a silent `Bcc`, a spoofed `From`) into the message. The check
+  (`@zanix/helpers`'s `assertNoCrlf`) runs before any SMTP command for the message is sent, so a
+  rejected value never reaches the connection at all.
+
+### Changed
+
+- **The `subject`/`to`/`from`/`date` CRLF check and the `buttonLink`/attribute URL-scheme check now
+  delegate to `@zanix/helpers`'s `assertNoCrlf`/`sanitizeUrl`** instead of this package's own local
+  copies — both had turned up independently re-implemented in another package with the identical
+  guarantee, and consolidating means one fix covers every consumer instead of drifting per copy. No
+  behavior change for `assertNoCrlf`'s callers or for `sanitizeHtml`'s attribute-stripping;
+  `sanitizeHtml`'s own standalone `sanitizeUrl` export is removed (it was never part of this
+  package's `mod.ts`).
+- **BREAKING: `TEMPLATES_BACKEND` (`'local'` | `'remote'`) replaces the mode-inference design for
+  choosing between Modes A/B (local database) and Mode C (remote service).** Previously, the active
+  mode was inferred post-hoc from which of `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/
+  `TEMPLATES_SERVICE_URL` happened to be set, with `assertTemplatesConfigNotConflicting()` throwing
+  if an invalid combination was detected only once both were present. `TEMPLATES_BACKEND` is now the
+  single, explicit selector — the invalid "both set" state can no longer be represented at all: each
+  mode's own vars (`TEMPLATES_MODEL_NAME` for `'local'`; `TEMPLATES_SERVICE_URL`/`_ID`/`_TOKEN`/
+  `_AUTH_ID`/`_CACHE_TTL_MS` for `'remote'`) are only ever read once that mode is actually selected.
+  **No dual-read, no deprecation warning — a hard rename.** Concretely:
+  - `DATABASE_TEMPLATES` is removed entirely. Its `=true` convenience-default role is superseded by
+    `TEMPLATES_BACKEND=local` itself (`TEMPLATES_MODEL_NAME` was always optional, defaulting to
+    `zanix-templates`); its `=false` kill-switch role is superseded by simply not setting
+    `TEMPLATES_BACKEND` to `'local'` — an explicit selector needs no separate override to say "not
+    this mode." `templates/core.ts`'s `defaultTemplatesModelName()` (the function that implemented
+    the old convenience toggle) is removed along with it.
+  - Setting `TEMPLATES_MODEL_NAME` without also setting `TEMPLATES_BACKEND=local` (or
+    `TEMPLATES_SERVICE_URL` without `TEMPLATES_BACKEND=remote`) now has no effect at all — it's
+    simply never read, not a boot-time error.
+  - `assertTemplatesConfigNotConflicting()` is renamed `assertTemplatesBackendConfigValid()`, and
+    now validates the config required by whichever mode `TEMPLATES_BACKEND` selects, rather than
+    detecting a conflict between two inferred modes. `templatesBackendMode()` is the new exported
+    reader/validator for `TEMPLATES_BACKEND` itself.
+  - Migration: set `TEMPLATES_BACKEND=local` alongside any existing `TEMPLATES_MODEL_NAME`
+    configuration, or `TEMPLATES_BACKEND=remote` alongside any existing `TEMPLATES_SERVICE_URL`
+    configuration, and remove any `DATABASE_TEMPLATES` setting. See
+    [Templates](./docs/templates.md#database-backed-templates) and
+    [Environment Variables](./docs/environment-variables.md#database-backed-templates).
+- **BREAKING: `RemoteTemplateBackendConfig.auth` (a `ServiceAuthClientOptions` object) is replaced
+  by `authClient` (a pre-built `ServiceAuthClient` function).** Previously this module built its own
+  `@zanix/auth` `createServiceAuthClient` instance internally from the `auth` options passed in; now
+  the caller injects an already-built client. This moves this package's only
+  `notifications ->
+  auth` dependency out of `remote-backend.ts` and into the new, isolated
+  `remote-backend-auth.ts` (`createRemoteTemplateAuthClient`, wired in by
+  `TemplateProvider.#backend()` for Mode C's own env-var-driven path), so `remote-backend.ts` itself
+  no longer needs to depend on `@zanix/auth` at all. No behavior change for the default
+  env-var-driven path (`TEMPLATES_SERVICE_AUTH_ID`, etc.) — only a direct, manual
+  `RemoteTemplateBackendConfig` construction is affected. Migration: replace
+  `{ auth: { serviceId, exchangeUrl, ... } }` with
+  `{ authClient: createRemoteTemplateAuthClient({ serviceId, exchangeUrl, ... }) }` (new export from
+  `templates/db/remote-backend-auth.ts`).
+- `realHttpStatus()` (`remote-backend.ts`) now reads the real upstream status off `@zanix/server`'s
+  new `RestClientError.realHttpStatus` getter instead of parsing it out of an error message string —
+  more robust, and no functional change to callers. **Requires `@zanix/server@3.3.0` or later**
+  (bumped from the `^3.2.0` floor `useWorker: 'persisted'` already required).
+
+### Removed
+
+- `DATABASE_TEMPLATES_ENV`, `isDatabaseTemplatesDisabled`, `assertTemplatesConfigNotConflicting`,
+  and `templates/core.ts`'s `defaultTemplatesModelName` — see the `TEMPLATES_BACKEND` entry above.
+
+### Added
+
+- **`TEMPLATES_BACKEND_ENV`, `templatesBackendMode()`, `TemplatesBackendMode`,
+  `assertTemplatesBackendConfigValid()`** — see the `TEMPLATES_BACKEND` BREAKING entry above.
+- **`VonageSmsAdapter`** (`modules/sms/vonage.ts`) — a second built-in `SmsProviderAdapter`,
+  alongside the existing default `TwilioSmsAdapter`, for Vonage's classic SMS API
+  (`POST /sms/json`). `sms/defs.ts`'s `registerSmsConnector` now also registers `SmsClient` from
+  `VONAGE_API_KEY`/`VONAGE_API_SECRET`/`VONAGE_FROM` when Twilio's own `TWILIO_*` variables aren't
+  set, mirroring the existing Meta/Twilio precedent already used for `WhatsappClient` — see the
+  `SMS_PROVIDER`/`WHATSAPP_PROVIDER` BREAKING entry below for what happens when both are set at once
+  (no longer a silent Twilio/Meta win). Unlike Twilio, Vonage's API always responds `HTTP 200` —
+  even for a rejected send — so `VonageSmsAdapter` inspects the JSON response body's
+  `messages[].status` field itself and throws `HttpError` on a non-zero status.
+- **BREAKING: `SMS_PROVIDER` (`'twilio'` | `'vonage'`) and `WHATSAPP_PROVIDER` (`'meta'` |
+  `'twilio'`) now disambiguate `registerSmsConnector()`/`registerWhatsappConnector()` when BOTH
+  built-in providers' own env vars are set at once.** Previously, `sms/defs.ts`/`whatsapp/defs.ts`
+  picked by checking Twilio/Meta first and silently ignoring the other provider's vars if both
+  happened to be set — no error, not even a log line, just whichever was checked first winning. With
+  exactly one provider's own vars set (the overwhelmingly common case), auto-detection is
+  **unchanged** — zero extra config, exactly as before. Only the ambiguous "both configured" case
+  changes: it now throws `InternalError` demanding `SMS_PROVIDER`/`WHATSAPP_PROVIDER` be set
+  explicitly, rather than resolving silently. Setting either selector is also honored as an explicit
+  override even without a conflict. **No dual-read, no deprecation warning — a hard cutover for the
+  conflict case only.** Concretely:
+  - `resolveSmsProvider()`/`resolveWhatsappProvider()` are the new exported readers — `undefined`
+    when nothing's configured, the auto-detected provider when exactly one is, the explicit
+    selector's value when set, and a thrown `InternalError` for an invalid selector value OR an
+    unresolved conflict.
+  - `assertSmsProviderConfigValid()`/`assertWhatsappProviderConfigValid()` validate that an
+    explicitly-selected provider's own required vars are actually present, throwing otherwise — an
+    explicit selection with nothing configured to back it fails loudly rather than registering a
+    connector with `undefined` credentials.
+  - Every touched env var now has an exported `_ENV` name constant (`TWILIO_ACCOUNT_SID_ENV`,
+    `VONAGE_API_KEY_ENV`, `META_PHONE_NUMBER_ID_ENV`, `TWILIO_WHATSAPP_FROM_ENV`, etc., plus
+    `SMS_PROVIDER_ENV`/`WHATSAPP_PROVIDER_ENV` themselves) — a pattern `templates/provider.ts`
+    already had and these two modules didn't. `whatsapp/defs.ts`'s own `TWILIO_ACCOUNT_SID_ENV`/
+    `TWILIO_AUTH_TOKEN_ENV`/`TWILIO_API_BASE_ENV` are deliberately NOT exported (a local, unexported
+    duplicate of `sms/defs.ts`'s own identically-named, identically-valued constants) — both being
+    exported would make `modules/core.ts`'s `export * from './sms/defs.ts'` /
+    `export * from
+    './whatsapp/defs.ts'` an ambiguous re-export; `sms/defs.ts` is the one
+    canonical public export for those three shared names.
+  - Migration: only services with BOTH Twilio's and Vonage's SMS vars set at once, or BOTH Meta's
+    and Twilio's WhatsApp vars set at once, are affected — set `SMS_PROVIDER`/`WHATSAPP_PROVIDER`
+    explicitly to restore a working registration. See
+    [Connectors](./docs/connectors.md#smsclient-sms) and
+    [Environment Variables](./docs/environment-variables.md#sms).
+
+### Added
+
+- **Every conditional `@Connector`/`@Provider` DSL registration function is now exported, not just
+  auto-run as a private module-level side effect**: `registerSmsConnector` (`sms/defs.ts`),
+  `registerSmtpConnector` (`email/defs.ts`), `registerWhatsappConnector` (`whatsapp/defs.ts`),
+  `registerNotifierProvider` (`providers/core.ts`), and `registerMailTriggerJob`
+  (`providers/trigger-mail.core.ts`) — all reachable via `@zanix/notifications/core`. Each still
+  runs automatically once, at import time, exactly as before; the new export lets a caller
+  re-register after clearing the relevant registry (`closeAllConnections()`/
+  `ProgramModule.targets.resetContainer(['type:connector'])`, both `@zanix/server`) without needing
+  a fresh module evaluation — for a config-reload in a long-running process, or a test simulating a
+  different env state between cases. Same pattern adopted across `@zanix/datamaster`, `@zanix/auth`,
+  `@zanix/asyncmq`, and `@zanix/app` in the same batch of work. `templates/core.ts` is deliberately
+  NOT part of this batch — its own registration isn't a simple conditional `@Connector`/`@Provider`
+  DSL call, but a larger boot sequence (signal-listener setup, conditional model registration) that
+  needs its own dedicated design, not a mechanical export.
+
+### Added
+
+- **New public subpath `@zanix/notifications/templates-api`** — `createTemplatesController`, the
+  CRUD half (`list`/`get`/`create`/`update`/`remove`) of the local `/templates` controller. This
+  package owns both the data (`TemplatesAdminRepository`/`Service`) and the CRUD HTTP surface
+  fronting it, per the "local API vs aggregator API" rule (see the `zanix-libraries-architecture`
+  skill). The cross-service `sync` route (`POST /templates/sync`) is `@zanix/admin`'s own concern,
+  as a separate `TemplatesSyncController` mounted under the same prefix — it needs
+  `ServiceRegistry`/Discovery, a concept this package deliberately doesn't know about.
+  - The controller never assumes an auth mechanism itself — `guards`/`versionProtocol` are accepted
+    as factory options, supplied by whoever composes it (e.g. `@zanix/admin`).
+  - New dependency: `@zanix/validator` (already published as part of `@zanix/utils`), needed to
+    author this package's own RTOs directly now instead of receiving pre-validated input.
+  - New `src/@tests/unit/templates/dependency-boundary.test.ts` — enforces, via a real
+    `deno info
+    --json` module-graph check, that `templates/db/*.ts` never imports back into
+    `templates-api/`, the same pattern `@zanix/space`'s `assets-api`/`asset-transform` boundary test
+    already establishes.
+- **New `data-table` email template** (`transactionalTemplates['data-table']`) — a generic
+  itemized-table document (invoice, receipt, order summary) alongside the existing `welcome`/
+  `generic`/`password-changed`/`password-recovery`/`login-otp`/`new-login` set. Its `senderLogo`
+  field goes through the same `sanitizeUrl` scheme check as `generic`'s `buttonLink`; its column/row
+  headings (`Description`/`Qty`/`Unit price`/`Amount`/`Subtotal`/... — fully labels-overridable for
+  i18n) render through the standard HTML denylist sanitizer like every other rich-content field. See
+  [Templates](./docs/templates.md#built-in-templates).
 
 ## [0.4.0] - 2026-08-17
 

@@ -1,5 +1,6 @@
 import type {
   DerivedTemplateDeclaration,
+  NewLoginTemplateSchema,
   OTPTemplateSchema,
   SmsGenericTemplateSchema,
 } from 'typings/templates.ts'
@@ -30,6 +31,27 @@ export const otp = (data: OTPTemplateSchema): Promise<string> => {
 }
 
 /**
+ * Transforms new-login data into the shape `generic` (its parent template — see `derivedTemplates`
+ * below) expects. Exposed standalone, rather than inlined in `newLogin()` below, so
+ * `TemplateProvider.resolve()`'s database-backed parent-chain walk can apply the exact same
+ * mapping when falling back to a database-edited `generic` instead of the compiled code version.
+ */
+export const newLoginToGeneric = (
+  data: NewLoginTemplateSchema,
+): SmsGenericTemplateSchema => ({
+  content: `${
+    data.app ? data.app + ' ' : ''
+  }New login detected on your account from ${data.device} at ${data.time}${
+    data.location ? ` (${data.location})` : ''
+  }. If this wasn't you, secure your account immediately.`,
+})
+
+/** Renders new-login (unrecognized device) security notification SMS message */
+export const newLogin = (data: NewLoginTemplateSchema): Promise<string> => {
+  return execTemplate('sms/generic', newLoginToGeneric(data))
+}
+
+/**
  * This channel's derived templates (see `typings/templates.ts`'s `DerivedTemplateDeclaration`) —
  * aggregated centrally by `db/manifest.ts`'s `DERIVED_TEMPLATES`, the single source of truth both
  * database-backed seeding and `TemplateProvider.resolve()`'s chain walk read from. Adding a new
@@ -37,6 +59,7 @@ export const otp = (data: OTPTemplateSchema): Promise<string> => {
  */
 export const derivedTemplates: DerivedTemplateDeclaration[] = [
   { channel: 'sms', name: 'otp', parent: 'generic', transform: otpToGeneric },
+  { channel: 'sms', name: 'new-login', parent: 'generic', transform: newLoginToGeneric },
 ]
 
 /**
@@ -46,13 +69,17 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
  *    the `SmsGenericTemplateSchema`.
  * @property {Function} otp - Renders a OTP SMS message. Accepts data that conforms to
  *    the `OTPTemplateSchema`.
+ * @property {Function} 'new-login' - Renders a new-login (unrecognized device) security
+ *    notification SMS message. Accepts data that conforms to the `NewLoginTemplateSchema`.
  */
 const smsTemplates: {
   generic: (data: SmsGenericTemplateSchema) => Promise<string>
   otp: (data: OTPTemplateSchema) => Promise<string>
+  'new-login': (data: NewLoginTemplateSchema) => Promise<string>
 } = {
   generic,
   otp,
+  'new-login': newLogin,
 }
 
 export default smsTemplates

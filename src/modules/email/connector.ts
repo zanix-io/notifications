@@ -2,9 +2,12 @@ import type { ServerConfig } from 'typings/email.ts'
 import type { NotifyMessage } from 'typings/general.ts'
 import type { ConnectorOptions } from '@zanix/server'
 
-import { smtpResponseCode } from 'utils/constants.ts'
+import { SMTP_RESPONSE_CODE } from 'utils/constants.ts'
 import { ZanixNotifierConnector } from '../base.ts'
 import { getSmtpPool, SmtpConnection, SmtpConnectionClosedError } from './pool.ts'
+import { assertNoCrlf } from '@zanix/helpers'
+import { InternalError } from '@zanix/errors'
+import logger from '@zanix/logger'
 
 /**
  * SMTP client for sending emails.
@@ -128,24 +131,44 @@ export class SmtpClient extends ZanixNotifierConnector {
       if (!(error instanceof SmtpConnectionClosedError)) throw error
 
       this.#connected = false
-      await this.initialize()
-      await this.#deliver(email)
+      try {
+        await this.initialize()
+        await this.#deliver(email)
+      } catch (retryError) {
+        // The reconnect-and-retry itself failed — a real send failure, not a recoverable one
+        // (unlike the connection-closed event above, already `warn`-logged in `pool.ts`).
+        // Metadata only: no email `content`/`subject`/`to` here.
+        logger.error(
+          '[SmtpClient] Email send failed after reconnect-and-retry — giving up.',
+          { provider: 'smtp', channel: 'email' },
+        )
+        throw retryError
+      }
     }
   }
 
   async #deliver(email: NotifyMessage) {
-    if (!this.#session) throw new Error('Connection not ready!')
+    // A native `Error` here previously — the session should exist by the time `send()` reaches
+    // this point; a lifecycle invariant, not the message caller's mistake.
+    if (!this.#session) {
+      throw new InternalError('Connection not ready!', { code: 'SMTP_CONNECTION_NOT_READY' })
+    }
     const session = this.#session
 
-    const [fromAddr, fromFull] = this.#parseEmail(
-      email.from ?? this.#config.username,
-    )
-    const [toAddr, toFull] = this.#parseEmail(email.to)
+    const fromInput = email.from ?? this.#config.username
     const date = email.date ?? new Date().toString()
 
-    await session.sendCommand(`MAIL FROM: ${fromAddr}`, smtpResponseCode.OK)
-    await session.sendCommand(`RCPT TO: ${toAddr}`, smtpResponseCode.OK)
-    await session.sendCommand('DATA', smtpResponseCode.BEGIN_DATA)
+    assertNoCrlf('from', fromInput)
+    assertNoCrlf('to', email.to)
+    if (email.subject) assertNoCrlf('subject', email.subject)
+    assertNoCrlf('date', date)
+
+    const [fromAddr, fromFull] = this.#parseEmail(fromInput)
+    const [toAddr, toFull] = this.#parseEmail(email.to)
+
+    await session.sendCommand(`MAIL FROM: ${fromAddr}`, SMTP_RESPONSE_CODE.OK)
+    await session.sendCommand(`RCPT TO: ${toAddr}`, SMTP_RESPONSE_CODE.OK)
+    await session.sendCommand('DATA', SMTP_RESPONSE_CODE.BEGIN_DATA)
 
     await session.sendCommand(`Subject: ${email.subject}`)
     await session.sendCommand(`From: ${fromFull}`)
@@ -154,7 +177,7 @@ export class SmtpClient extends ZanixNotifierConnector {
     await session.sendCommand('MIME-Version: 1.0')
     await session.sendCommand('Content-Type: text/html;charset=utf-8\r\n')
     await session.sendCommand(email.content)
-    await session.sendCommand('.', smtpResponseCode.OK)
+    await session.sendCommand('.', SMTP_RESPONSE_CODE.OK)
 
     this.#connected = true
   }

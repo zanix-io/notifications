@@ -6,7 +6,7 @@ import { TemplatesAdminRepository } from './templates.repository.ts'
 
 /**
  * Builds the `DiscoveryProvider` for `/.well-known/zanix/templates` — see `@zanix/server`'s
- * `docs/HANDLERS.md`'s "Discovery" section. `@zanix/admin`'s `defineAdminMetadata` registers it
+ * `docs/handlers.md`'s "Discovery" section. `@zanix/admin`'s `defineAdminMetadata` registers it
  * via `ProgramModule.defineDiscovery` alongside composing `createTemplatesController`; this package
  * only authors the provider, since it's the actual owner of the templates collection this reuses
  * `TemplatesAdminRepository.list()` to read.
@@ -27,7 +27,7 @@ export function createTemplatesDiscoveryProvider(): DiscoveryProvider<
 /**
  * Registers this service's `TEMPLATES` under `/.well-known/zanix/templates` — a plain,
  * re-callable function (never a decorator or cached side-effect import — see `@zanix/server`'s
- * `docs/HANDLERS.md`'s "Discovery" section for why), meant to be called from your own
+ * `docs/handlers.md`'s "Discovery" section for why), meant to be called from your own
  * `ProgramModule.defineApplication(...)` scope, the same way `@zanix/admin`'s
  * `defineAdminMetadata()` composes its own Discovery endpoints. This package has no bootstrap of
  * its own, so it cannot register this for you automatically.

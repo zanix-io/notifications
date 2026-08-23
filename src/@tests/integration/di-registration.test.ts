@@ -4,6 +4,7 @@ import { WhatsappClient } from '../../modules/whatsapp/connector.ts'
 import { NotifierProvider } from '../../modules/providers/notifier.ts'
 import { TemplateProvider } from '../../modules/templates/provider.ts'
 import { ProgramModule } from '@zanix/server'
+import { DEFAULT_TRIGGER_JOBS, getRegisteredTriggerActionJobs } from '@zanix/datamaster'
 
 console.error = () => {}
 
@@ -40,6 +41,79 @@ Deno.test(
 )
 
 Deno.test(
+  'providers/trigger-mail.core.ts self-registers the `mail` trigger-action job descriptor with @zanix/datamaster, resolvable via getRegisteredTriggerActionJobs()',
+  async () => {
+    await import('../../modules/providers/trigger-mail.core.ts')
+
+    // Real registry lookup (no mocking `registerTriggerActionJob`/`getRegisteredTriggerActionJobs`
+    // themselves) — same "assert against the real result" shape as the `NotifierProvider`/
+    // `TemplateProvider` checks above, adapted to `@zanix/datamaster`'s trigger-action-job
+    // registry instead of `@zanix/server`'s provider container.
+    const descriptor = getRegisteredTriggerActionJobs().find((d) => d.actionKind === 'mail')
+
+    if (!descriptor) {
+      throw new Error(
+        "Expected getRegisteredTriggerActionJobs() to contain a descriptor for actionKind 'mail'",
+      )
+    }
+    if (descriptor.name !== DEFAULT_TRIGGER_JOBS.mail) {
+      throw new Error(
+        `Expected the 'mail' descriptor's name to be DEFAULT_TRIGGER_JOBS.mail (${DEFAULT_TRIGGER_JOBS.mail}), got: ${
+          Deno.inspect(descriptor.name)
+        }`,
+      )
+    }
+    if (descriptor.processingQueue !== 'soft') {
+      throw new Error(
+        `Expected the 'mail' descriptor's processingQueue to be 'soft', got: ${
+          Deno.inspect(descriptor.processingQueue)
+        }`,
+      )
+    }
+    if (typeof descriptor.handler !== 'function') {
+      throw new Error(
+        `Expected the 'mail' descriptor's handler to be a function, got: ${
+          Deno.inspect(descriptor.handler)
+        }`,
+      )
+    }
+  },
+)
+
+Deno.test(
+  "providers/trigger-mail.core.ts: registerMailTriggerJob(), called a second time in the same process, throws — @zanix/datamaster's registerTriggerActionJob is deliberately fail-fast on a duplicate actionKind (its own @throws doc: \"same fail-fast semantics as @zanix/asyncmq's registerJob\"). Locks in the REAL current behavior — see the doc-comment discrepancy this surfaced: `registerMailTriggerJob`'s own doc claims it's \"re-invokable\", citing `registerS3Connector`'s pattern, but unlike a Connector-slot registration, this specific registry has no reset reachable from this package, so a genuine re-invocation isn't actually safe.",
+  async () => {
+    const { registerMailTriggerJob } = await import('../../modules/providers/trigger-mail.core.ts')
+
+    // A real second call — no container reset (none is reachable from this package for
+    // @zanix/datamaster's trigger-action-jobs registry), no mock — the same call this module's
+    // own top-level already ran once at first import.
+    let threw = false
+    try {
+      registerMailTriggerJob()
+    } catch {
+      threw = true
+    }
+    if (!threw) {
+      throw new Error(
+        'Expected a second registerMailTriggerJob() call to throw (duplicate "mail" actionKind) ' +
+          '— if this now passes, @zanix/datamaster made registerTriggerActionJob idempotent; ' +
+          "update this test AND this export's own doc comment together.",
+      )
+    }
+
+    // Still exactly one descriptor — the failed re-registration must not have corrupted the
+    // existing one.
+    const descriptors = getRegisteredTriggerActionJobs().filter((d) => d.actionKind === 'mail')
+    if (descriptors.length !== 1) {
+      throw new Error(
+        `Expected exactly one 'mail' descriptor after the failed re-registration, got: ${descriptors.length}`,
+      )
+    }
+  },
+)
+
+Deno.test(
   'templates/core.ts registers TemplateProvider under its own class identity, resolvable via this.providers.get(TemplateProvider)',
   async () => {
     await import('../../modules/templates/core.ts')
@@ -61,10 +135,9 @@ Deno.test(
 )
 
 Deno.test(
-  'templates/core.ts throws at import time when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set',
+  'templates/core.ts throws at import time when TEMPLATES_BACKEND=remote is selected without TEMPLATES_SERVICE_URL',
   async () => {
-    Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
-    Deno.env.set('TEMPLATES_MODEL_NAME', 'zanix-templates')
+    Deno.env.set('TEMPLATES_BACKEND', 'remote')
 
     try {
       // A distinct query string forces Deno to re-evaluate this module's top-level code (a fresh
@@ -79,9 +152,23 @@ Deno.test(
       }
       if (!threw) {
         throw new Error(
-          'Expected templates/core.ts to throw when both env vars are set',
+          'Expected templates/core.ts to throw when TEMPLATES_BACKEND=remote has no TEMPLATES_SERVICE_URL',
         )
       }
+    } finally {
+      Deno.env.delete('TEMPLATES_BACKEND')
+    }
+  },
+)
+
+Deno.test(
+  'templates/core.ts does NOT throw at import time when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set but TEMPLATES_BACKEND is unset — the pre-TEMPLATES_BACKEND conflict can no longer be represented, both vars are simply unread',
+  async () => {
+    Deno.env.set('TEMPLATES_SERVICE_URL', 'https://templates.internal.example')
+    Deno.env.set('TEMPLATES_MODEL_NAME', 'zanix-templates')
+
+    try {
+      await import('../../modules/templates/core.ts?no-conflict-test')
     } finally {
       Deno.env.delete('TEMPLATES_SERVICE_URL')
       Deno.env.delete('TEMPLATES_MODEL_NAME')
@@ -98,7 +185,11 @@ Deno.test(
       Deno.env.delete(key)
     }
 
-    await import('../../modules/email/defs.ts')
+    // Cache-busting query: `di-registration-env.test.ts` and `functional/emails.test.ts` also
+    // import this exact specifier — without a unique query each would share Deno's module cache
+    // and only the first import across the whole test process would actually run
+    // `registerSmtpConnector()`'s top-level side effect.
+    await import('../../modules/email/defs.ts?smtp-missing')
 
     if (SmtpClient.config !== undefined) {
       throw new Error(
@@ -121,7 +212,9 @@ Deno.test(
       Deno.env.delete(key)
     }
 
-    await import('../../modules/sms/defs.ts')
+    // Cache-busting query: `di-registration-env.test.ts` also imports this exact specifier — see
+    // the same note on the SMTP case above.
+    await import('../../modules/sms/defs.ts?twilio-missing')
 
     if (SmsClient.config !== undefined) {
       throw new Error(
@@ -146,7 +239,9 @@ Deno.test(
       Deno.env.delete(key)
     }
 
-    await import('../../modules/whatsapp/defs.ts')
+    // Cache-busting query: `di-registration-env.test.ts` also imports this exact specifier — see
+    // the same note on the SMTP case above.
+    await import('../../modules/whatsapp/defs.ts?whatsapp-missing')
 
     if (WhatsappClient.config !== undefined) {
       throw new Error(

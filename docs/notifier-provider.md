@@ -163,5 +163,6 @@ All queued messages (potentially spanning several channels, and potentially mixi
 (`sendBackgroundMessage`), each one re-resolving its own channel's connector before sending. When a
 batch mixes modes, `'persisted'` wins for the whole flush if any one queued message asked for it —
 never silently downgraded to `'one-time'` because another message didn't care either way. A send
-failure — inline or from the background worker — is always re-thrown as `Deno.errors.Interrupted`,
-with the original error attached as `.cause`.
+failure — inline or from the background worker — is always re-thrown as an `InternalError` with code
+`'NOTIFICATIONS_DISPATCH_FAILED'`, with the original error attached as `.cause` — check `.cause`,
+not the top-level error, for the real failure reason.

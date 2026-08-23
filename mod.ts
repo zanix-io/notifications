@@ -39,6 +39,7 @@ export {
 
 // Provider adapters
 export { TwilioSmsAdapter } from 'modules/sms/twilio.ts'
+export { VonageSmsAdapter } from 'modules/sms/vonage.ts'
 export { MetaCloudWhatsappAdapter } from 'modules/whatsapp/meta.ts'
 export { TwilioWhatsappAdapter } from 'modules/whatsapp/twilio.ts'
 
@@ -83,8 +84,13 @@ export type {
 } from 'typings/general.ts'
 
 export type {
+  DataTableLabelsSchema,
+  DataTableLineItemSchema,
+  DataTableTemplateSchema,
   GenericTemplateSchema,
   LoginWithOTPTemplateSchema,
+  NewLoginEmailTemplateSchema,
+  NewLoginTemplateSchema,
   OTPTemplateSchema,
   PasswordChangedTemplateSchema,
   PasswordRecoveryTemplateSchema,
@@ -93,7 +99,13 @@ export type {
   WhatsappGenericTemplateSchema,
 } from 'typings/templates.ts'
 
-export type { SmsClientConfig, SmsMessage, SmsProviderAdapter, TwilioConfig } from 'typings/sms.ts'
+export type {
+  SmsClientConfig,
+  SmsMessage,
+  SmsProviderAdapter,
+  TwilioConfig,
+  VonageConfig,
+} from 'typings/sms.ts'
 
 export type {
   MetaCloudConfig,
@@ -104,16 +116,19 @@ export type {
 } from 'typings/whatsapp.ts'
 
 export {
-  DATABASE_TEMPLATES_ENV,
   DEFAULT_TEMPLATES_MODEL_NAME,
-  isDatabaseTemplatesDisabled,
+  isTemplatesResourceEnabled,
+  TEMPLATES_BACKEND_ENV,
   TEMPLATES_MODEL_ENV,
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
   TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
+  templatesBackendMode,
   templatesModelName,
 } from 'modules/templates/provider.ts'
+
+export type { TemplatesBackendMode } from 'modules/templates/provider.ts'
 
 export type {
   CreateTemplateInput,
@@ -124,10 +139,11 @@ export type {
 
 /**
  * Data access and business logic for this package's own templates collection — the actual owner
- * of the schema/collection `@zanix/admin`'s `/admin/templates`/`/templates` API is built on.
- * `@zanix/admin` composes {@link TemplatesAdminService} into an HTTP surface; it does not author
- * this logic itself. Exported so a consuming app can extend or reuse them to build its own custom
- * templates API instead of duplicating the CRUD logic.
+ * of both the schema/collection and the local HTTP surface fronting it (`@zanix/notifications/
+ * templates-api`'s `createTemplatesController`). `@zanix/admin` composes a genuinely cross-service
+ * extension (`POST /templates/sync`) on top — see the "Local API vs Aggregator API" rule in the
+ * `zanix-libraries-architecture` skill. Exported here too so a consuming app can extend or reuse
+ * them to build its own custom templates API instead of duplicating the CRUD logic.
  */
 export {
   type SyncCodeTemplateEntry,
@@ -147,7 +163,10 @@ export {
 
 // Mode C: remote-only templates (see docs/templates.md#mode-c-remote-only-templates)
 export { RemoteTemplateBackend } from 'modules/templates/db/remote-backend.ts'
-export type { RemoteTemplateBackendConfig } from 'modules/templates/db/remote-backend.ts'
+export type {
+  RemoteTemplateBackendConfig,
+  ServiceAuthClient,
+} from 'modules/templates/db/remote-backend.ts'
 export type { TemplateBackend } from 'modules/templates/db/backend.ts'
 
 /**

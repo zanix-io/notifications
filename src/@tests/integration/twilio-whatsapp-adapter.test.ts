@@ -1,12 +1,16 @@
-import { HttpError } from 'jsr:@zanix/utils@2.*/errors'
+import { ApplicationError, HttpError } from '@zanix/errors'
 import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
+import { stub } from '@std/testing/mock'
 import { TwilioWhatsappAdapter } from 'modules/whatsapp/twilio.ts'
+import logger from '@zanix/logger'
 
 const config = {
   accountSid: 'AC_test_sid',
   authToken: 'test_auth_token',
   from: '+14155238886',
 }
+
+console.error = () => {}
 
 /** Records the last `fetch` call and lets tests control the (fake) response. */
 async function withFakeFetch<T>(
@@ -160,16 +164,19 @@ Deno.test(
       },
       async () => {
         const adapter = new TwilioWhatsappAdapter(config)
-        await assertRejects(
+        // Specifically `ApplicationError`, not just any `Error` — locks in the fix that replaced
+        // a plain `Error` here (the caller's own message shape mismatch, not an internal fault).
+        const error = await assertRejects(
           () =>
             adapter.send({
               to: '+15551234567',
               templateName: 'otp_code',
               templateLanguage: 'en_US',
             }),
-          Error,
+          ApplicationError,
           'does not support message.templateName',
         )
+        assertEquals(error.code, 'TWILIO_WHATSAPP_TEMPLATE_MISSING_CONTENT_SID')
       },
     )
 
@@ -202,5 +209,76 @@ Deno.test(
         )
       },
     )
+  },
+)
+
+Deno.test(
+  'TwilioWhatsappAdapter: send() logs via logger.error on a real send failure, without the message payload',
+  async () => {
+    const errorStub = stub(logger, 'error', () => undefined)
+
+    try {
+      await withFakeFetch(
+        () =>
+          new Response(
+            JSON.stringify({
+              code: 63016,
+              message: 'Failed to send freeform message',
+            }),
+            { status: 400 },
+          ),
+        () =>
+          assertRejects(
+            () =>
+              new TwilioWhatsappAdapter(config).send({
+                to: '+15551234567',
+                content: 'this is the secret whatsapp body',
+              }),
+            HttpError,
+          ),
+      )
+
+      assertEquals(errorStub.calls.length, 1)
+      const loggedText = JSON.stringify(errorStub.calls[0].args)
+
+      // The message content, the recipient, and Twilio's own error text must never appear.
+      assertEquals(loggedText.includes('this is the secret whatsapp body'), false)
+      assertEquals(loggedText.includes('+15551234567'), false)
+      assertEquals(loggedText.includes('Failed to send freeform message'), false)
+      // Only safe provider/channel metadata is logged.
+      assertStringIncludes(loggedText, 'twilio')
+      assertStringIncludes(loggedText, 'whatsapp')
+    } finally {
+      errorStub.restore()
+    }
+  },
+)
+
+Deno.test(
+  'TwilioWhatsappAdapter: send() does NOT log via logger.error for the caller-mistake templateName-without-contentSid case',
+  async () => {
+    // This is a caller-mistake validation error (see the adapter's own docs), not a real send
+    // failure reaching the provider — it must not be logged as one.
+    const errorStub = stub(logger, 'error', () => undefined)
+
+    try {
+      await withFakeFetch(
+        () => new Response('{}', { status: 200 }),
+        () =>
+          assertRejects(
+            () =>
+              new TwilioWhatsappAdapter(config).send({
+                to: '+15551234567',
+                templateName: 'otp_code',
+                templateLanguage: 'en_US',
+              }),
+            ApplicationError,
+          ),
+      )
+
+      assertEquals(errorStub.calls.length, 0)
+    } finally {
+      errorStub.restore()
+    }
   },
 )

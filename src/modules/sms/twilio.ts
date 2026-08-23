@@ -1,6 +1,7 @@
 import type { SmsMessage, SmsProviderAdapter, TwilioConfig } from 'typings/sms.ts'
 
 import { RestClient } from '@zanix/server'
+import logger from '@zanix/logger'
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
 
@@ -57,6 +58,12 @@ export class TwilioSmsAdapter extends RestClient implements SmsProviderAdapter {
       Body: message.content,
     })
 
-    return this.http.post(`Accounts/${accountSid}/Messages.json`, { body })
+    return this.http.post<void>(`Accounts/${accountSid}/Messages.json`, { body }).catch((error) => {
+      // Metadata only, per the send-path logging policy: provider/channel are safe to log, the
+      // SMS `content`/`to` and Twilio's own response body (which may echo request data back)
+      // are not — see the caught `error` still carries them in `cause`, left unlogged here.
+      logger.error('[TwilioSmsAdapter] SMS send failed.', { provider: 'twilio', channel: 'sms' })
+      throw error
+    })
   }
 }

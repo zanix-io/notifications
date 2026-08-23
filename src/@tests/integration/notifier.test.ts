@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import type { ZanixNotifierConnector } from 'modules/base.ts'
 
+import { InternalError } from '@zanix/errors'
 import { NotifierProvider, sendBackgroundMessage } from 'modules/providers/notifier.ts'
 // Registers `TemplateProvider` in the DI container (`this.providers.get(TemplateProvider)`,
 // used by `NotifierProvider.#dispatch()`) — needed even with the database feature untouched,
@@ -8,7 +9,7 @@ import { NotifierProvider, sendBackgroundMessage } from 'modules/providers/notif
 import 'modules/templates/core.ts'
 import '../fixtures.ts'
 
-import { TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
+import { TEMPLATES_BACKEND_ENV, TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 
 console.error = () => {}
 
@@ -234,7 +235,7 @@ Deno.test('NotifierProvider: sendTemplate() sends immediately by default', async
   }])
 })
 
-Deno.test('NotifierProvider: sendTemplate() wraps a send failure as Interrupted', async () => {
+Deno.test('NotifierProvider: sendTemplate() wraps a send failure as InternalError', async () => {
   const provider = new NotifierProvider()
   const originalError = new Error('boom')
   const { connector } = makeFakeConnector({
@@ -251,8 +252,11 @@ Deno.test('NotifierProvider: sendTemplate() wraps a send failure as Interrupted'
     caught = error
   }
 
-  assert(caught instanceof Deno.errors.Interrupted)
-  assertEquals((caught as Error).cause, originalError)
+  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced
+  // `Deno.errors.Interrupted` (a Deno-native type outside the shared `@zanix/errors` hierarchy) here.
+  assert(caught instanceof InternalError)
+  assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
+  assertEquals((caught as InternalError).cause, originalError)
 })
 
 Deno.test("NotifierProvider: email() is equivalent to sendMessage('email', ...)", async () => {
@@ -274,7 +278,7 @@ Deno.test("NotifierProvider: email() is equivalent to sendMessage('email', ...)"
   })
 })
 
-Deno.test('NotifierProvider: sendMessage wraps a send failure as Interrupted', async () => {
+Deno.test('NotifierProvider: sendMessage wraps a send failure as InternalError', async () => {
   const provider = new NotifierProvider()
   const originalError = new Error('boom')
   const { connector } = makeFakeConnector({
@@ -295,8 +299,11 @@ Deno.test('NotifierProvider: sendMessage wraps a send failure as Interrupted', a
     caught = error
   }
 
-  assert(caught instanceof Deno.errors.Interrupted)
-  assertEquals((caught as Error).cause, originalError)
+  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced
+  // `Deno.errors.Interrupted` (a Deno-native type outside the shared `@zanix/errors` hierarchy) here.
+  assert(caught instanceof InternalError)
+  assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
+  assertEquals((caught as InternalError).cause, originalError)
 })
 
 Deno.test('NotifierProvider: onDestroy is a no-op when the queue is empty', async () => {
@@ -457,6 +464,7 @@ Deno.test(
 Deno.test(
   "NotifierProvider: onDestroy() doesn't touch the database for a plain-content message, even with database templates enabled",
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
     Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix-templates-test')
     try {
       await withFakeWorker(async () => {
@@ -479,6 +487,7 @@ Deno.test(
         assertEquals(templates.size, 0)
       })
     } finally {
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_MODEL_ENV)
     }
   },
@@ -492,7 +501,7 @@ Deno.test(
   'sendBackgroundMessage: dispatches a kind "template" entry through sendTemplate()',
   async () => {
     // Without WHATSAPP_* env vars, `whatsapp/defs.ts` never registers a connector, so
-    // `NotifierProvider.use('whatsapp')` fails and `sendTemplate` re-wraps it as `Interrupted` —
+    // `NotifierProvider.use('whatsapp')` fails and `sendTemplate` re-wraps it as `InternalError` —
     // this exercises the `kind === 'template'` branch directly, without a real worker thread (the
     // only other place it runs — see `NotifierProvider.onDestroy()` — spawns a real `Worker`,
     // whose own module graph isn't covered by this process's instrumentation).
@@ -509,7 +518,8 @@ Deno.test(
       caught = error
     }
 
-    assert(caught instanceof Deno.errors.Interrupted)
+    assert(caught instanceof InternalError)
+    assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
   },
 )
 
@@ -568,7 +578,7 @@ Deno.test(
 Deno.test('sendBackgroundMessage: rejects if connector is unregistered', async () => {
   // Without SMTP_* env vars, `email/defs.ts` short-circuits and never registers SmtpClient,
   // so `NotifierProvider.use('email')` fails with CONNECTOR_INSTANCE_NOT_FOUND, which
-  // `sendMessage` re-wraps as `Deno.errors.Interrupted`. This exercises the real (non-stubbed)
+  // `sendMessage` re-wraps as `InternalError`. This exercises the real (non-stubbed)
   // dynamic-import + provider construction + sendMessage path of `sendBackgroundMessage`
   // without needing a live SMTP server or full framework DI bootstrap.
   const smtpEnvKeys = ['SMTP_PORT', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']
@@ -596,5 +606,6 @@ Deno.test('sendBackgroundMessage: rejects if connector is unregistered', async (
     })
   }
 
-  assert(caught instanceof Deno.errors.Interrupted)
+  assert(caught instanceof InternalError)
+  assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
 })

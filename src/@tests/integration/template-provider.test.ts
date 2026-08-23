@@ -1,10 +1,20 @@
-import { assertEquals, assertRejects, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import {
-  DATABASE_TEMPLATES_ENV,
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from 'jsr:@std/assert@^1.0.15'
+import { ApplicationError, InternalError } from '@zanix/errors'
+import {
+  assertTemplatesBackendConfigValid,
+  isTemplatesResourceEnabled,
   resetTemplateProviderState,
   TemplateProvider,
+  TEMPLATES_BACKEND_ENV,
   TEMPLATES_MODEL_ENV,
+  TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_URL_ENV,
+  templatesBackendMode,
   templatesModelName,
 } from 'modules/templates/provider.ts'
 import { resetPreloadedDBTemplates } from 'modules/templates/db/manifest.ts'
@@ -101,11 +111,12 @@ function countFindOne(model: FakeTemplateModel): () => number {
   return () => count
 }
 
-/** Installs a fake `this.database` on a `TemplateProvider` instance, and enables the feature. */
+/** Installs a fake `this.database` on a `TemplateProvider` instance, and selects Mode A/B (`TEMPLATES_BACKEND=local`). */
 function withDatabaseEnabled(
   provider: TemplateProvider,
   model: FakeTemplateModel,
 ) {
+  Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
   Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
   Object.defineProperty(provider, 'database', {
     configurable: true,
@@ -115,7 +126,9 @@ function withDatabaseEnabled(
   })
 }
 
+/** Clears `TEMPLATES_BACKEND` — the pure code-registry path, `TEMPLATES_MODEL_NAME` left set or not makes no difference once it's never read (see `templatesBackendMode()`'s own doc). */
 function withDatabaseDisabled() {
+  Deno.env.delete(TEMPLATES_BACKEND_ENV)
   Deno.env.delete(TEMPLATES_MODEL_ENV)
 }
 
@@ -137,8 +150,9 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
       await fn()
     } finally {
       Deno.env.delete(TEMPLATES_MODEL_ENV)
-      Deno.env.delete(DATABASE_TEMPLATES_ENV)
+      Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_URL_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_ID_ENV)
       resetPreloadedDBTemplates()
     }
   })
@@ -156,6 +170,75 @@ templateTest(
   () => {
     Deno.env.set(TEMPLATES_MODEL_ENV, 'custom-templates-collection')
     assertEquals(templatesModelName(), 'custom-templates-collection')
+  },
+)
+
+templateTest(
+  'templatesBackendMode() returns undefined for the pure code-registry path when TEMPLATES_BACKEND is unset',
+  () => {
+    assertEquals(templatesBackendMode(), undefined)
+  },
+)
+
+templateTest(
+  'templatesBackendMode() reflects "local"/"remote" when TEMPLATES_BACKEND is set to either',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
+    assertEquals(templatesBackendMode(), 'local')
+
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+    assertEquals(templatesBackendMode(), 'remote')
+  },
+)
+
+templateTest(
+  'templatesBackendMode() throws on any value other than "local"/"remote"/unset',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'database')
+    assertThrows(
+      () => templatesBackendMode(),
+      InternalError,
+      'must be "local" or "remote"',
+    )
+  },
+)
+
+templateTest(
+  'isTemplatesResourceEnabled("local"): false for the pure code-registry path (TEMPLATES_BACKEND unset)',
+  () => {
+    assertEquals(isTemplatesResourceEnabled('local'), false)
+  },
+)
+
+templateTest(
+  'isTemplatesResourceEnabled(mode): true only for the matching mode, false for the other',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'local')
+    assertEquals(isTemplatesResourceEnabled('local'), true)
+    assertEquals(isTemplatesResourceEnabled('remote'), false)
+
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+    assertEquals(isTemplatesResourceEnabled('remote'), true)
+    assertEquals(isTemplatesResourceEnabled('local'), false)
+  },
+)
+
+templateTest(
+  'TemplateProvider: resolve() ignores a stray TEMPLATES_MODEL_NAME left set with TEMPLATES_BACKEND unset — no longer a conflict, simply never read',
+  async () => {
+    // Previously (pre-`TEMPLATES_BACKEND`) the mode was inferred from `TEMPLATES_MODEL_NAME`'s own
+    // presence, so setting it alone would have activated Mode A/B. Now the selector alone decides —
+    // this must resolve via the pure code registry, touching `this.database` not at all.
+    Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
+    const provider = freshProvider()
+    // No `this.database` stub installed — if resolve() fell through to the local backend anyway,
+    // accessing it would throw and this test would fail below.
+
+    const content = await provider.resolve('email', 'welcome', {
+      buttonText: 'Click here',
+    })
+
+    assertStringIncludes(content, 'Click here')
   },
 )
 
@@ -193,7 +276,7 @@ templateTest(
 )
 
 templateTest(
-  'TemplateProvider: resolve() falls back to code when DATABASE_TEMPLATES=false, even though TEMPLATES_MODEL_NAME is explicitly set',
+  'TemplateProvider: resolve() falls back to code once TEMPLATES_BACKEND is cleared, even with a real matching database record and TEMPLATES_MODEL_NAME still set — an explicit unset of the selector always wins, no separate kill switch needed (DATABASE_TEMPLATES=false removed, see CHANGELOG)',
   async () => {
     const { model } = fakeTemplateModel([{
       channel: 'sms',
@@ -206,22 +289,25 @@ templateTest(
     }])
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
-    // The kill switch — mirrors `@zanix/datamaster`'s own `DATABASE_SEEDERS === 'false'`
-    // convention — must win over an explicitly-set `TEMPLATES_MODEL_NAME`, not just an absent one.
-    Deno.env.set(DATABASE_TEMPLATES_ENV, 'false')
+    // Clears only the selector — `TEMPLATES_MODEL_NAME` (set by `withDatabaseEnabled`) is left in
+    // place, proving it's simply never read once `TEMPLATES_BACKEND` no longer selects `'local'`.
+    Deno.env.delete(TEMPLATES_BACKEND_ENV)
 
     // No `.hbs` of its own for 'invoice-created' in code (see db/manifest.ts), so this can only
-    // resolve if the (real, matching) database record is used — proving the kill switch, not a
+    // resolve if the (real, matching) database record is used — proving the cleared selector, not a
     // missing-record fallback, is what's forcing the code path here.
-    await assertRejects(
+    // Specifically `ApplicationError`, not just any `Error` — locks in the fix that replaced a
+    // plain `Error` here (a caller-supplied `channel`/`name` pair that doesn't exist).
+    const error = await assertRejects(
       () =>
         provider.resolve('sms', 'invoice-created', {
           invoiceId: '42',
           amount: '$10',
         }),
-      Error,
+      ApplicationError,
       'Template not found',
     )
+    assertEquals(error.code, 'TEMPLATE_NOT_FOUND')
   },
 )
 
@@ -313,11 +399,12 @@ templateTest(
 
     // Neither 'a' nor 'b' has any content or a code-registry counterpart — the cycle guard must
     // still make this terminate (reject with "not found"), not hang or stack-overflow.
-    await assertRejects(
+    const error = await assertRejects(
       () => provider.resolve('sms', 'a', {}),
-      Error,
+      ApplicationError,
       'Template not found: sms/a',
     )
+    assertEquals(error.code, 'TEMPLATE_NOT_FOUND')
   },
 )
 
@@ -536,11 +623,12 @@ templateTest(
     const provider = freshProvider()
     withDatabaseEnabled(provider, model)
 
-    await assertRejects(
+    const error = await assertRejects(
       () => provider.resolve('email', 'does-not-exist', {}),
-      Error,
+      ApplicationError,
       'Template not found',
     )
+    assertEquals(error.code, 'TEMPLATE_NOT_FOUND')
   },
 )
 
@@ -610,7 +698,7 @@ templateTest(
 )
 
 templateTest(
-  'TemplateProvider: resolve() throws synchronously, uncaught, when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set',
+  'TemplateProvider: resolve() no longer throws when TEMPLATES_SERVICE_URL and TEMPLATES_MODEL_NAME are both set but TEMPLATES_BACKEND is unset — the pre-TEMPLATES_BACKEND "mutually exclusive" conflict can no longer be represented, both vars are simply unread',
   async () => {
     Deno.env.set(TEMPLATES_MODEL_ENV, 'zanix_templates_test')
     Deno.env.set(
@@ -618,20 +706,33 @@ templateTest(
       'https://templates.internal.example',
     )
     const provider = freshProvider()
-    // No `this.database` stub and no fake fetch installed — if this were caught and fell back
-    // to the warn-and-fallback path instead of rethrowing, one of those would have to run.
+    // No `this.database` stub and no fake fetch installed — if resolve() touched either backend,
+    // this would throw for an unrelated reason (a real network call / a missing connector), not
+    // the "mutually exclusive" error this test used to lock in pre-`TEMPLATES_BACKEND`.
 
-    await assertRejects(
-      () => provider.resolve('email', 'welcome', { buttonText: 'Click here' }),
-      Error,
-      'mutually exclusive',
+    const content = await provider.resolve('email', 'welcome', { buttonText: 'Click here' })
+
+    assertStringIncludes(content, 'Click here')
+  },
+)
+
+templateTest(
+  'assertTemplatesBackendConfigValid: throws when TEMPLATES_BACKEND=remote is selected without TEMPLATES_SERVICE_URL at all',
+  () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+
+    assertThrows(
+      () => assertTemplatesBackendConfigValid(),
+      InternalError,
+      TEMPLATES_SERVICE_URL_ENV,
     )
   },
 )
 
 templateTest(
-  'TemplateProvider: resolve() throws synchronously when TEMPLATES_SERVICE_URL is set without TEMPLATES_SERVICE_ID',
+  'TemplateProvider: resolve() throws synchronously when TEMPLATES_BACKEND=remote is selected and TEMPLATES_SERVICE_URL is set without TEMPLATES_SERVICE_ID',
   async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
     Deno.env.set(
       TEMPLATES_SERVICE_URL_ENV,
       'https://templates.internal.example',

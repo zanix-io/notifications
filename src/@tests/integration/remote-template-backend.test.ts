@@ -1,13 +1,16 @@
-import { HttpError } from 'jsr:@zanix/utils@2.*/errors'
+import { HttpError } from '@zanix/errors'
 import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
 import { FakeTime } from '@std/testing/time'
 import { generateRSAKeys } from '@zanix/helpers'
 import {
   RemoteTemplateBackend,
-  resetRemoteTemplateBackendAuthClient,
   resetRemoteTemplateBackendCache,
   resetRemoteTemplateBackendSyncState,
 } from 'modules/templates/db/remote-backend.ts'
+import {
+  createRemoteTemplateAuthClient,
+  resetRemoteTemplateAuthClient,
+} from 'modules/templates/db/remote-backend-auth.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
 console.error = () => {}
@@ -352,11 +355,11 @@ Deno.test(
     resetRemoteTemplateBackendSyncState()
 
     // `RestClient#http()` only wraps errors thrown *inside* its own fetch try/catch into
-    // `HttpError` — a `Headers` value with a newline in it makes the underlying `new Headers(...)`
-    // throw synchronously *before* that block (see `identityKey()` in `@zanix/server`'s
-    // `rest.ts`), so `resolve()`'s catch receives the raw `TypeError` unwrapped. This is exactly
-    // the case `realHttpStatus()`'s `!(error instanceof HttpError)` branch exists for: `fetch` is
-    // never even reached, so no fake response is needed here.
+    // `RestClientError` — a `Headers` value with a newline in it makes the underlying
+    // `new Headers(...)` throw synchronously *before* that block (see `identityKey()` in
+    // `@zanix/server`'s `rest.ts`), so `resolve()`'s catch receives the raw `TypeError` unwrapped.
+    // This is exactly the case `realHttpStatus()`'s `!(error instanceof RestClientError)` branch
+    // exists for: `fetch` is never even reached, so no fake response is needed here.
     const backend = new RemoteTemplateBackend({
       url: 'https://templates.internal.example',
       serviceId: 'billing',
@@ -383,7 +386,7 @@ Deno.test(
       () => {
         resetRemoteTemplateBackendCache()
         resetRemoteTemplateBackendSyncState()
-        resetRemoteTemplateBackendAuthClient()
+        resetRemoteTemplateAuthClient()
         const backend = new RemoteTemplateBackend({
           url: 'https://templates.internal.example',
           serviceId: 'billing',
@@ -438,11 +441,14 @@ Deno.test(
       () => {
         resetRemoteTemplateBackendCache()
         resetRemoteTemplateBackendSyncState()
-        resetRemoteTemplateBackendAuthClient()
+        resetRemoteTemplateAuthClient()
         const backend = new RemoteTemplateBackend({
           url: 'https://templates.internal.example',
           serviceId: 'billing',
-          auth: { serviceId: 'billing-service', privateKey: btoa(privateKey) },
+          authClient: createRemoteTemplateAuthClient({
+            serviceId: 'billing-service',
+            privateKey: btoa(privateKey),
+          }),
         })
         return backend.resolve('email', 'welcome')
       },
@@ -490,12 +496,15 @@ Deno.test(
       async () => {
         resetRemoteTemplateBackendCache()
         resetRemoteTemplateBackendSyncState()
-        resetRemoteTemplateBackendAuthClient()
+        resetRemoteTemplateAuthClient()
         const backend = new RemoteTemplateBackend({
           url: 'https://templates.internal.example',
           serviceId: 'billing',
           token: 'static-token',
-          auth: { serviceId: 'billing-service', privateKey: btoa(privateKey) },
+          authClient: createRemoteTemplateAuthClient({
+            serviceId: 'billing-service',
+            privateKey: btoa(privateKey),
+          }),
         })
         return await backend.resolve('email', 'welcome')
       },

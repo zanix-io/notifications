@@ -39,7 +39,14 @@ function mailTriggerJobHandler(
  * elsewhere (`@zanix/core`, the one package that composes datamaster, notifications, and asyncmq
  * together — see that package's own `registerPendingTriggerActionJobs`).
  */
-const registerMailTriggerJob = () => {
+// Exported (not just auto-run below) — kept consistent with every other `core.ts` loader's own
+// callable registration function across the Zanix ecosystem, for the same testability/composition
+// reasons `@zanix/datamaster`'s `storage/core.ts`'s own `registerS3Connector` is exported. Unlike
+// that connector registration, this one is NOT safely re-invokable: `registerTriggerActionJob`
+// deliberately throws on a duplicate `actionKind` (fail-fast, same as `@zanix/asyncmq`'s
+// `registerJob`), and there's no reset path for that registry reachable from this package. Calling
+// this twice in the same process throws on the second call.
+export const registerMailTriggerJob = (): void => {
   registerTriggerActionJob('mail', {
     name: DEFAULT_TRIGGER_JOBS.mail,
     processingQueue: 'soft',
