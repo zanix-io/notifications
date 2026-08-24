@@ -77,7 +77,7 @@ API base URL (proxy, mock server, alternate API version). To use Vonage's SMS AP
 `VONAGE_API_KEY`/`VONAGE_API_SECRET`/`VONAGE_FROM`. **If both providers' variables are set at once,
 `SMS_PROVIDER` (`'twilio'` | `'vonage'`) must be set to disambiguate — `registerSmsConnector()`
 throws rather than silently picking one.** With only one provider's variables set, `SMS_PROVIDER` is
-unnecessary — auto-detection still works exactly as before.
+unnecessary — auto-detection still works.
 
 You can also configure `VonageSmsAdapter` explicitly:
 
@@ -144,7 +144,7 @@ from `SmsClient`'s `TWILIO_FROM_NUMBER`, since a WhatsApp-enabled Twilio sender 
 different number than the plain SMS one, even under the same account. **If both providers' variables
 are set at once, `WHATSAPP_PROVIDER` (`'meta'` | `'twilio'`) must be set to disambiguate —
 `registerWhatsappConnector()` throws rather than silently picking one.** With only one provider's
-variables set, `WHATSAPP_PROVIDER` is unnecessary — auto-detection still works exactly as before.
+variables set, `WHATSAPP_PROVIDER` is unnecessary — auto-detection still works.
 
 You can also configure `TwilioWhatsappAdapter` explicitly:
 

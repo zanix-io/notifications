@@ -32,14 +32,13 @@ export const VONAGE_API_BASE_ENV = 'VONAGE_API_BASE'
 
 /**
  * Env var explicitly selecting which built-in SMS adapter `registerSmsConnector()` wires up when
- * BOTH Twilio's and Vonage's own required env vars are set at once — the ambiguous case
- * `resolveSmsProvider()` used to resolve by silently preferring Twilio (checked first, no error),
- * before this selector existed. **Only required to disambiguate that specific conflict.** With
- * exactly one provider's own vars set (the common case), `resolveSmsProvider()` still auto-detects
- * it with zero extra config, exactly as before — this selector doesn't replace that, it only
- * removes the silent-priority behavior for the case where auto-detection would otherwise be
- * ambiguous. Also honored as an explicit override even without a conflict (e.g. forcing `'vonage'`
- * while Twilio's vars happen to also be set, without unsetting them).
+ * BOTH Twilio's and Vonage's own required env vars are set at once — otherwise `resolveSmsProvider()`
+ * has no unambiguous choice between them and throws (see its own doc). **Only required to
+ * disambiguate that specific conflict.** With exactly one provider's own vars set (the common case),
+ * `resolveSmsProvider()` auto-detects it with zero extra config — this selector doesn't replace
+ * that, it only resolves the case where auto-detection would otherwise be ambiguous. Also honored as
+ * an explicit override even without a conflict (e.g. forcing `'vonage'` while Twilio's vars happen
+ * to also be set, without unsetting them).
  *
  * @throws (via `resolveSmsProvider()`) if set to anything other than `'twilio'`/`'vonage'`.
  */
@@ -66,11 +65,11 @@ const hasVonageEnv = () =>
  *   `assertSmsProviderConfigValid()` for whether that provider's own required vars are actually
  *   present.
  * - `SMS_PROVIDER_ENV` unset, exactly one of Twilio's/Vonage's own required vars fully set: that
- *   one, auto-detected — the pre-existing zero-config behavior, unchanged.
- * - `SMS_PROVIDER_ENV` unset, BOTH fully set: throws. This is the actual bug this selector fixes —
- *   previously Twilio silently won here with no error at all.
+ *   one, auto-detected.
+ * - `SMS_PROVIDER_ENV` unset, BOTH fully set: throws — the ambiguous case `SMS_PROVIDER_ENV` exists
+ *   to disambiguate.
  * - Neither set, `SMS_PROVIDER_ENV` unset: `undefined` — no provider configured, registration is
- *   skipped entirely (unchanged from before).
+ *   skipped entirely.
  *
  * @returns `'twilio'`, `'vonage'`, or `undefined` when nothing is configured.
  * @throws If `SMS_PROVIDER_ENV` is set to something other than `'twilio'`/`'vonage'`, or if it's

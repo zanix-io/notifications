@@ -252,8 +252,7 @@ Deno.test('NotifierProvider: sendTemplate() wraps a send failure as InternalErro
     caught = error
   }
 
-  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced
-  // `Deno.errors.Interrupted` (a Deno-native type outside the shared `@zanix/errors` hierarchy) here.
+  // Specifically `InternalError`, not just any `Error`.
   assert(caught instanceof InternalError)
   assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
   assertEquals((caught as InternalError).cause, originalError)
@@ -299,8 +298,7 @@ Deno.test('NotifierProvider: sendMessage wraps a send failure as InternalError',
     caught = error
   }
 
-  // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced
-  // `Deno.errors.Interrupted` (a Deno-native type outside the shared `@zanix/errors` hierarchy) here.
+  // Specifically `InternalError`, not just any `Error`.
   assert(caught instanceof InternalError)
   assertEquals((caught as InternalError).code, 'NOTIFICATIONS_DISPATCH_FAILED')
   assertEquals((caught as InternalError).cause, originalError)

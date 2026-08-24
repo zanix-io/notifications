@@ -43,13 +43,12 @@ const TWILIO_API_BASE_ENV = 'TWILIO_API_BASE'
 
 /**
  * Env var explicitly selecting which built-in WhatsApp adapter `registerWhatsappConnector()` wires
- * up when BOTH Meta's and Twilio's own required env vars are set at once — the ambiguous case
- * `resolveWhatsappProvider()` used to resolve by silently preferring Meta (checked first, no
- * error), before this selector existed. **Only required to disambiguate that specific conflict.**
- * With exactly one provider's own vars set (the common case), `resolveWhatsappProvider()` still
- * auto-detects it with zero extra config, exactly as before — this selector doesn't replace that,
- * it only removes the silent-priority behavior for the case where auto-detection would otherwise
- * be ambiguous. Also honored as an explicit override even without a conflict.
+ * up when BOTH Meta's and Twilio's own required env vars are set at once — otherwise
+ * `resolveWhatsappProvider()` has no unambiguous choice between them and throws (see its own doc).
+ * **Only required to disambiguate that specific conflict.** With exactly one provider's own vars
+ * set (the common case), `resolveWhatsappProvider()` auto-detects it with zero extra config — this
+ * selector doesn't replace that, it only resolves the case where auto-detection would otherwise be
+ * ambiguous. Also honored as an explicit override even without a conflict.
  *
  * @throws (via `resolveWhatsappProvider()`) if set to anything other than `'meta'`/`'twilio'`.
  */
@@ -75,11 +74,11 @@ const hasTwilioEnv = () =>
  *   `assertWhatsappProviderConfigValid()` for whether that provider's own required vars are
  *   actually present.
  * - `WHATSAPP_PROVIDER_ENV` unset, exactly one of Meta's/Twilio's own required vars fully set:
- *   that one, auto-detected — the pre-existing zero-config behavior, unchanged.
- * - `WHATSAPP_PROVIDER_ENV` unset, BOTH fully set: throws. This is the actual bug this selector
- *   fixes — previously Meta silently won here with no error at all.
+ *   that one, auto-detected.
+ * - `WHATSAPP_PROVIDER_ENV` unset, BOTH fully set: throws — the ambiguous case
+ *   `WHATSAPP_PROVIDER_ENV` exists to disambiguate.
  * - Neither set, `WHATSAPP_PROVIDER_ENV` unset: `undefined` — no provider configured, registration
- *   is skipped entirely (unchanged from before).
+ *   is skipped entirely.
  *
  * @returns `'meta'`, `'twilio'`, or `undefined` when nothing is configured.
  * @throws If `WHATSAPP_PROVIDER_ENV` is set to something other than `'meta'`/`'twilio'`, or if it's

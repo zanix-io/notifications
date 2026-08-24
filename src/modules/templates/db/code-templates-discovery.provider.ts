@@ -17,10 +17,10 @@ export interface CodeTemplateDiscoveryEntry {
 
 /**
  * Builds the `DiscoveryProvider` for `/.well-known/zanix/code-templates` — this package's own
- * `CODE_TEMPLATES` registry (see `manifest.ts`), the same entries a `RemoteTemplateBackend` used to
- * push to a central admin's `/admin/templates/sync`. Snapshotting this instead lets that central
- * admin pull the entries on demand (see `@zanix/admin`'s `TemplatesAdminService
- * .syncCodeTemplatesFromService`) rather than depending on this service to push proactively.
+ * `CODE_TEMPLATES` registry (see `manifest.ts`), exposed as a pull-on-demand snapshot rather than
+ * pushed proactively: `RemoteTemplateBackend`'s own `POST admin/templates/sync` only notifies a
+ * central admin that fresh entries are available here, and that admin actually reads them via this
+ * endpoint (see `@zanix/admin`'s `TemplatesAdminService.syncCodeTemplatesFromService`).
  *
  * Not registered automatically — call {@link defineCodeTemplatesDiscovery} from your own bootstrap.
  */

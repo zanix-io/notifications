@@ -67,10 +67,10 @@ export class TwilioWhatsappAdapter extends RestClient implements WhatsappProvide
    */
   public async send(message: WhatsappMessage): Promise<void> {
     if (message.templateName && !message.contentSid) {
-      // A native `Error` here previously — this is the caller of `send()` passing a message shape
-      // this adapter doesn't support, not an internal fault (see `@zanix/errors`' docs, "Choosing
-      // a class"). `ApplicationError`'s `shouldLog: false` default fits: an expected, recoverable
-      // misuse the caller can fix, not something that should auto-flood the log.
+      // This is the caller of `send()` passing a message shape this adapter doesn't support, not
+      // an internal fault (see `@zanix/errors`' docs, "Choosing a class"). `ApplicationError`'s
+      // `shouldLog: false` default fits: an expected, recoverable misuse the caller can fix, not
+      // something that should auto-flood the log.
       throw new ApplicationError(
         'TwilioWhatsappAdapter does not support message.templateName without a contentSid: ' +
           'Twilio identifies WhatsApp templates by a "Content SID" plus named content variables, ' +

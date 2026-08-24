@@ -184,11 +184,10 @@ into an existing template's data shape and renders through that one (see
    chain walk reads) both aggregate from every `transactional/*` module's `derivedTemplates` array
    automatically — nothing to touch in either of those two files.
 
-Skipping step 3 means the database path never learns this template exists at all (behaves exactly as
-before this feature — a plain code-only wrapper, `parent` chain and all). There's no
-"half-registered" state to worry about anymore — `parent` and `transform` are declared together in
-the same array entry, so it's not possible to wire one without the other the way it used to be when
-they lived in two separate files.
+Skipping step 3 means the database path never learns this template exists at all — a plain code-only
+wrapper, `parent` chain and all. There's no "half-registered" state possible: `parent` and
+`transform` are declared together in the same array entry, so it's not possible to wire one without
+the other.
 
 **The same `name` can be registered independently in more than one channel** — e.g. email's
 `new-login` (`transactional/email/auth.ts`'s `derivedTemplates`) and SMS's `new-login`

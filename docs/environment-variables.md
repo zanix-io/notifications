@@ -27,9 +27,8 @@ independently: e.g. only `SMTP_*` set still registers `SmtpClient`, with
 
 `SMS_PROVIDER` (`'twilio'` | `'vonage'`) only needs to be set when BOTH Twilio's and Vonage's own
 required variables below are present at once — `registerSmsConnector()` throws rather than silently
-preferring one, unlike the pre-`SMS_PROVIDER` design (Twilio checked first, no error). With only one
-provider's variables set (the common case), auto-detection still works with zero extra config,
-exactly as before. See [Connectors](./connectors.md#smsclient-sms) and `CHANGELOG.md`.
+preferring one. With only one provider's variables set (the common case), auto-detection still works
+with zero extra config. See [Connectors](./connectors.md#smsclient-sms).
 
 | Variable       | Required | Description                                                                                               | Example  |
 | -------------- | -------- | --------------------------------------------------------------------------------------------------------- | -------- |
@@ -59,10 +58,8 @@ exactly as before. See [Connectors](./connectors.md#smsclient-sms) and `CHANGELO
 
 `WHATSAPP_PROVIDER` (`'meta'` | `'twilio'`) only needs to be set when BOTH Meta's and Twilio's own
 required variables below are present at once — `registerWhatsappConnector()` throws rather than
-silently preferring one, unlike the pre-`WHATSAPP_PROVIDER` design (Meta checked first, no error).
-With only one provider's variables set (the common case), auto-detection still works with zero extra
-config, exactly as before. See [Connectors](./connectors.md#whatsappclient-whatsapp) and
-`CHANGELOG.md`.
+silently preferring one. With only one provider's variables set (the common case), auto-detection
+still works with zero extra config. See [Connectors](./connectors.md#whatsappclient-whatsapp).
 
 | Variable            | Required | Description                                                                                             | Example |
 | ------------------- | -------- | ------------------------------------------------------------------------------------------------------- | ------- |

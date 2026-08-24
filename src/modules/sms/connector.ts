@@ -80,8 +80,9 @@ export class SmsClient extends ZanixNotifierConnector {
    * `send()` throws (e.g. `HttpError`).
    */
   public async send(message: NotifyMessage): Promise<void> {
-    // A native `Error` here previously — calling `send()` before initialization completes is a
-    // programmer/lifecycle invariant, not something the message's own caller could have prevented.
+    // Calling `send()` before initialization completes is a programmer/lifecycle invariant, not
+    // something the message's own caller could have prevented — hence `InternalError`, not a
+    // caller-facing one.
     if (!this.#adapter) {
       throw new InternalError('SmsClient not initialized!', { code: 'SMS_CLIENT_NOT_INITIALIZED' })
     }

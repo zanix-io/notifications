@@ -52,12 +52,11 @@ convention — `currency` is an opaque label rendered next to each amount, never
 vs. exclusive) are a business decision this library doesn't make. Each line item's
 `quantity * unitPrice` is computed for display — plain arithmetic, not a formatting decision.
 
-**The one template in this package with English text baked into its own markup — until `labels`
-fixed that.** Every other template (`welcome`, `generic`, `otp`, etc.) renders 100% caller-supplied
+**The one template in this package where the column/row headings aren't caller-supplied by
+default.** Every other template (`welcome`, `generic`, `otp`, etc.) renders 100% caller-supplied
 copy; `data-table`'s column/row headings (`Description`/`Qty`/`Unit price`/`Amount`/`Subtotal`/
-`Tax`/`Total`) used to be hardcoded English strings directly in `main.hbs`. `labels` (all optional,
-defaulting to English) makes every one of them caller-overridable, so a non-English deployment
-configures its own copy once instead of being stuck with fixed text:
+`Tax`/`Total`) default to English but are overridable via `labels` (all optional). Setting `labels`
+lets a non-English deployment configure its own copy once instead of relying on the English default:
 
 ```ts
 await transactionalTemplates['data-table']({
@@ -110,17 +109,11 @@ Setting `TEMPLATES_BACKEND=local` (see
 `ZanixTemplate` collection named by `TEMPLATES_MODEL_NAME` — optional even then, defaulting to
 `zanix-templates` when unset.
 
-> **Breaking change from `DATABASE_TEMPLATES`/bare `TEMPLATES_MODEL_NAME`.** Earlier versions
-> inferred the mode from which of
-> `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/`TEMPLATES_SERVICE_URL` happened to be set, with
-> `assertTemplatesConfigNotConflicting()` throwing if an invalid combination was detected.
-> `TEMPLATES_BACKEND` (`'local'` or `'remote'`) is now the single, explicit selector — see
-> [Environment Variables](./environment-variables.md#database-backed-templates) and `CHANGELOG.md`.
-> `DATABASE_TEMPLATES` is removed entirely, with no dual-read: its `=true` role is superseded by
-> `TEMPLATES_BACKEND=local` itself, and its `=false` kill-switch role is superseded by simply not
-> setting `TEMPLATES_BACKEND` to `'local'` — an explicit selector needs no separate override to say
-> "not this mode." Setting `TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_URL` without also setting
-> `TEMPLATES_BACKEND` to the matching mode has no effect — it's simply never read, not a conflict.
+> **`TEMPLATES_BACKEND` (`'local'` or `'remote'`) is the single, explicit selector** for this mode —
+> see [Environment Variables](./environment-variables.md#database-backed-templates) (migrating from
+> `DATABASE_TEMPLATES`/bare `TEMPLATES_MODEL_NAME`: see `CHANGELOG.md`). Setting
+> `TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_URL` without also setting `TEMPLATES_BACKEND` to the
+> matching mode has no effect — it's simply never read, not a conflict.
 
 - On first use, every code template (the ones listed under
   [Built-in templates](#built-in-templates)) is seeded into a `ZanixTemplate` collection, one

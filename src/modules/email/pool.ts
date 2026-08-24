@@ -97,8 +97,8 @@ export class SmtpConnection {
       const result = await this.#reader.read().catch((e) => this.#closeUnexpectedly(e))
       if (result.done) this.#closeUnexpectedly()
       const response = decoder.decode(result.value).trim()
-      // Native `Error`s here previously — an SMTP server misbehaving mid-protocol is exactly the
-      // "caller had no control over it" case `InternalError` is for, not the caller's mistake.
+      // An SMTP server misbehaving mid-protocol is exactly the "caller had no control over it" case
+      // `InternalError` is for, not the caller's mistake.
       // No manual `logger.error` call needed at either throw below: `InternalError` defaults
       // `shouldLog` to `true` (see `@zanix/errors`), so its own constructor already logs
       // `this.message` + the full (already payload-safe — no raw response text, just the numeric

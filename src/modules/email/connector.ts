@@ -148,8 +148,8 @@ export class SmtpClient extends ZanixNotifierConnector {
   }
 
   async #deliver(email: NotifyMessage) {
-    // A native `Error` here previously — the session should exist by the time `send()` reaches
-    // this point; a lifecycle invariant, not the message caller's mistake.
+    // The session should exist by the time `send()` reaches this point — a lifecycle invariant,
+    // not the message caller's mistake, hence `InternalError` below.
     if (!this.#session) {
       throw new InternalError('Connection not ready!', { code: 'SMTP_CONNECTION_NOT_READY' })
     }

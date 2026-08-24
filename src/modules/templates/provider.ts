@@ -36,10 +36,8 @@ export const TEMPLATES_MODEL_ENV = 'TEMPLATES_MODEL_NAME'
 
 /**
  * Env var selecting which mode `TemplateProvider` resolves templates against — the single source
- * of truth for the local-vs-remote decision, replacing the pre-`TEMPLATES_BACKEND` design where the
- * mode was *inferred* from which of `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/
- * `TEMPLATES_SERVICE_URL` happened to be set (see `templatesBackendMode()`'s own doc for the full
- * rationale). Breaking change from that design — see `CHANGELOG.md`.
+ * of truth for the local-vs-remote decision (see `templatesBackendMode()`'s own doc for the full
+ * rationale).
  *
  * - Unset (or empty string): the pure code-registry path — no database access, no HTTP calls,
  *   nothing to configure.
@@ -57,13 +55,8 @@ export type TemplatesBackendMode = 'local' | 'remote'
 
 /**
  * Reads and validates `TEMPLATES_BACKEND_ENV` — the explicit selector between Modes A/B (`'local'`)
- * and Mode C (`'remote'`), replacing the mode-inference guard this package used to have
- * (`assertTemplatesConfigNotConflicting()`, pre-`TEMPLATES_BACKEND`): that design picked the mode by
- * checking which of `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES`/`TEMPLATES_SERVICE_URL` happened to
- * be set, and only surfaced a conflicting combination (e.g. both a model name AND a service URL) as
- * a thrown error once both were present — an invalid state the guard had to actively detect. With
- * this selector, that invalid state can't be represented: the mode comes from exactly one place,
- * and each mode's own vars (`TEMPLATES_MODEL_ENV` for `'local'`;
+ * and Mode C (`'remote'`). The mode comes from exactly one place, and each mode's own vars
+ * (`TEMPLATES_MODEL_ENV` for `'local'`;
  * `TEMPLATES_SERVICE_URL_ENV`/`TEMPLATES_SERVICE_ID_ENV`/`TEMPLATES_SERVICE_TOKEN_ENV`/
  * `TEMPLATES_SERVICE_AUTH_ID_ENV`/`TEMPLATES_SERVICE_CACHE_TTL_ENV` for `'remote'`) are only ever
  * read once that mode is actually selected — setting one mode's var while a different mode (or no
@@ -182,11 +175,10 @@ export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
  * without a resolvable matching `JWK_PRI_<id>` (and no `TEMPLATES_SERVICE_TOKEN` fallback either) —
  * a clear signal of intent to authenticate with nothing actually configured to authenticate with.
  *
- * Replaces the pre-`TEMPLATES_BACKEND` `assertTemplatesConfigNotConflicting()`, which detected an
- * invalid combination (both `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME`/
- * `DATABASE_TEMPLATES=true` set at once) post-hoc. With the mode now selected explicitly by exactly
- * one env var, that combination can no longer be represented — a stray `TEMPLATES_MODEL_NAME` left
- * over from a different mode is simply never read, not a conflict to refuse.
+ * Since the mode is selected explicitly by exactly one env var, an invalid combination (both
+ * `TEMPLATES_SERVICE_URL` and `TEMPLATES_MODEL_NAME`/`DATABASE_TEMPLATES=true` set at once) can't
+ * be represented — a stray `TEMPLATES_MODEL_NAME` left over from a different mode is simply never
+ * read, not a conflict to refuse.
  *
  * @throws If `TEMPLATES_BACKEND_ENV` is set to something other than `'local'`/`'remote'` (see
  * `templatesBackendMode()`), if `'remote'` is selected without `TEMPLATES_SERVICE_URL`, if
@@ -269,8 +261,8 @@ export function resetTemplateProviderState(): void {
  * in-memory code registries (`transactional/{email,sms,whatsapp}`) and, when enabled, the
  * database-persisted `ZanixTemplate` collection.
  *
- * With `TEMPLATES_BACKEND` unset, `resolve()` is exactly the pre-existing behavior: an in-memory
- * registry lookup, no database access at all. Set to `'local'` or `'remote'` (see
+ * With `TEMPLATES_BACKEND` unset, `resolve()` is a pure in-memory registry lookup, no database
+ * access at all. Set to `'local'` or `'remote'` (see
  * `templatesBackendMode()`), the selected backend becomes the priority source at runtime for any
  * `{channel, name}` it holds — code is seed data and fallback only, never re-read once a database
  * record exists (see `docs/templates.md`).
@@ -284,8 +276,8 @@ export function resetTemplateProviderState(): void {
 export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnector }> {
   /**
    * Picks the `TemplateBackend` to resolve `{channel, name}` against, fresh on every call (not
-   * cached on the instance) — mirrors `resolve()`'s own pre-existing pattern of re-reading
-   * `Deno.env.get(...)` on every call rather than once at construction, which also sidesteps any
+   * cached on the instance) — mirrors `resolve()`'s own pattern of re-reading `Deno.env.get(...)`
+   * on every call rather than once at construction, which also sidesteps any
    * assumption about env vars being set before a DI-constructed `TemplateProvider` exists.
    *
    * `undefined` when `TEMPLATES_BACKEND` is unset — the pure code-registry path. Which concrete
@@ -463,9 +455,9 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
 
     const registry = templatesFor(channel)
     const render = registry[name]
-    // A native `Error` here previously — the caller asked for a `channel`/`name` pair that doesn't
-    // exist in either backend, a caller-supplied-bad-identifier, not an internal fault (see
-    // `@zanix/errors`' docs, "Choosing a class").
+    // The caller asked for a `channel`/`name` pair that doesn't exist in either backend — a
+    // caller-supplied-bad-identifier, not an internal fault (see `@zanix/errors`' docs, "Choosing
+    // a class").
     if (!render) {
       throw new ApplicationError(`Template not found: ${channel}/${name}`, {
         code: 'TEMPLATE_NOT_FOUND',

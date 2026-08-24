@@ -95,7 +95,7 @@ export class WhatsappClient extends ZanixNotifierConnector {
    * `send()` throws (e.g. `HttpError`).
    */
   public async send(message: NotifyMessage): Promise<void> {
-    // A native `Error` here previously — a lifecycle invariant, not the message caller's mistake.
+    // A lifecycle invariant, not the message caller's mistake — hence `InternalError` below.
     if (!this.#adapter) {
       throw new InternalError('WhatsappClient not initialized!', {
         code: 'WHATSAPP_CLIENT_NOT_INITIALIZED',
@@ -120,7 +120,7 @@ export class WhatsappClient extends ZanixNotifierConnector {
    * configured adapter's provider).
    */
   public async sendTemplate(message: WhatsappTemplateMessage): Promise<void> {
-    // A native `Error` here previously — a lifecycle invariant, not the message caller's mistake.
+    // A lifecycle invariant, not the message caller's mistake — hence `InternalError` below.
     if (!this.#adapter) {
       throw new InternalError('WhatsappClient not initialized!', {
         code: 'WHATSAPP_CLIENT_NOT_INITIALIZED',
