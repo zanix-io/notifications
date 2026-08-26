@@ -4,7 +4,7 @@ import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { TEMPLATES_BACKEND_ENV, TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 import { templateModelDefinition } from 'modules/templates/db/schema.ts'
 import { loadTestEnv, missingEnv } from './env.ts'
-import { registerModel, ZanixMongoConnector } from '@zanix/datamaster'
+import { registerModel, ZanixMongoConnector } from '@zanix/database'
 
 console.error = () => {}
 

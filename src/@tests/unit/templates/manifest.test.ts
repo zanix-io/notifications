@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
-import type { Model } from '@zanix/datamaster'
+import type { Model } from '@zanix/database'
 import {
   DERIVED_TEMPLATES,
   DUPLICATE_KEY_ERROR_CODE,

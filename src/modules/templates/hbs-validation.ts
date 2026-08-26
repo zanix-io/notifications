@@ -15,6 +15,14 @@
  * instead of only discovering it the first time `TemplateProvider.resolve()` tries to send it.
  */
 export async function assertValidHandlebarsSyntax(hbs: string): Promise<void> {
+  // A literal specifier, not the ecosystem's lazy-dependency pattern (`lazyFunction`/etc. from
+  // `@zanix/utils/helpers`) — deliberately, not an oversight. This function's only caller
+  // (`templates.repository.ts`) already value-imports `templatesModelName` from `provider.ts`,
+  // whose module graph unconditionally imports every channel's compiled Handlebars template
+  // registry — `npm:handlebars` is already a hard dependency of any reachable path to this
+  // function today, so a non-literal specifier here would add ceremony without removing any real
+  // materialization. Revisit if `templates.repository.ts` (or this function) is ever exposed from
+  // a narrow subpath that doesn't already reach `provider.ts`'s template registries.
   const { default: Handlebars } = await import('handlebars')
   Handlebars.compile(hbs)({})
 }

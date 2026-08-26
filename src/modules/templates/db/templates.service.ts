@@ -1,10 +1,11 @@
 import type { Notifiers } from 'typings/general.ts'
 import type {
   CreateTemplateInput,
+  SyncCodeTemplateEntry,
+  SyncCodeTemplatesResult,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
 } from 'typings/templates-db.ts'
-import type { SyncCodeTemplateEntry, SyncCodeTemplatesResult } from './templates.repository.ts'
 
 import { Interactor, ZanixInteractor } from '@zanix/server'
 import { TemplatesAdminRepository } from './templates.repository.ts'

@@ -1,15 +1,14 @@
 import type { ZanixNotifierConnector } from '../base.ts'
 import type { TaskCallback } from '@zanix/types'
+import type { Notifiers, WithWorker } from 'typings/general.ts'
 import type {
   DefaultTemplates,
-  Notifiers,
   NotifyMessageWithTemplate,
   SmsNotifyMessageWithTemplate,
   SmsTemplates,
   WhatsappNotifyMessageWithTemplate,
   WhatsappTemplates,
-  WithWorker,
-} from 'typings/general.ts'
+} from 'typings/template-registry.ts'
 import type { WhatsappTemplateMessage } from 'typings/whatsapp.ts'
 import type { WhatsappClient } from '../whatsapp/connector.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'

@@ -19,7 +19,7 @@ import {
 } from 'modules/templates/provider.ts'
 import { resetPreloadedDBTemplates } from 'modules/templates/db/manifest.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
-import type { AdaptedModel } from '@zanix/datamaster'
+import type { AdaptedModel } from '@zanix/database'
 
 console.error = () => {}
 console.warn = () => {}

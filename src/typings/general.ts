@@ -1,9 +1,16 @@
 import type { TaskCallback } from '@zanix/types'
 import type { WorkerDispatchMode } from '@zanix/server'
 
-import type emailTemplates from 'modules/templates/transactional/email/mod.ts'
-import type smsTemplates from 'modules/templates/transactional/sms.ts'
-import type whatsappTemplates from 'modules/templates/transactional/whatsapp.ts'
+/**
+ * Channel-agnostic message/notifier shapes, deliberately kept free of any `typeof` reference to a
+ * concrete template registry (`modules/templates/transactional/*`) — that's `typings/
+ * template-registry.ts`'s own job. Resolving a `typeof` reference forces the referenced module's
+ * whole reachable graph to resolve too (real ES module semantics, not a Deno quirk), and the
+ * transactional registries reach `execTemplate`'s Handlebars compiler and each template's own Zod
+ * schema — a cost only a template-rendering consumer should pay. Keeping those two concerns in
+ * separate files means `SmtpClient`/`SmsClient`/`WhatsappClient` (whose own connector code only
+ * needs {@link NotifyMessage}) never pull in Handlebars/Zod just by referencing this file's types.
+ */
 
 /**
  * Represents a notify message.
@@ -59,79 +66,6 @@ export type MessageContentOf<
 > =
   | { content: string; zanixTemplate?: never; data?: never }
   | { zanixTemplate: T; data?: TemplateDataOf<Templates, T>; content?: never }
-
-// --- Email ---
-
-/** Zanix Base Handlebar Templates */
-export type DefaultTemplates = keyof typeof emailTemplates
-
-/** Data payload accepted by a given `DefaultTemplates` entry. */
-export type TemplateData<T extends DefaultTemplates> = TemplateDataOf<
-  typeof emailTemplates,
-  T
->
-
-/** Message content to send */
-export type MessageContent<T extends DefaultTemplates> = MessageContentOf<
-  typeof emailTemplates,
-  T
->
-
-/** Notify message options */
-export type NotifyMessageWithTemplate<T extends DefaultTemplates> =
-  & Omit<NotifyMessage, 'content' | 'subject'>
-  & { subject: string }
-  & MessageContent<T>
-
-// --- SMS ---
-
-/** Template names available for `NotifierProvider.sms()`/`sendMessage('sms', ...)`. */
-export type SmsTemplates = keyof typeof smsTemplates
-
-/** Data payload accepted by a given `SmsTemplates` entry. */
-export type SmsTemplateData<T extends SmsTemplates> = TemplateDataOf<
-  typeof smsTemplates,
-  T
->
-
-/** SMS message content to send: either plain text, or a local template name plus its data. */
-export type SmsMessageContent<T extends SmsTemplates> = MessageContentOf<
-  typeof smsTemplates,
-  T
->
-
-/** Notify message options for the `sms` channel. */
-export type SmsNotifyMessageWithTemplate<T extends SmsTemplates> =
-  & Omit<NotifyMessage, 'content'>
-  & SmsMessageContent<T>
-
-// --- WhatsApp ---
-
-/** Template names available for `NotifierProvider.whatsapp()`/`sendMessage('whatsapp', ...)`. */
-export type WhatsappTemplates = keyof typeof whatsappTemplates
-
-/** Data payload accepted by a given `WhatsappTemplates` entry. */
-export type WhatsappTemplateData<T extends WhatsappTemplates> = TemplateDataOf<
-  typeof whatsappTemplates,
-  T
->
-
-/**
- * WhatsApp message content to send: either plain text, or a local template name plus its data.
- *
- * This is unrelated to WhatsApp Cloud API's/Twilio's own native "template message" feature (see
- * `WhatsappTemplateMessage`'s `templateName`/`contentSid`) — `zanixTemplate` always means "render
- * via Handlebars, deliver as free text", exactly like email/SMS.
- */
-export type WhatsappMessageContent<T extends WhatsappTemplates> = MessageContentOf<
-  typeof whatsappTemplates,
-  T
->
-
-/** Notify message options for the `whatsapp` channel. */
-export type WhatsappNotifyMessageWithTemplate<T extends WhatsappTemplates> =
-  & Omit<NotifyMessage, 'content'>
-  & WhatsappMessageContent<T>
 
 /**
  * Controls whether `sendMessage()` offloads a message to a background worker instead of sending

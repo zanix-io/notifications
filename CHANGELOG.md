@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-26
+
+### Added
+
+- **New `@zanix/notifications/connectors` subpath**: `SmtpClient`, `SmsClient`, `WhatsappClient`,
+  `ZanixNotifierConnector`, every built-in provider adapter (`TwilioSmsAdapter`, `VonageSmsAdapter`,
+  `MetaCloudWhatsappAdapter`, `TwilioWhatsappAdapter`), and the connector-level types
+  (`NotifyMessage`, `Notifiers`, `SmsClientConfig`, `WhatsappClientConfig`, etc.) — everything a
+  consumer needs to send a plain `{ content }` message through a connector directly, without
+  `NotifierProvider`'s template-based dispatch. Every symbol is also still exported from the root
+  `@zanix/notifications` barrel — this is purely an additive, narrower alternative, not a
+  replacement.
+- **New `@zanix/notifications/templates-env` subpath**: `TEMPLATES_BACKEND_ENV`,
+  `TEMPLATES_MODEL_ENV`, `TEMPLATES_SERVICE_URL_ENV`, `TEMPLATES_SERVICE_ID_ENV`,
+  `TEMPLATES_SERVICE_TOKEN_ENV`, `TEMPLATES_SERVICE_AUTH_ID_ENV`, `TEMPLATES_SERVICE_CACHE_TTL_ENV`,
+  `templatesBackendMode`, `isTemplatesResourceEnabled`, `templatesModelName`,
+  `assertTemplatesBackendConfigValid`, and `TemplatesBackendMode`/`DEFAULT_TEMPLATES_MODEL_NAME` —
+  everything `modules/templates/env.ts` exports, for a consumer that only needs to know which
+  templates backend mode is selected (e.g. gating whether to expose a `/templates` resource at all),
+  without `TemplateProvider` and, through it, every channel's compiled Handlebars template registry
+  and each one's own Zod schema. The root `.`, `./core`, and `./templates-api` entrypoints all reach
+  `TemplateProvider` today, so none of them let a consumer get `isTemplatesResourceEnabled()` alone.
+  Every symbol here is also still exported from the root `@zanix/notifications` barrel (via
+  `templates/provider.ts`'s existing re-export of `templates/env.ts`) — purely additive, not a
+  replacement.
+- **New `@zanix/notifications/connectors-env` subpath**: everything `email/defs.ts`, `sms/defs.ts`,
+  and `whatsapp/defs.ts` export — `SMTP_HOST_ENV`/`SMTP_PORT_ENV`/`SMTP_USER_ENV`/
+  `SMTP_PASSWORD_ENV`, `TWILIO_*_ENV`/`VONAGE_*_ENV`/`SMS_PROVIDER_ENV`/`resolveSmsProvider`/
+  `SmsProvider`, `META_*_ENV`/`TWILIO_WHATSAPP_FROM_ENV`/`WHATSAPP_PROVIDER_ENV`/
+  `resolveWhatsappProvider`/`WhatsappProvider`, and each channel's `register*Connector` — for a
+  consumer that only needs to inspect or trigger the built-in SMTP/SMS/WhatsApp provider
+  auto-registration, without `TemplateProvider`/Handlebars. `sms/defs.ts` and `whatsapp/defs.ts`
+  were already isolated in their own lightweight files for this exact reason, but the only subpath
+  that previously reached them — `./core` — also unconditionally re-exports `templates/core.ts`,
+  which registers `TemplateProvider`. Every symbol here is also still exported from `./core` and the
+  root `@zanix/notifications` barrel — purely additive, not a replacement.
+- **New `@zanix/notifications/templates-types` subpath**: the pure data-shape types behind this
+  package's own persisted templates collection — `ZanixTemplateAttrs`, `CreateTemplateInput`,
+  `UpdateTemplateInput`, `TemplateSource`, `SyncCodeTemplateEntry`, `SyncCodeTemplatesResult`
+  (`typings/templates-db.ts`), and `TemplatesControllerOptions` (`typings/templates-api.ts`,
+  extracted from `templates-api/templates.handler.ts` — see below) — without
+  `TemplatesAdminService`/`TemplatesAdminRepository`/`createTemplatesController` or anything else
+  that actually touches Handlebars/Mongo. Useful for a caller (an admin UI, a remote sync client)
+  that only needs to type a template payload it reads or writes. Every symbol here is also still
+  exported from the root `@zanix/notifications` barrel (the six `templates-db.ts` types) or
+  `./templates-api` (`TemplatesControllerOptions`) — purely additive, not a replacement.
+
+### Changed
+
+- `templates.repository.ts`'s `SyncCodeTemplateEntry`/`SyncCodeTemplatesResult` interfaces now live
+  in `typings/templates-db.ts`, alongside `ZanixTemplateAttrs`/`CreateTemplateInput`/
+  `UpdateTemplateInput` (the other pure data shapes this repository's own methods accept/return) —
+  `templates.repository.ts` re-exports them unchanged, so no import path (internal or via the root
+  barrel) breaks. Enables the new `./templates-types` subpath above.
+- `templates-api/templates.handler.ts`'s `TemplatesControllerOptions` interface now lives in
+  `typings/templates-api.ts` — it only ever referenced `@zanix/server`'s own `MiddlewareGuard`/
+  `VersionProtocolOption` types, with no dependency of its own on `TemplatesAdminService` or
+  Handlebars. `templates.handler.ts` re-exports it unchanged, so no import path (internal or via
+  `./templates-api`) breaks. Enables the new `./templates-types` subpath above.
+
+### Fixed
+
+- **A plain connector-only consumer (`SmtpClient`/`SmsClient`/`WhatsappClient`, no template
+  rendering) used to materialize `handlebars`/`zod` regardless**, even via the new
+  `@zanix/notifications/connectors` subpath, because `typings/general.ts` defined `NotifyMessage` in
+  the same file as `DefaultTemplates = keyof typeof emailTemplates`-style types — resolving either
+  type forced Deno to resolve the whole file's module graph, including a `typeof` reference into the
+  compiled template registries, which reach `execTemplate`'s Handlebars compiler and each template's
+  own Zod schema. Those types now live in `typings/template-registry.ts` instead;
+  `typings/general.ts` stays free of any reference to the template registries. Confirmed via
+  `deno info --json`: `modules/connectors.ts` (and each channel's own `connector.ts`) no longer
+  resolves `npm:handlebars`/`npm:zod`, while the root `.`/`./core`/`./templates-api` entrypoints are
+  unaffected (they still need the full template system).
+- `modules/templates/provider.ts`'s `TEMPLATES_BACKEND`/`TEMPLATES_MODEL_NAME`/
+  `TEMPLATES_SERVICE_*` env var selection and validation now live in their own file
+  (`modules/templates/env.ts`), mirroring `sms/defs.ts`'s/`whatsapp/defs.ts`'s own provider-selector
+  isolation — `provider.ts` re-exports them unchanged, so no import path (internal or via the root
+  barrel) breaks.
+- Bumped `@zanix/server` to `^4.0.0` and `@zanix/datamaster` to `^1.7.0`. The prior pairing
+  (`@zanix/server@^3.3.0` with `@zanix/datamaster@^1.0.0`) could not move to `@zanix/server@^4.0.0`
+  alone: `@zanix/datamaster@^1.0.0` was itself built against `@zanix/server@3.*`, so its own
+  `ZanixMongoConnector` extended a different module instance of `ZanixDatabaseConnector` than the
+  one `@zanix/server@^4.0.0` exports, a `#private`-field class-identity mismatch `deno check`
+  reported as a real type error. `@zanix/datamaster@1.7.0` now depends on `@zanix/server@^4.0.0`
+  itself, so both packages resolve the same `ZanixDatabaseConnector`. Verified via
+  `deno check --min-dep-age 0` on every entrypoint, `deno lint`, `deno fmt --check`, and the full
+  test suite.
+
 ## [0.5.0] - 2026-08-23
 
 ### Fixed

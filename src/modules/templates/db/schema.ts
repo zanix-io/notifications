@@ -1,5 +1,5 @@
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
-import type { MongoModelDefinition } from '@zanix/datamaster'
+import type { MongoModelDefinition } from '@zanix/database'
 
 import { NOTIFIER_CHANNELS } from 'utils/constants.ts'
 

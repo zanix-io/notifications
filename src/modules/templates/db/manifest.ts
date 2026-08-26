@@ -1,4 +1,4 @@
-import type { Model } from '@zanix/datamaster'
+import type { Model } from '@zanix/database'
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { DerivedTemplateDeclaration } from 'typings/templates.ts'

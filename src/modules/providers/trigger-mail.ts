@@ -7,7 +7,7 @@
  * \_____/ \__,_||_| |_||_|/_/\_\
  */
 
-import type { DefaultTemplates, NotifyMessageWithTemplate } from 'typings/general.ts'
+import type { DefaultTemplates, NotifyMessageWithTemplate } from 'typings/template-registry.ts'
 import type { NotifierProvider } from './notifier.ts'
 
 /**

@@ -1,32 +1,18 @@
-import type { HandlerContext, MiddlewareGuard, VersionProtocolOption } from '@zanix/server'
+import type { HandlerContext, MiddlewareGuard } from '@zanix/server'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
+import type { TemplatesControllerOptions } from 'typings/templates-api.ts'
 
 import { Controller, Delete, Get, Guard, Post, Put, ZanixController } from '@zanix/server'
 import { TemplatesAdminService } from '../db/templates.service.ts'
 import { CreateTemplateRTO, TemplateParamsRTO, UpdateTemplateRTO } from './rtos/templates.rto.ts'
 
-/** Options accepted by {@link createTemplatesController}. */
-export interface TemplatesControllerOptions {
-  /** The route prefix, e.g. `'templates'` (default) for `/templates`. */
-  prefix?: string
-  /**
-   * Guards applied to every route on this controller, run in order, short-circuiting on the first
-   * denial. Omitted/empty means no guard at all — this package never assumes an auth mechanism (it
-   * doesn't depend on `@zanix/auth`) and never invents its own `permissions`/`roles` concept; the
-   * composer (typically `@zanix/admin`) is the one that knows what "admin" means and builds the
-   * real guard, e.g. from `@zanix/auth`'s `jwtValidationGuard`. See the "Local API vs Aggregator
-   * API" rule in the `zanix-libraries-architecture` skill for why the auth mechanism is always
-   * supplied by the composer, never assumed here.
-   */
-  guards?: MiddlewareGuard[]
-  /**
-   * Protocol-version negotiation for this controller, passed straight to `@Controller`. Defaults to
-   * `@zanix/server`'s own generic default when omitted — a composer preserving an existing wire
-   * contract (e.g. `@zanix/admin`'s own protocol config) should pass it explicitly here instead of
-   * this package hardcoding a value with "admin" in its name.
-   */
-  versionProtocol?: VersionProtocolOption
-}
+// Re-exported for backward compatibility — `TemplatesControllerOptions` used to be declared
+// directly in this file; it now lives in `typings/templates-api.ts`, which only references
+// `@zanix/server`'s own `MiddlewareGuard`/`VersionProtocolOption` types, so a narrow subpath can
+// expose it without also reaching this file's real `TemplatesAdminService`/Handlebars dependency
+// (see `@zanix/notifications/templates-types`). No import path (internal or via the root barrel or
+// `@zanix/notifications/templates-api`) breaks.
+export type { TemplatesControllerOptions } from 'typings/templates-api.ts'
 
 /** The instance shape {@link createTemplatesController} builds — see its own docs. */
 export interface TemplatesControllerInstance extends ZanixController<TemplatesAdminService> {

@@ -4,7 +4,7 @@ import { WhatsappClient } from '../../modules/whatsapp/connector.ts'
 import { NotifierProvider } from '../../modules/providers/notifier.ts'
 import { TemplateProvider } from '../../modules/templates/provider.ts'
 import { ProgramModule } from '@zanix/server'
-import { DEFAULT_TRIGGER_JOBS, getRegisteredTriggerActionJobs } from '@zanix/datamaster'
+import { DEFAULT_TRIGGER_JOBS, getRegisteredTriggerActionJobs } from '@zanix/database'
 
 console.error = () => {}
 

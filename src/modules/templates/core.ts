@@ -7,7 +7,7 @@
  * \_____/ \__,_||_| |_||_|/_/\_\
  */
 
-import { registerModel } from '@zanix/datamaster'
+import { registerModel } from '@zanix/database'
 import { Provider } from '@zanix/server'
 
 import {

@@ -6,7 +6,7 @@ import {
   TEMPLATES_MODEL_ENV,
 } from 'modules/templates/provider.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
-import type { AdaptedModel } from '@zanix/datamaster'
+import type { AdaptedModel } from '@zanix/database'
 
 console.error = () => {}
 

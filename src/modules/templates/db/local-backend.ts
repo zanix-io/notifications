@@ -1,6 +1,6 @@
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
-import type { AdaptedModel, ZanixMongoConnector } from '@zanix/datamaster'
+import type { AdaptedModel, ZanixMongoConnector } from '@zanix/database'
 import type { TemplateBackend } from './backend.ts'
 
 import {

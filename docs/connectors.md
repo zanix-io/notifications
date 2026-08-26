@@ -11,6 +11,21 @@ each connector directly, for when you need to reach one without going through th
 Every connector delegates actual delivery to a pluggable **provider adapter** rather than being
 hardcoded to one vendor — a built-in adapter is used by default, or you can supply your own.
 
+## Importing just the connectors
+
+Every symbol on this page is also importable from the narrower `@zanix/notifications/connectors`
+subpath, instead of the root `@zanix/notifications` barrel:
+
+```ts
+import { SmsClient, SmtpClient, WhatsappClient } from '@zanix/notifications/connectors'
+```
+
+Use this when your app only ever sends plain `{ content }` messages through a connector directly
+(never `NotifierProvider`'s template-based `sendMessage()`/`sendTemplate()`, and never
+`@zanix/notifications/core`'s zero-config `TemplateProvider` registration). The root barrel's
+template system (`execTemplate`, `TemplateProvider`, `NotifierProvider`) depends on Handlebars and
+Zod; `@zanix/notifications/connectors` never resolves either.
+
 ## SEE ALSO
 
 - [Notifier Provider](./notifier-provider.md) — the high-level

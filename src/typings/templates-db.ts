@@ -79,3 +79,26 @@ export type UpdateTemplateInput = Partial<
     'hbs' | 'active' | 'description' | 'availableVariables'
   >
 >
+
+/** A single code-defined template entry submitted to `TemplatesAdminRepository.syncCodeTemplates`. */
+export interface SyncCodeTemplateEntry {
+  /** The notifier channel this template belongs to. */
+  channel: Notifiers
+  /** The template's name within its `channel`. */
+  name: string
+  /** The template's raw Handlebars source. */
+  hbs: string
+  /** Cache-invalidation key for this entry's compiled render — see `docs/templates.md#name-vs-hash`. */
+  hash: string
+}
+
+/**
+ * Summary of what a `TemplatesAdminRepository.syncCodeTemplates` call actually wrote. A `type`
+ * alias, not an `interface` — `@zanix/admin`'s own sync route returns this directly, and only an
+ * object type literal (not an `interface`) is structurally compatible with `HandlerResponse`'s
+ * implicit index signature.
+ */
+export type SyncCodeTemplatesResult = {
+  seeded: number
+  resynced: number
+}

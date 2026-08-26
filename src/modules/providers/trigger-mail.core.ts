@@ -9,7 +9,7 @@
 
 import type { ZanixProvidersGetter } from '@zanix/server'
 
-import { DEFAULT_TRIGGER_JOBS, registerTriggerActionJob } from '@zanix/datamaster'
+import { DEFAULT_TRIGGER_JOBS, registerTriggerActionJob } from '@zanix/database'
 import type { NotifierProvider } from './notifier.ts'
 import { type MailTriggerActionData, sendMailTriggerNotification } from './trigger-mail.ts'
 

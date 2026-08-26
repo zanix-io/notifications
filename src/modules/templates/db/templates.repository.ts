@@ -1,7 +1,9 @@
-import type { Model, ZanixMongoConnector } from '@zanix/datamaster'
+import type { Model, ZanixMongoConnector } from '@zanix/database'
 import type { Notifiers } from 'typings/general.ts'
 import type {
   CreateTemplateInput,
+  SyncCodeTemplateEntry,
+  SyncCodeTemplatesResult,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
 } from 'typings/templates-db.ts'
@@ -12,6 +14,14 @@ import { generateUUID, planCodeSync } from '@zanix/helpers'
 import { assertValidHandlebarsSyntax } from '../hbs-validation.ts'
 import { templatesModelName } from '../provider.ts'
 import { DERIVED_TEMPLATES, isDuplicateKeyError, seedMissingDerivedTemplates } from './manifest.ts'
+
+// Re-exported for backward compatibility — `SyncCodeTemplateEntry`/`SyncCodeTemplatesResult` used
+// to be declared directly in this file; they now live in `typings/templates-db.ts` alongside
+// `ZanixTemplateAttrs`/`CreateTemplateInput`/`UpdateTemplateInput` (the other pure data shapes this
+// repository's own methods accept/return), so a narrow subpath can expose all of them together
+// without also reaching this file's real Handlebars/Mongo dependency (see
+// `@zanix/notifications/templates-types`). No import path (internal or via the root barrel) breaks.
+export type { SyncCodeTemplateEntry, SyncCodeTemplatesResult } from 'typings/templates-db.ts'
 
 /**
  * Rejects a syntactically invalid `hbs` before persisting it — otherwise `TemplateProvider` only
@@ -29,29 +39,6 @@ async function assertValidTemplate(hbs: string): Promise<void> {
       meta: { source: 'zanix', method: 'TemplatesAdminRepository', hbs },
     })
   }
-}
-
-/** A single code-defined template entry submitted to {@link TemplatesAdminRepository.syncCodeTemplates}. */
-export interface SyncCodeTemplateEntry {
-  /** The notifier channel this template belongs to. */
-  channel: Notifiers
-  /** The template's name within its `channel`. */
-  name: string
-  /** The template's raw Handlebars source. */
-  hbs: string
-  /** Cache-invalidation key for this entry's compiled render — see `docs/templates.md#name-vs-hash`. */
-  hash: string
-}
-
-/**
- * Summary of what a {@link TemplatesAdminRepository.syncCodeTemplates} call actually wrote. A
- * `type` alias, not an `interface` — `@zanix/admin`'s own sync route returns this directly, and
- * only an object type literal (not an `interface`) is structurally compatible with
- * `HandlerResponse`'s implicit index signature.
- */
-export type SyncCodeTemplatesResult = {
-  seeded: number
-  resynced: number
 }
 
 /**

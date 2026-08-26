@@ -58,6 +58,8 @@ It provides a unified and extensible system for:
     or any custom `WhatsappProviderAdapter`.
   - All three extend the same `ZanixNotifierConnector` base and register with zero app-side setup
     when their environment variables are set and `@zanix/notifications/core` is imported.
+  - Importable from a narrower `@zanix/notifications/connectors` subpath — no Handlebars/Zod, for an
+    app that only ever sends plain `{ content }` messages, never a template.
   - See [Connectors](./docs/connectors.md).
 
 - **`NotifierProvider`**

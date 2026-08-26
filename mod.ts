@@ -64,24 +64,34 @@ export { assertValidHandlebarsSyntax } from 'modules/templates/hbs-validation.ts
 
 // Typings
 export type {
-  DefaultTemplates,
-  MessageContent,
   MessageContentOf,
   Notifiers,
   NotifyMessage,
+  TemplateDataOf,
+  WithWorker,
+} from 'typings/general.ts'
+
+/**
+ * Types derived from each channel's own compiled template registry — split into their own file
+ * (`typings/template-registry.ts`) so a consumer that only needs {@link NotifyMessage}/
+ * {@link Notifiers} (e.g. to use `SmtpClient`/`SmsClient`/`WhatsappClient` directly, without
+ * `NotifierProvider`'s template-based dispatch) never resolves the registries' own reachable graph
+ * (Handlebars, Zod) just by importing a type from this barrel.
+ */
+export type {
+  DefaultTemplates,
+  MessageContent,
   NotifyMessageWithTemplate,
   SmsMessageContent,
   SmsNotifyMessageWithTemplate,
   SmsTemplateData,
   SmsTemplates,
   TemplateData,
-  TemplateDataOf,
   WhatsappMessageContent,
   WhatsappNotifyMessageWithTemplate,
   WhatsappTemplateData,
   WhatsappTemplates,
-  WithWorker,
-} from 'typings/general.ts'
+} from 'typings/template-registry.ts'
 
 export type {
   DataTableLabelsSchema,

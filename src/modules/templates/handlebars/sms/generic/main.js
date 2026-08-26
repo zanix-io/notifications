@@ -36,4 +36,3 @@ export default function(context) {
 // Raw source, for database-sync seeding — see `db/manifest.ts`.
 export const source = "{{{content}}}\n";
 export const styles = "/* Intentionally empty: SMS is plain text. This file exists only because compiler.ts always\n   reads a sibling styles.css for every .hbs it compiles. */\n";
-    
