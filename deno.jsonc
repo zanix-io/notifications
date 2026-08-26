@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
@@ -56,7 +56,7 @@
     "@std/fs": "jsr:@std/fs@1.0.24",
     "handlebars": "npm:handlebars@^4.7.8",
     "@zanix/server": "jsr:@zanix/server@^4.0.0",
-    "@zanix/database": "jsr:@zanix/datamaster@^1.7.0/database",
+    "@zanix/database": "jsr:@zanix/datamaster@^1.8.0/database",
     "@zanix/auth": "jsr:@zanix/auth@^0.8.1",
     "@zanix/types": "jsr:@zanix/utils@^4.0.0/types",
     "@zanix/helpers": "jsr:@zanix/utils@^4.0.0/helpers",
@@ -70,7 +70,7 @@
   },
   "scopes": {
     "./src/@tests/": {
-      "@zanix/datamaster/core": "jsr:@zanix/datamaster@^1.7.0/core"
+      "@zanix/datamaster/core": "jsr:@zanix/datamaster@^1.8.0/core"
     }
   },
   "exports": {

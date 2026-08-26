@@ -32,7 +32,8 @@
     "jsr:@std/streams@~0.224.5": "0.224.5",
     "jsr:@std/testing@1.0.16": "1.0.16",
     "jsr:@zanix/auth@~0.8.1": "0.8.1",
-    "jsr:@zanix/datamaster@^1.7.0": "1.7.0",
+    "jsr:@zanix/datamaster@^1.7.0": "1.8.0",
+    "jsr:@zanix/datamaster@^1.8.0": "1.8.0",
     "jsr:@zanix/server@4": "4.0.0",
     "jsr:@zanix/utils@4": "4.0.0",
     "npm:handlebars@^4.7.8": "4.7.9",
@@ -160,13 +161,13 @@
     "@zanix/auth@0.8.1": {
       "integrity": "0c6cfac247238b2784b739dc57d74403242ba6f78abf3edc4f0e8b11ec9cfbae",
       "dependencies": [
-        "jsr:@zanix/datamaster",
+        "jsr:@zanix/datamaster@^1.7.0",
         "jsr:@zanix/server",
         "jsr:@zanix/utils"
       ]
     },
-    "@zanix/datamaster@1.7.0": {
-      "integrity": "6715470ffb30bed484631d9900804c416e2fb4db3435b9c2877baad1fd7e39f3",
+    "@zanix/datamaster@1.8.0": {
+      "integrity": "ad13d1c3af032d650df4ba455eda4b14640f1d7c726fbdd39e177f73834b602b",
       "dependencies": [
         "jsr:@db/sqlite",
         "jsr:@zanix/server",
@@ -371,7 +372,7 @@
       "jsr:@std/path@0.224",
       "jsr:@std/testing@1.0.16",
       "jsr:@zanix/auth@~0.8.1",
-      "jsr:@zanix/datamaster@^1.7.0",
+      "jsr:@zanix/datamaster@^1.8.0",
       "jsr:@zanix/server@4",
       "jsr:@zanix/utils@4",
       "npm:handlebars@^4.7.8",

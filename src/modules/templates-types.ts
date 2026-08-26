@@ -12,8 +12,9 @@
  * `TemplatesControllerOptions` (`typings/templates-api.ts`) — deliberately without
  * `TemplatesAdminService`/`TemplatesAdminRepository`/`createTemplatesController` or anything else
  * that actually touches Handlebars/Mongo. Every one of those types only ever references
- * `typings/general.ts`'s `Notifiers` or `@zanix/server`'s own ambient types — none of them require
- * resolving the heavy classes they happen to describe the inputs/outputs of.
+ * `Notifiers` (re-exported below from `typings/general.ts`, itself a plain string-union with no
+ * imports of its own) or `@zanix/server`'s own ambient types — none of them require resolving the
+ * heavy classes they happen to describe the inputs/outputs of.
  *
  * The only currently-exposed subpaths that reach these types — the root `@zanix/notifications`
  * barrel, `@zanix/notifications/core`, and `@zanix/notifications/templates-api` — ALL also
@@ -41,3 +42,4 @@ export type {
   ZanixTemplateAttrs,
 } from 'typings/templates-db.ts'
 export type { TemplatesControllerOptions } from 'typings/templates-api.ts'
+export type { Notifiers } from 'typings/general.ts'

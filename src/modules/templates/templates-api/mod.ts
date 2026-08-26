@@ -24,3 +24,19 @@ export {
   type TemplatesControllerOptions,
 } from './templates.handler.ts'
 export { CreateTemplateRTO, TemplateParamsRTO, UpdateTemplateRTO } from './rtos/templates.rto.ts'
+
+/**
+ * The CRUD data-access layer {@link createTemplatesController} itself sits on top of — re-exported
+ * here so a consumer that composes its own extension on this local API (`@zanix/admin`'s
+ * cross-service `POST /templates/sync`, which calls {@link TemplatesAdminRepository.syncCodeTemplates}
+ * directly) can reach them without also resolving the root `@zanix/notifications` barrel's
+ * unrelated connectors/providers. Adds nothing to this subpath's own reachable graph: this
+ * controller already imports {@link TemplatesAdminService} to build its own handlers.
+ */
+export {
+  type SyncCodeTemplateEntry,
+  type SyncCodeTemplatesResult,
+  TemplatesAdminRepository,
+  toSyncCodeTemplateEntries,
+} from '../db/templates.repository.ts'
+export { TemplatesAdminService } from '../db/templates.service.ts'

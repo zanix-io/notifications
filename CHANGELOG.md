@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-08-26
+
+### Added
+
+- **`@zanix/notifications/templates-api` now also exports `TemplatesAdminRepository`,
+  `TemplatesAdminService`, `toSyncCodeTemplateEntries`, `SyncCodeTemplateEntry`, and
+  `SyncCodeTemplatesResult`** — previously only available from the root `@zanix/notifications`
+  barrel, which also bundles unrelated connectors/providers. A consumer that composes its own
+  extension on this local API (e.g. a cross-service sync endpoint calling
+  `TemplatesAdminRepository.syncCodeTemplates` directly) can now reach the CRUD data-access layer
+  without resolving anything outside `/templates-api`'s own reachable graph — this subpath already
+  imports `TemplatesAdminService` internally to build its own controller, so the new exports add
+  nothing to what it already resolves.
+- **`@zanix/notifications/templates-types` now also exports `Notifiers`** — a plain string-union
+  type with no imports of its own, matching every other type this subpath already re-exports.
+
 ## [0.6.0] - 2026-08-26
 
 ### Added
