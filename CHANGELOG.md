@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-31
+
+### Added
+
+- **New `@zanix/notifications/templates-api/rtos` subpath**: `CreateTemplateRTO`,
+  `TemplateParamsRTO`, `UpdateTemplateRTO` — the pure validation-only layer of the local templates
+  API's RTOs, with no data-access dependency at all, for a consumer that only needs these wire
+  shapes without also resolving `TemplatesAdminRepository`/`TemplatesAdminService` (the root
+  `./templates-api` subpath re-exports both from the same file). Every symbol is also still exported
+  from `./templates-api` — purely additive, not a replacement.
+
+### Changed
+
+- `@zanix/auth` floor raised to `^1.0.0` (from `^0.8.1`) and `@zanix/database`
+  (`@zanix/datamaster`'s `/database` subpath) floor raised to `^1.9.0` (from `^1.8.0`), matching the
+  `./src/@tests/` scope's own `@zanix/datamaster/core` override.
+
 ## [0.7.0] - 2026-08-26
 
 ### Added
