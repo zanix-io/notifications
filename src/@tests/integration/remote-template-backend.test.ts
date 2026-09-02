@@ -514,6 +514,70 @@ Deno.test(
   },
 )
 
+// --- pathPrefix (ZanixAdminHub vs. a plain @zanix/core service's own admin API) ------------
+
+Deno.test(
+  "RemoteTemplateBackend: pathPrefix defaults to admin/templates (a plain @zanix/core service's own admin API)",
+  async () => {
+    let capturedUrl: string | undefined
+
+    await withFakeFetch(
+      autoSync((input) => {
+        capturedUrl = String(input)
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+      () => freshBackend().resolve('email', 'welcome'),
+    )
+
+    assertEquals(
+      capturedUrl,
+      'https://templates.internal.example/admin/templates/email/welcome',
+    )
+  },
+)
+
+Deno.test(
+  'RemoteTemplateBackend: a custom pathPrefix (e.g. "templates", for a ZanixAdminHub target) is used on both resolve() and the sync POST',
+  async () => {
+    const calls: string[] = []
+
+    await withFakeFetch(
+      (input, init) => {
+        calls.push(String(input))
+        if (init?.method === 'POST') {
+          return new Response(JSON.stringify({ seeded: 0, resynced: 0 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+      () => {
+        resetRemoteTemplateBackendCache()
+        resetRemoteTemplateBackendSyncState()
+        const backend = new RemoteTemplateBackend({
+          url: 'https://hub.internal.example',
+          serviceId: 'billing',
+          token: 'service-token',
+          pathPrefix: 'templates',
+        })
+        return backend.resolve('email', 'welcome')
+      },
+    )
+
+    assertEquals(calls, [
+      'https://hub.internal.example/templates/sync',
+      'https://hub.internal.example/templates/email/welcome',
+    ])
+  },
+)
+
 Deno.test(
   'RemoteTemplateBackend: preload() is a no-op — resolves to undefined without ever calling fetch',
   async () => {

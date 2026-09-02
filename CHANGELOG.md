@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-01
+
+### Added
+
+- **`TEMPLATES_SERVICE_PATH_PREFIX` env var / `RemoteTemplateBackendConfig.pathPrefix`**: overrides
+  the route prefix Mode C's `RemoteTemplateBackend` calls at `TEMPLATES_SERVICE_URL`. Defaults to
+  `'admin/templates'`, matching a plain `@zanix/core`-based service's own local admin API — but
+  `TEMPLATES_SERVICE_URL` can also point at a `ZanixAdminHub` instance, which mounts the equivalent
+  CRUD/`sync` routes at a bare `'templates'` prefix instead (no `admin/` segment). Pointing Mode C
+  at a hub without this override produces a silent 404 on every `resolve()` call, indistinguishable
+  from a missing template rather than surfaced as a misconfiguration. Purely additive — the default
+  preserves the existing hardcoded behavior for every current Mode C deployment.
+
 ## [1.0.0] - 2026-08-31
 
 ### Added

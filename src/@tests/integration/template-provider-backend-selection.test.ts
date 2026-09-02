@@ -13,6 +13,7 @@ import {
   TEMPLATES_BACKEND_ENV,
   TEMPLATES_SERVICE_AUTH_ID_ENV,
   TEMPLATES_SERVICE_ID_ENV,
+  TEMPLATES_SERVICE_PATH_PREFIX_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
 } from 'modules/templates/provider.ts'
@@ -65,6 +66,7 @@ function templateTest(name: string, fn: () => Promise<void> | void): void {
       Deno.env.delete(TEMPLATES_BACKEND_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_AUTH_ID_ENV)
       Deno.env.delete(TEMPLATES_SERVICE_TOKEN_ENV)
+      Deno.env.delete(TEMPLATES_SERVICE_PATH_PREFIX_ENV)
     }
   })
 }
@@ -113,6 +115,35 @@ templateTest(
     })
 
     assertStringIncludes(content, 'Click here')
+  },
+)
+
+templateTest(
+  'TemplateProvider#backend(): TEMPLATES_SERVICE_PATH_PREFIX=templates targets a ZanixAdminHub-shaped route instead of the admin/templates default',
+  async () => {
+    Deno.env.set(TEMPLATES_BACKEND_ENV, 'remote')
+    Deno.env.set(TEMPLATES_SERVICE_URL_ENV, 'https://hub.internal.example')
+    Deno.env.set(TEMPLATES_SERVICE_ID_ENV, 'billing')
+    Deno.env.set(TEMPLATES_SERVICE_PATH_PREFIX_ENV, 'templates')
+    const provider = freshProvider()
+
+    const calls: string[] = []
+    const content = await withFakeFetch(
+      (input) => {
+        calls.push(String(input))
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+      () => provider.resolve('email', 'welcome', { buttonText: 'Click here' }),
+    )
+
+    assertStringIncludes(content, 'Click here')
+    assertEquals(calls, [
+      'https://hub.internal.example/templates/sync',
+      'https://hub.internal.example/templates/email/welcome',
+    ])
   },
 )
 

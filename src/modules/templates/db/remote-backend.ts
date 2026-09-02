@@ -9,6 +9,18 @@ import logger from '@zanix/logger'
 const DEFAULT_CACHE_TTL_MS = 45_000
 
 /**
+ * Default route prefix `resolve()`/`#sync()` call at `TEMPLATES_SERVICE_URL` — matches a plain
+ * `@zanix/core`-based service's own local admin API (`admin: true`, `@zanix/admin`'s
+ * `defineAdminMetadata`, which mounts this package's CRUD controller and this package's own
+ * `sync` extension both at a fixed `admin/templates` prefix). **Not** the shape a `ZanixAdminHub`
+ * instance mounts its equivalent aggregated routes at — the hub's own `defineAdminHubMetadata`
+ * mounts them at a bare `templates` prefix instead, with no `admin/` segment, since the hub's whole
+ * server is already admin-scoped. See `RemoteTemplateBackendConfig.pathPrefix` for pointing this
+ * class at a hub instead of a single service.
+ */
+const DEFAULT_PATH_PREFIX = 'admin/templates'
+
+/**
  * Builds `{ 'X-Znx-Authorization': 'Bearer <token>' }` (or any other header set) for a given
  * `(targetServiceId, exchangeUrl)` pair — the exact shape `@zanix/auth`'s `createServiceAuthClient(...)`
  * returns, kept type-only here so this module never imports `@zanix/auth` itself (this package's one
@@ -80,14 +92,24 @@ export function resetRemoteTemplateBackendSyncState(): void {
 /** Config for {@link RemoteTemplateBackend} — see `TEMPLATES_SERVICE_URL`/`TEMPLATES_SERVICE_TOKEN`. */
 export interface RemoteTemplateBackendConfig {
   /**
-   * Base URL of the central Notification/Template Service's *admin* server — today an anchored
-   * `'admin'`-Application listener on its own port (`@zanix/core`'s `admin` option, see its
-   * `docs/admin-apis.md`), not the service's default-Application port. Do not include
-   * `/admin/templates`; the path is appended per call. Also where `authClient` (below) exchanges a
+   * Base URL of the central Notification/Template Service — either a single `@zanix/core`-based
+   * service's own *admin* server (today an anchored `'admin'`-Application listener on its own
+   * port, `@zanix/core`'s `admin` option, see its `docs/admin-apis.md`, not the service's
+   * default-Application port), or a `ZanixAdminHub` instance's own aggregated API. Do not include
+   * `pathPrefix` (below); the path is appended per call. Also where `authClient` (below) exchanges a
    * credential, at this same base URL's own `/admin/service-token` — the fixed route every admin
    * surface mounts, same convention `@zanix/admin`'s `createServiceRegistryAuthHeaders` uses.
    */
   url: string
+  /**
+   * Route prefix appended to `url` on every call — see `DEFAULT_PATH_PREFIX`'s own doc for the two
+   * real shapes this needs to match. Defaults to `'admin/templates'`, a single `@zanix/core`-based
+   * service's own local admin API. **Set this to `'templates'` when `url` instead points at a
+   * `ZanixAdminHub` instance** — the hub mounts the equivalent CRUD/`sync` routes without the
+   * `admin/` segment. Mirrors `TEMPLATES_SERVICE_PATH_PREFIX_ENV` for the env-var-driven Mode C path
+   * (`TemplateProvider.#backend()`); only meaningful for a caller constructing this class directly.
+   */
+  pathPrefix?: string
   /**
    * This service's own identity, as registered in the central service's `ServiceRegistry` (see
    * `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) under a `serviceId` mapped to a
@@ -144,10 +166,11 @@ function realHttpStatus(error: unknown): number | undefined {
 /**
  * `TemplateBackend` for Mode C (remote-only templates, no local Mongo access at all) — see
  * `docs/templates.md#mode-c-remote-only-templates`. Calls the central Notification/Template
- * Service's `GET /admin/templates/:channel/:name` (the same read endpoint `@zanix/core`'s
- * `TemplatesAdminRepository.get()` backs) via `@zanix/server`'s `RestClient`, the same
- * HTTP-adapter convention every other outbound REST integration in this package uses (see
- * `modules/sms/twilio.ts`).
+ * Service's `GET <pathPrefix>/:channel/:name` (`pathPrefix` defaults to `admin/templates`, the same
+ * read endpoint `@zanix/core`'s `TemplatesAdminRepository.get()` backs — see
+ * `RemoteTemplateBackendConfig.pathPrefix`'s own doc for pointing this at a `ZanixAdminHub` instead)
+ * via `@zanix/server`'s `RestClient`, the same HTTP-adapter convention every other outbound REST
+ * integration in this package uses (see `modules/sms/twilio.ts`).
  *
  * On top of this class's own TTL cache (below), every `this.http.get()` call already benefits,
  * transparently, from whatever `RestClient` itself provides — including its conditional-`GET`
@@ -164,6 +187,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
   #staticToken?: string
   #authClient?: ServiceAuthClient
   #exchangeUrl?: string
+  #pathPrefix: string
 
   /** Creates a `RemoteTemplateBackend`, pointed at the central service's internal admin base URL. */
   constructor(config: RemoteTemplateBackendConfig) {
@@ -181,6 +205,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
     this.#cacheTtlMs = config.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
     this.#serviceId = config.serviceId
     this.#staticToken = config.token
+    this.#pathPrefix = config.pathPrefix ?? DEFAULT_PATH_PREFIX
 
     // `token` (a pre-issued static credential) always wins when set — `authClient` (dynamic
     // sign+exchange) is only ever attempted when there's no static token to fall back to. Not built
@@ -228,7 +253,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
   /**
    * Tells the central service to pull this service's current `CODE_TEMPLATES` (see `manifest.ts`)
    * from its own `/.well-known/zanix/code-templates` Discovery endpoint, via
-   * `POST admin/templates/sync` — the same hand-rolled `RestClient` primitive `resolve()`'s own
+   * `POST <pathPrefix>/sync` — the same hand-rolled `RestClient` primitive `resolve()`'s own
    * `GET` uses, not `@zanix/admin`'s `TemplatesAdminClient` (importing it here would be circular:
    * `@zanix/admin` already depends on this package for `ZanixTemplateAttrs`/`Notifiers`). Sends
    * only this instance's `serviceId` — never the template contents themselves — so the central
@@ -241,7 +266,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
    */
   async #sync(): Promise<void> {
     try {
-      await this.http.post('admin/templates/sync', {
+      await this.http.post(`${this.#pathPrefix}/sync`, {
         body: JSON.stringify({ serviceId: this.#serviceId }),
         headers: await this.#authHeaders(),
       })
@@ -292,7 +317,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
     let value: ZanixTemplateAttrs | undefined
     try {
       value = await this.http.get<ZanixTemplateAttrs>(
-        `admin/templates/${channel}/${name}`,
+        `${this.#pathPrefix}/${channel}/${name}`,
         {
           headers: await this.#authHeaders(),
         },

@@ -249,12 +249,17 @@ Deno.env.set('TEMPLATES_SERVICE_ID', 'billing')
 Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
 ```
 
-- **`TEMPLATES_SERVICE_URL`** — the central service's own _admin_ base URL (today, per
-  `@zanix/core`'s `admin` option, an `'admin'`-Application listener on its own port — anchored
-  (id-prefixed) whenever that service's own `ADMIN_SERVER_ID` is set, not the service's
-  default-Application port). Do not include the `/admin/templates` suffix; `TemplateProvider`
-  appends it per call. **Required whenever `TEMPLATES_BACKEND=remote` is selected** — omitting it
-  throws immediately, at boot (importing `@zanix/notifications/core`) and on every `resolve()` call.
+- **`TEMPLATES_SERVICE_URL`** — the central service's own base URL. Two real shapes exist, each with
+  its own route layout (see `TEMPLATES_SERVICE_PATH_PREFIX` below for the matching prefix):
+  - A plain `@zanix/core`-based service running its `admin` option (an `'admin'`-Application
+    listener on its own port — anchored/id-prefixed whenever that service's own `ADMIN_SERVER_ID` is
+    set, not the service's default-Application port), exposing CRUD/`sync` at `/admin/templates`.
+  - A `ZanixAdminHub` instance, exposing the same CRUD/`sync` pair at `/templates` instead (no
+    `admin/` segment — see `@zanix/admin`'s own `docs/templates-api.md`).
+
+  Do not include either prefix in this value; `TEMPLATES_SERVICE_PATH_PREFIX` supplies it, appended
+  per call. **Required whenever `TEMPLATES_BACKEND=remote` is selected** — omitting it throws
+  immediately, at boot (importing `@zanix/notifications/core`) and on every `resolve()` call.
   Setting it without also selecting `TEMPLATES_BACKEND=remote` has no effect — it's simply never
   read. This matters in practice for a deployment where two processes read the SAME `.env` file with
   opposite needs (one is a Mode C consumer, the other is the central service that itself needs
@@ -262,6 +267,11 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   `TEMPLATES_BACKEND`/`TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_URL` explicitly in the process that
   needs them (e.g. `Deno.env.set(...)` at that process's own entrypoint) rather than relying on one
   shared file to serve both.
+- **`TEMPLATES_SERVICE_PATH_PREFIX`** — the route prefix appended to `TEMPLATES_SERVICE_URL` on
+  every call. Optional, defaults to `'admin/templates'` (the plain `@zanix/core`-service shape
+  above). **Set this to `'templates'` when `TEMPLATES_SERVICE_URL` instead points at a
+  `ZanixAdminHub` instance** — pointing Mode C at a hub with the default prefix produces a 404 on
+  every `resolve()` call, since the hub mounts its aggregated routes without the `admin/` segment.
 - **`TEMPLATES_SERVICE_ID`** — this service's own identity, as registered in the central service's
   `ServiceRegistry` (see `@zanix/admin`'s `setServiceRegistry`/`ZANIX_ADMIN_SERVICES`) mapped to a
   base URL reachable for this process's own `/.well-known/zanix/code-templates` Discovery endpoint
@@ -318,32 +328,35 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   DNS or config caches work.
 
 No local `ZanixTemplate` model is registered against in this mode — `resolve()` calls the central
-service's `GET /admin/templates/:channel/:name` read endpoint instead of `Model.findOne(...)`.
-Everything else about the runtime contract is identical to Modes A/B: a `404` (no such template)
-falls through to the code registry silently, same as a missing local record; any other failure
-(network error, timeout, non-2xx) falls back to the code version with a logged warning, exactly the
-same "strictly additive, never a new way for a send to fail" guarantee.
+service's `GET <pathPrefix>/:channel/:name` read endpoint (`admin/templates/:channel/:name` by
+default) instead of `Model.findOne(...)`. Everything else about the runtime contract is identical to
+Modes A/B: a `404` (no such template) falls through to the code registry silently, same as a missing
+local record; any other failure (network error, timeout, non-2xx) falls back to the code version
+with a logged warning, exactly the same "strictly additive, never a new way for a send to fail"
+guarantee.
 
-**Validating the three env vars together, before traffic.** `RemoteTemplateBackend`'s own self-check
+**Validating the env vars together, before traffic.** `RemoteTemplateBackend`'s own self-check
 (`#ensureSynced()`/`#sync()`) already catches and logs every failure without ever throwing — the
 only gap is it fires lazily, on this process's first `resolve()` call, rather than at boot. For a
 deploy-pipeline smoke test that catches a misconfiguration before it reaches real traffic, script
-against the same `admin/templates/sync` endpoint directly:
+against the same sync endpoint directly (`admin/templates/sync` by default; `templates/sync` when
+`TEMPLATES_SERVICE_PATH_PREFIX=templates` targets a `ZanixAdminHub`):
 
 ```sh
-curl -X POST "$TEMPLATES_SERVICE_URL/admin/templates/sync" \
+curl -X POST "$TEMPLATES_SERVICE_URL/${TEMPLATES_SERVICE_PATH_PREFIX:-admin/templates}/sync" \
   -H "X-Znx-Authorization: Bearer $TEMPLATES_SERVICE_TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"serviceId\":\"$TEMPLATES_SERVICE_ID\"}"
-# expect a 2xx — validates TEMPLATES_SERVICE_URL/_ID/_TOKEN together, with zero new code
+# expect a 2xx — validates TEMPLATES_SERVICE_URL/_ID/_TOKEN/_PATH_PREFIX together, with zero new code
 ```
 
 **Remote sync IS supported, pull-based.** `RemoteTemplateBackend` has no local database of its own
 to sync against, but on the first `resolve()` call for the whole process it fires a single
-`POST admin/templates/sync`, telling the central service _which registered service to pull from_
-(`{ serviceId: config.serviceId }`) — the template contents themselves are never sent as a request
-body. This requires this process to expose its own `CODE_TEMPLATES` for the central service to pull
-from, via `defineCodeTemplatesDiscovery()` (exported by this package):
+`POST <pathPrefix>/sync` (`admin/templates/sync` by default), telling the central service _which
+registered service to pull from_ (`{ serviceId: config.serviceId }`) — the template contents
+themselves are never sent as a request body. This requires this process to expose its own
+`CODE_TEMPLATES` for the central service to pull from, via `defineCodeTemplatesDiscovery()`
+(exported by this package):
 
 ```ts
 import { defineCodeTemplatesDiscovery } from 'jsr:@zanix/notifications@[version]'

@@ -30,6 +30,7 @@ import {
   TEMPLATES_SERVICE_AUTH_ID_ENV,
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
   TEMPLATES_SERVICE_ID_ENV,
+  TEMPLATES_SERVICE_PATH_PREFIX_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
@@ -48,6 +49,7 @@ export {
   TEMPLATES_SERVICE_AUTH_ID_ENV,
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
   TEMPLATES_SERVICE_ID_ENV,
+  TEMPLATES_SERVICE_PATH_PREFIX_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
@@ -135,6 +137,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
       return new RemoteTemplateBackend({
         url: Deno.env.get(TEMPLATES_SERVICE_URL_ENV) as string,
         serviceId: Deno.env.get(TEMPLATES_SERVICE_ID_ENV) as string,
+        pathPrefix: Deno.env.get(TEMPLATES_SERVICE_PATH_PREFIX_ENV) || undefined,
         token,
         // Only built when there's no static `token` — see `RemoteTemplateBackendConfig.authClient`'s
         // own doc on the priority between the two. Built via `remote-backend-auth.ts`'s

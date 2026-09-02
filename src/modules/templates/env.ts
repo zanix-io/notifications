@@ -30,7 +30,8 @@ export const TEMPLATES_MODEL_ENV = 'TEMPLATES_MODEL_NAME'
  * - `'local'`: Modes A/B — a `@zanix/datamaster`-backed `ZanixTemplate` collection, named by
  *   `TEMPLATES_MODEL_ENV` (optional, defaults to `DEFAULT_TEMPLATES_MODEL_NAME`).
  * - `'remote'`: Mode C — a central Notification/Template Service over HTTP, configured via
- *   `TEMPLATES_SERVICE_URL_ENV`/`TEMPLATES_SERVICE_ID_ENV`/etc.
+ *   `TEMPLATES_SERVICE_URL_ENV`/`TEMPLATES_SERVICE_ID_ENV`/etc — see `TEMPLATES_SERVICE_PATH_PREFIX_ENV`
+ *   in particular when that URL points at a `ZanixAdminHub` instead of a single service's own admin API.
  *
  * Any other value throws — see `templatesBackendMode()`.
  */
@@ -146,6 +147,18 @@ export const TEMPLATES_SERVICE_AUTH_ID_ENV = 'TEMPLATES_SERVICE_AUTH_ID'
  * `db/remote-backend.ts`'s `DEFAULT_CACHE_TTL_MS`. Only meaningful under `TEMPLATES_BACKEND=remote`.
  */
 export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
+
+/**
+ * Env var overriding the route prefix `RemoteTemplateBackend` calls at `TEMPLATES_SERVICE_URL` —
+ * see `db/remote-backend.ts`'s `DEFAULT_PATH_PREFIX`. Optional; defaults to `'admin/templates'`,
+ * matching a plain `@zanix/core`-based service's own local admin API (`admin: true`, see
+ * `@zanix/admin`'s `defineAdminMetadata`). **Set this to `'templates'` when `TEMPLATES_SERVICE_URL`
+ * instead points at a `ZanixAdminHub` instance** — the hub mounts its own aggregated
+ * `/templates`/`/templates/sync` routes with no `admin/` segment (`@zanix/admin`'s
+ * `defineAdminHubMetadata`), a different route shape from a single service's local admin API. Only
+ * meaningful under `TEMPLATES_BACKEND=remote`.
+ */
+export const TEMPLATES_SERVICE_PATH_PREFIX_ENV = 'TEMPLATES_SERVICE_PATH_PREFIX'
 
 /**
  * Validates the configuration required by whichever mode `TEMPLATES_BACKEND_ENV` currently selects
