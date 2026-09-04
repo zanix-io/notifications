@@ -40,8 +40,29 @@ export interface ZanixTemplateAttrs {
   /** Optional human-readable description, for admin/dashboard use. */
   description?: string
 
-  /** Optional documented variable names, for preview/validation tooling — informational only, not enforced. */
+  /**
+   * Optional documented variable names, for preview/validation tooling — informational only, not
+   * enforced. For a `source: 'code'` record, this is derived automatically (`compiler.ts`'s own
+   * AST walk over the template's `.hbs`, excluding `styles.*`) and kept in sync on every
+   * code→database sync; an admin only ever needs to set this by hand for a `source: 'database'`
+   * record.
+   */
   availableVariables?: string[]
+
+  /**
+   * For a `source: 'code'` record only — the template's compiled CSS and default style-class
+   * names, kept in sync on every code→database sync. Absent for a `source: 'database'` record —
+   * there's no code-side CSS/defaults to expose for one. Exists so external tooling (e.g. a live
+   * preview) can reproduce the same styling `compiler.ts`/`provider.ts#renderCodeBacked` already
+   * inject automatically at render time, instead of guessing — see `docs/templates.md`'s
+   * "`availableVariables` and `styles`" section.
+   */
+  styles?: {
+    /** The template's compiled `styles.css` content, verbatim. */
+    css: string
+    /** Default style-class names (`schema.ts`'s own `defaultStyles`) referenced as `styles.*` in the template's `.hbs` — `{}` for a template with none. */
+    classDefaults: Record<string, string>
+  }
 
   /** Hash of the live `hbs` content. */
   hash: string
@@ -90,6 +111,10 @@ export interface SyncCodeTemplateEntry {
   hbs: string
   /** Cache-invalidation key for this entry's compiled render — see `docs/templates.md#name-vs-hash`. */
   hash: string
+  /** See {@link ZanixTemplateAttrs.availableVariables}. Optional — a caller on an older `@zanix/notifications` version may not send it. */
+  availableVariables?: string[]
+  /** See {@link ZanixTemplateAttrs.styles}. Optional — a caller on an older `@zanix/notifications` version may not send it. */
+  styles?: ZanixTemplateAttrs['styles']
 }
 
 /**

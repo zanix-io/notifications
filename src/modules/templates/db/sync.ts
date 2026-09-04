@@ -1,5 +1,5 @@
 import type { Notifiers } from 'typings/general.ts'
-import type { TemplateSource } from 'typings/templates-db.ts'
+import type { TemplateSource, ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
 import { planCodeSync } from '@zanix/helpers'
 
@@ -9,6 +9,10 @@ export interface StaticTemplateEntry {
   name: string
   hbs: string
   hash: string
+  /** See `ZanixTemplateAttrs.availableVariables`. */
+  availableVariables: string[]
+  /** See `ZanixTemplateAttrs.styles`. */
+  styles: NonNullable<ZanixTemplateAttrs['styles']>
 }
 
 /** A persisted `source: 'code'` template entry, as read back from the database. */
@@ -26,7 +30,16 @@ export interface TemplateSyncPlan {
   /** `_id`s of `source:'code'` entries whose `{channel,name}` no longer has a `.hbs` in code — flipped to `source:'database'`, never deleted (see rationale below). */
   toOrphan: Array<{ _id: unknown }>
   /** Entries whose content should be overwritten with the current code content. */
-  toResync: Array<{ _id: unknown; hbs: string; hash: string; version: number }>
+  toResync: Array<
+    {
+      _id: unknown
+      hbs: string
+      hash: string
+      version: number
+      availableVariables: string[]
+      styles: NonNullable<ZanixTemplateAttrs['styles']>
+    }
+  >
   /** `{channel,name}` pairs with a `.hbs` in code and no persisted entry at all yet. */
   toSeed: StaticTemplateEntry[]
 }
@@ -55,6 +68,14 @@ export interface TemplateSyncPlan {
  * `{channel, name, hbs}` ↔ the generic `{key, value}` shape and computes the version bump, which
  * `planCodeSync` itself doesn't know about.
  */
+// `existing` (below) only ever needs `hbs` for `planCodeSync`'s equality check — its own
+// `availableVariables`/`styles` are never read, so a fixed placeholder satisfies
+// `StaticTemplateEntry`'s shape without pretending to know the persisted record's real values.
+const UNUSED_PLACEHOLDER: Pick<StaticTemplateEntry, 'availableVariables' | 'styles'> = {
+  availableVariables: [],
+  styles: { css: '', classDefaults: {} },
+}
+
 export function planTemplateSync(
   staticEntries: StaticTemplateEntry[],
   existing: ExistingTemplateEntry[],
@@ -76,12 +97,14 @@ export function planTemplateSync(
         name: entry.name,
         hbs: entry.hbs,
         hash: '',
+        ...UNUSED_PLACEHOLDER,
       },
       lastSyncedValue: entry.lastSyncedHbs === undefined ? undefined : {
         channel: entry.channel,
         name: entry.name,
         hbs: entry.lastSyncedHbs,
         hash: '',
+        ...UNUSED_PLACEHOLDER,
       },
     })),
     (a, b) => a.hbs === b.hbs,
@@ -95,6 +118,8 @@ export function planTemplateSync(
       hash: value.hash,
       // `_id` always comes from `existing` (see planCodeSync above), so this is always present.
       version: (versionById.get(_id) ?? 0) + 1,
+      availableVariables: value.availableVariables,
+      styles: value.styles,
     })),
     toSeed: plan.toSeed.map((entry) => entry.value),
   }

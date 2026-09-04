@@ -3,8 +3,12 @@ import { z } from 'zod'
 import { baseHtmlSchema, baseStylesSchema, defaultHtmlSchema } from '../../schema.ts'
 import { sanitizeUrl } from '@zanix/helpers'
 
-// Ensure default styles are applied if not present
-const defaultStyles = {
+// Ensure default styles are applied if not present. Exported (not just used locally) so
+// `compiler.ts` can embed it into the generated `main.js` (`styleDefaults`) — the default
+// style-class names a database-sync's `ZanixTemplateAttrs.styles.classDefaults` reports, for
+// external tooling (e.g. a live preview) that has no other way to know them — see
+// `docs/templates.md`'s "`availableVariables` and `styles`" section.
+export const defaultStyles = {
   containerClass: 'container',
   headerClass: 'header',
   tableClass: 'items-table',

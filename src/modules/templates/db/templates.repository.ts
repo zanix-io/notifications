@@ -70,6 +70,8 @@ export function toSyncCodeTemplateEntries(
       name: entry.name,
       hbs: entry.hbs as string,
       hash: entry.hash,
+      availableVariables: entry.availableVariables,
+      styles: entry.styles,
     }))
 }
 
@@ -276,6 +278,8 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
             lastSyncedHbs: value.hbs,
             lastSyncedHash: value.hash,
             lastSyncedAt: now,
+            availableVariables: value.availableVariables,
+            styles: value.styles,
             updatedBy,
           },
           $inc: { version: 1 },
@@ -305,6 +309,8 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
                 lastSyncedHbs: value.hbs,
                 lastSyncedHash: value.hash,
                 lastSyncedAt: now,
+                availableVariables: value.availableVariables,
+                styles: value.styles,
                 updatedBy,
               },
             },

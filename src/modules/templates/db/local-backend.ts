@@ -82,6 +82,8 @@ export class LocalTemplateBackend implements TemplateBackend {
         name: entry.name,
         hbs: entry.hbs,
         hash: await hashContent(entry.hbs),
+        availableVariables: entry.availableVariables,
+        styles: { css: entry.styles, classDefaults: entry.styleDefaults },
       })),
     )
 
@@ -94,7 +96,7 @@ export class LocalTemplateBackend implements TemplateBackend {
 
     await Promise.all([
       ...plan.toOrphan.map(({ _id }) => Model.updateOne({ _id }, { $set: { source: 'database' } })),
-      ...plan.toResync.map(({ _id, hbs, hash, version }) =>
+      ...plan.toResync.map(({ _id, hbs, hash, version, availableVariables, styles }) =>
         Model.updateOne({ _id }, {
           $set: {
             hbs,
@@ -103,6 +105,8 @@ export class LocalTemplateBackend implements TemplateBackend {
             lastSyncedHash: hash,
             lastSyncedAt: now,
             version,
+            availableVariables,
+            styles,
             updatedBy: 'system:bootstrap-sync',
           },
         })
@@ -160,6 +164,8 @@ export class LocalTemplateBackend implements TemplateBackend {
               lastSyncedHash: entry.hash,
               lastSyncedAt: now,
               source: CODE_SOURCE,
+              availableVariables: entry.availableVariables,
+              styles: entry.styles,
               updatedBy: 'system:bootstrap-sync',
             },
           })
@@ -177,6 +183,8 @@ export class LocalTemplateBackend implements TemplateBackend {
               lastSyncedHbs: entry.hbs,
               lastSyncedHash: entry.hash,
               lastSyncedAt: now,
+              availableVariables: entry.availableVariables,
+              styles: entry.styles,
               updatedBy: 'system:bootstrap-sync',
             })),
           )

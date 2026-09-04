@@ -13,6 +13,10 @@ export interface CodeTemplateDiscoveryEntry {
   hbs: string
   /** SHA-256 hex digest of `hbs` — see `manifest.ts`'s `hashContent`. */
   hash: string
+  /** See `ZanixTemplateAttrs.availableVariables`. */
+  availableVariables: string[]
+  /** See `ZanixTemplateAttrs.styles`. */
+  styles: { css: string; classDefaults: Record<string, string> }
 }
 
 /**
@@ -36,6 +40,8 @@ export function createCodeTemplatesDiscoveryProvider(): DiscoveryProvider<
           name: entry.name,
           hbs: entry.hbs,
           hash: await hashContent(entry.hbs),
+          availableVariables: entry.availableVariables,
+          styles: { css: entry.styles, classDefaults: entry.styleDefaults },
         })),
       )
     },

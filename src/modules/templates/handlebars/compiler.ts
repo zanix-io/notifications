@@ -1,11 +1,12 @@
 import { expandGlobSync } from '@std/fs/expand-glob'
-import { dirname, join, relative } from '@std/path'
+import { dirname, join, relative, toFileUrl } from '@std/path'
 import Handlebars from 'handlebars'
+import { deriveAvailableVariables } from './derive-available-variables.ts'
 
 const HANDLEBARS_ROOT = 'src/modules/templates/handlebars'
 const GENERATED_CODE_TEMPLATES_PATH = 'src/modules/templates/db/code-templates.generated.ts'
 
-function templates() {
+async function templates(): Promise<void> {
   // `{channel, name}` pairs discovered below, one per `.hbs` actually compiled — written out as
   // `CODE_TEMPLATES` once every template is processed (see `writeGeneratedCodeTemplates()`),
   // instead of being maintained by hand in `db/manifest.ts` (see `docs/templates.md`'s "Adding a
@@ -18,9 +19,21 @@ function templates() {
 
   for (const { path } of entries) {
     const templateDir = dirname(path)
-    const rawSource = Deno.readTextFileSync(path)
-    const cssContent = Deno.readTextFileSync(join(templateDir, 'styles.css'))
+    // deno-lint-ignore no-await-in-loop
+    const rawSource = await Deno.readTextFile(path)
+    // deno-lint-ignore no-await-in-loop
+    const cssContent = await Deno.readTextFile(join(templateDir, 'styles.css'))
     const compiled = Handlebars.precompile(rawSource)
+    const availableVariables = deriveAvailableVariables(rawSource)
+
+    // Only `email/generic` and `email/data-table`'s `schema.ts` export `defaultStyles` (the
+    // plain-text `sms`/`whatsapp` templates have no style-class names to default) — `?? {}`
+    // covers that case rather than requiring every `schema.ts` to export one.
+    // deno-lint-ignore no-await-in-loop
+    const schemaModule = await import(
+      toFileUrl(join(templateDir, 'schema.ts')).href
+    ) as { defaultStyles?: Record<string, string> }
+    const styleDefaults = schemaModule.defaultStyles ?? {}
 
     // `{channel}/{name}` relative to the handlebars root — exactly the pair `CODE_TEMPLATES`
     // needs, discovered here instead of hand-maintained.
@@ -32,7 +45,8 @@ function templates() {
     // in this package's own module graph. Its own `catch` still preserves the real ZodError as
     // `cause` (not just `e.message`) so the calling `notifications` code — which DOES have
     // `@zanix/errors` available — can inspect the real validation failure.
-    Deno.writeTextFileSync(
+    // deno-lint-ignore no-await-in-loop
+    await Deno.writeTextFile(
       join(templateDir, 'main.js'),
       `// deno-coverage-ignore-file
 /**
@@ -60,6 +74,10 @@ export default function(context) {
 // Raw source, for database-sync seeding — see \`db/manifest.ts\`.
 export const source = ${JSON.stringify(rawSource)};
 export const styles = ${JSON.stringify(cssContent)};
+// Documented variable names + default style-class names, for database-sync seeding — see
+// \`db/manifest.ts\` and \`docs/templates.md\`'s "\`availableVariables\` and \`styles\`" section.
+export const availableVariables = ${JSON.stringify(availableVariables)};
+export const styleDefaults = ${JSON.stringify(styleDefaults)};
 `,
     )
   }
@@ -103,4 +121,4 @@ ${body}
   )
 }
 
-templates()
+await templates()

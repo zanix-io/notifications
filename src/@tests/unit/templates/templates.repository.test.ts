@@ -481,15 +481,40 @@ function attrs(
   }
 }
 
-Deno.test('toSyncCodeTemplateEntries: trims down to {channel,name,hbs,hash}', () => {
-  const result = toSyncCodeTemplateEntries([attrs()])
-  assertEquals(result, [{
-    channel: 'email',
-    name: 'generic',
-    hbs: '<p>hi</p>',
-    hash: 'hash-1',
-  }])
-})
+Deno.test(
+  'toSyncCodeTemplateEntries: trims down to {channel,name,hbs,hash,availableVariables,styles}',
+  () => {
+    const result = toSyncCodeTemplateEntries([attrs()])
+    assertEquals(result, [{
+      channel: 'email',
+      name: 'generic',
+      hbs: '<p>hi</p>',
+      hash: 'hash-1',
+      availableVariables: undefined,
+      styles: undefined,
+    }])
+  },
+)
+
+Deno.test(
+  'toSyncCodeTemplateEntries: carries availableVariables/styles through when the source entry has them',
+  () => {
+    const result = toSyncCodeTemplateEntries([
+      attrs({
+        availableVariables: ['title'],
+        styles: { css: '.x{}', classDefaults: { titleClass: 'title' } },
+      }),
+    ])
+    assertEquals(result, [{
+      channel: 'email',
+      name: 'generic',
+      hbs: '<p>hi</p>',
+      hash: 'hash-1',
+      availableVariables: ['title'],
+      styles: { css: '.x{}', classDefaults: { titleClass: 'title' } },
+    }])
+  },
+)
 
 Deno.test('toSyncCodeTemplateEntries: excludes a derived entry with no own hbs', () => {
   const result = toSyncCodeTemplateEntries([
@@ -513,6 +538,8 @@ Deno.test('toSyncCodeTemplateEntries: source is irrelevant — only hbs+active m
       name: 'invoice-created',
       hbs: '<p>hi</p>',
       hash: 'hash-1',
+      availableVariables: undefined,
+      styles: undefined,
     },
   ])
 })
@@ -525,7 +552,21 @@ Deno.test('toSyncCodeTemplateEntries: keeps only live, self-contained entries, i
     attrs({ name: 'd', hash: 'h-d' }),
   ])
   assertEquals(result, [
-    { channel: 'email', name: 'a', hbs: '<p>hi</p>', hash: 'h-a' },
-    { channel: 'email', name: 'd', hbs: '<p>hi</p>', hash: 'h-d' },
+    {
+      channel: 'email',
+      name: 'a',
+      hbs: '<p>hi</p>',
+      hash: 'h-a',
+      availableVariables: undefined,
+      styles: undefined,
+    },
+    {
+      channel: 'email',
+      name: 'd',
+      hbs: '<p>hi</p>',
+      hash: 'h-d',
+      availableVariables: undefined,
+      styles: undefined,
+    },
   ])
 })

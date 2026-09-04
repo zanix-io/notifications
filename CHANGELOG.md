@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-04
+
+### Added
+
+- **`ZanixTemplateAttrs.styles` / `SyncCodeTemplateEntry.styles`**: `{ css, classDefaults }` — a
+  `source: 'code'` template's compiled CSS and default style-class names (`schema.ts`'s own
+  `defaultStyles`), kept in sync alongside `availableVariables` on every code→database sync (local
+  Modes A/B, and Mode C via `/.well-known/zanix/code-templates`). Lets external tooling (e.g. a live
+  preview) reproduce the same styling `compiler.ts`/`provider.ts#renderCodeBacked` already inject
+  automatically at render time, instead of guessing. Absent for a `source: 'database'` record —
+  there's no compiled CSS/schema behind a hand-created one to expose. See `docs/templates.md`'s
+  "`availableVariables` and `styles`" section.
+
+### Fixed
+
+- **`availableVariables` is now actually populated for every `source: 'code'` template.** The field
+  existed on `ZanixTemplateAttrs`/`CreateTemplateRTO`/`UpdateTemplateRTO` and was accepted as manual
+  input, but no write path ever set it for a code-seeded template — it came back `undefined` for
+  every code template in every consumer service (seeded or resynced through
+  `LocalTemplateBackend#sync()` or `TemplatesAdminRepository.syncCodeTemplates`), unless an admin
+  typed it in by hand into a `source: 'database'` record. Now derived automatically at build time
+  (`deno task build-handlebars`) from the template's own `.hbs` — an AST walk collecting every
+  root-context variable it references, excluding `styles.*` — and kept in sync on every
+  code→database sync, the same way `styles` (above) is.
+
 ## [1.1.0] - 2026-09-01
 
 ### Added

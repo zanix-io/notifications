@@ -29,6 +29,7 @@ export function templateModelDefinition(): MongoModelDefinition<
       version: { type: Number, default: 1 },
       description: { type: String },
       availableVariables: { type: [String] },
+      styles: { type: Object },
       hash: { type: String, required: true },
       lastSyncedHbs: { type: String },
       lastSyncedHash: { type: String },

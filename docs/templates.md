@@ -187,6 +187,23 @@ These are easy to conflate but serve entirely different purposes:
     or plain `crypto.randomUUID()`). `@zanix/utils`' `generateUUID()` (`jsr:@zanix/utils/helpers`)
     is a convenient, guaranteed-distinct choice, used exactly this way in the example above.
 
+### `availableVariables` and `styles`
+
+Two fields exist purely for external tooling (a live preview, a "which variables does this template
+take" admin view) — neither is read by `TemplateProvider.resolve()` itself:
+
+- **`availableVariables`** — the operator-facing variable names a template's `.hbs` actually
+  references (`title`, `content`, `buttonText`, ... for `email/generic`).
+- **`styles`** — `{ css, classDefaults }`: the template's compiled `styles.css` content, and its
+  `schema.ts`'s own default style-class names (`{containerClass: 'container', ...}`).
+
+For a `source: 'code'` record, both are derived automatically at build time
+(`deno task build-handlebars`, see `handlebars/derive-available-variables.ts`/`compiler.ts`) and
+re-synced on every code→database sync — you never set either by hand for one of these. A
+`source: 'database'` record has neither: `availableVariables` is optional input on
+`CreateTemplateRTO`/`UpdateTemplateRTO` for an admin who wants to document it manually, and `styles`
+isn't accepted at all — there's no compiled CSS/schema behind a hand-created record to expose.
+
 ### How to update a database template
 
 - **A code-backed template that owns its own `.hbs`** (e.g. `generic`) or a **database-only template

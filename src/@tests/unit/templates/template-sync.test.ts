@@ -7,6 +7,8 @@ const welcome: StaticTemplateEntry = {
   name: 'welcome',
   hbs: 'Hola {{name}}',
   hash: 'hash-v1',
+  availableVariables: ['name'],
+  styles: { css: '', classDefaults: {} },
 }
 
 function existing(
@@ -46,11 +48,19 @@ Deno.test(
       ...welcome,
       hbs: 'Hola {{firstName}}!',
       hash: 'hash-v2',
+      availableVariables: ['firstName'],
     }
     const plan = planTemplateSync([changedInCode], [existing()])
 
     assertEquals(plan.toResync, [
-      { _id: 'id-1', hbs: 'Hola {{firstName}}!', hash: 'hash-v2', version: 2 },
+      {
+        _id: 'id-1',
+        hbs: 'Hola {{firstName}}!',
+        hash: 'hash-v2',
+        version: 2,
+        availableVariables: ['firstName'],
+        styles: { css: '', classDefaults: {} },
+      },
     ])
     assertEquals(plan.toSeed, [])
     assertEquals(plan.toOrphan, [])
@@ -128,6 +138,8 @@ Deno.test('planTemplateSync: handles several channels/names independently in one
     name: 'generic',
     hbs: '{{{content}}}',
     hash: 'sms-hash',
+    availableVariables: ['content'],
+    styles: { css: '', classDefaults: {} },
   }
 
   const plan = planTemplateSync(
@@ -146,7 +158,14 @@ Deno.test('planTemplateSync: handles several channels/names independently in one
 
   assertEquals(plan.toSeed, [])
   assertEquals(plan.toResync, [
-    { _id: 'id-2', hbs: '{{{content}}}', hash: 'sms-hash', version: 2 },
+    {
+      _id: 'id-2',
+      hbs: '{{{content}}}',
+      hash: 'sms-hash',
+      version: 2,
+      availableVariables: ['content'],
+      styles: { css: '', classDefaults: {} },
+    },
   ])
   assertEquals(plan.toOrphan, [])
 })

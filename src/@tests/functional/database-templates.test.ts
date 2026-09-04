@@ -1,5 +1,5 @@
 import { generateUUID } from '@zanix/helpers'
-import { assertNotEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
+import { assertEquals, assertNotEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
 import { NotifierProvider } from 'modules/providers/notifier.ts'
 import { TEMPLATES_BACKEND_ENV, TEMPLATES_MODEL_ENV } from 'modules/templates/provider.ts'
 import { templateModelDefinition } from 'modules/templates/db/schema.ts'
@@ -88,6 +88,28 @@ Deno.test({
       await db.isReady
 
       const Model = db.getModel(MODEL_NAME)
+
+      // The seed itself (step 1 above) must have populated `availableVariables`/`styles`
+      // automatically — this is the real, end-to-end fix for the "availableVariables is never
+      // synced" bug (see docs/templates.md#availableVariables-and-styles): a code-seeded record
+      // used to persist neither field, ever.
+      const seededDoc = await Model.findOne({ channel: 'email', name: 'generic' })
+      assertEquals(
+        [...(seededDoc?.availableVariables ?? [])].sort(),
+        [
+          'buttonLink',
+          'buttonText',
+          'content',
+          'footer',
+          'html.lang',
+          'html.title',
+          'message',
+          'title',
+        ],
+      )
+      assertStringIncludes(seededDoc?.styles?.css ?? '', '{')
+      assertEquals(seededDoc?.styles?.classDefaults?.titleClass, 'title')
+
       await Model.updateOne(
         { channel: 'email', name: 'generic' },
         {

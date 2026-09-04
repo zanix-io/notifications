@@ -28,6 +28,10 @@ export interface CodeTemplateEntry {
   name: string
   hbs: string
   styles: string
+  /** Documented variable names, derived at build time by `compiler.ts`'s own AST walk — see `ZanixTemplateAttrs.availableVariables`. */
+  availableVariables: string[]
+  /** Default style-class names (`schema.ts`'s own `defaultStyles`, `{}` for a template with none) — see `ZanixTemplateAttrs.styles`. */
+  styleDefaults: Record<string, string>
 }
 
 /**
@@ -66,10 +70,17 @@ export const DERIVED_TEMPLATES: ReadonlyArray<DerivedTemplateDeclaration> = [
 export async function loadCodeTemplates(): Promise<CodeTemplateEntry[]> {
   return await Promise.all(
     CODE_TEMPLATES.map(async ({ channel, name }) => {
-      const { source, styles } = await import(
+      const { source, styles, availableVariables, styleDefaults } = await import(
         `../handlebars/${channel}/${name}/main.js`
       )
-      return { channel, name, hbs: source as string, styles: styles as string }
+      return {
+        channel,
+        name,
+        hbs: source as string,
+        styles: styles as string,
+        availableVariables: availableVariables as string[],
+        styleDefaults: styleDefaults as Record<string, string>,
+      }
     }),
   )
 }
