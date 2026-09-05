@@ -76,6 +76,16 @@ export interface ZanixTemplateAttrs {
   /** Timestamp of the last successful code-to-database sync. */
   lastSyncedAt?: Date
 
+  /**
+   * Only meaningful for `source: 'code'` — the `DERIVED_FIELDS_VERSION` (`db/sync.ts`) that was
+   * current when `availableVariables`/`styles` were last computed for this record. Tracked
+   * independently of `hbs`/`lastSyncedHbs`: a package upgrade that only changes HOW those fields
+   * are derived (not the `.hbs` text itself) still needs already-tracked, untouched entries to
+   * recompute them, which a plain `hbs` equality check can never trigger on its own — see
+   * `planUntouchedTemplateUpdates`'s own JSDoc for the full rationale.
+   */
+  derivedVersion?: number
+
   /** Free-text actor id — `'system:bootstrap-sync'` for automated syncs, an admin identifier for manual edits. */
   updatedBy?: string
 }

@@ -1,4 +1,5 @@
 import {
+  assert,
   assertEquals,
   assertRejects,
   assertStringIncludes,
@@ -804,6 +805,75 @@ templateTest(
     assertEquals(generic?.updatedBy, 'system:bootstrap-sync')
     assertEquals(generic?.hbs, generic?.lastSyncedHbs)
     assertEquals(generic?.hbs === staleHbs, false)
+  },
+)
+
+templateTest(
+  'sync backfills lastSyncedHbs for a legacy source:"code" record that predates that tracking, instead of leaving it stuck forever',
+  async () => {
+    // A `source:'code'` record with no `lastSyncedHbs` at all (predates this field, or was
+    // inserted some other way) gives `planCodeSync` no baseline to prove it's still untouched, so
+    // it's excluded from `toResync` forever, regardless of how different its content becomes from
+    // code — with no error or signal anywhere that this happened. Content is left alone THIS
+    // pass (there's no way to retroactively know whether a manual edit already happened before
+    // tracking existed), but the baseline is backfilled so a FUTURE code change can resync it.
+    const { model, docs } = fakeTemplateModel([{
+      channel: 'email',
+      name: 'generic',
+      hbs: '<p>whatever the legacy content was</p>',
+      source: 'code',
+      active: true,
+      version: 1,
+      hash: 'legacy-hash',
+    }])
+    const provider = freshProvider()
+    withDatabaseEnabled(provider, model)
+
+    await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+
+    const generic = docs().find((doc) => doc.name === 'generic' && doc.channel === 'email')
+    assertEquals(generic?.hbs, '<p>whatever the legacy content was</p>')
+    assertEquals(generic?.version, 1)
+    assertEquals(generic?.lastSyncedHbs, '<p>whatever the legacy content was</p>')
+    assertEquals(generic?.lastSyncedHash, 'legacy-hash')
+  },
+)
+
+templateTest(
+  'sync refreshes availableVariables/styles for an untouched record even when hbs itself never changed',
+  async () => {
+    // The sync's own equality check only ever compares `hbs` text, so an entry whose `hbs`
+    // genuinely hasn't changed never enters `toResync` — meaning a package upgrade that only
+    // changes HOW `availableVariables`/`styles` are derived would otherwise never reach an
+    // already-tracked, untouched entry. First pass: let a fresh seed populate `email/generic`
+    // with real code-derived content.
+    const { model: seedModel, docs: seedDocs } = fakeTemplateModel([])
+    const seedProvider = freshProvider()
+    withDatabaseEnabled(seedProvider, seedModel)
+    await seedProvider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+    const seeded = seedDocs().find((doc) => doc.name === 'generic' && doc.channel === 'email')
+    assert(seeded)
+    assert(seeded.availableVariables?.length)
+
+    // Second pass: simulate a record synced by an older package version — same `hbs`/`hash`, but
+    // no `availableVariables`/`styles`/`derivedVersion` at all (exactly what every `source:'code'`
+    // record looked like before this package started deriving these fields).
+    const { model, docs } = fakeTemplateModel([{
+      ...seeded,
+      availableVariables: undefined,
+      styles: undefined,
+      derivedVersion: undefined,
+    }])
+    const provider = freshProvider()
+    withDatabaseEnabled(provider, model)
+
+    await provider.resolve('email', 'generic', { title: 'Hi', content: 'World' })
+
+    const generic = docs().find((doc) => doc.name === 'generic' && doc.channel === 'email')
+    assertEquals(generic?.hbs, seeded.hbs) // content untouched
+    assertEquals(generic?.version, seeded.version) // no version bump — not a content resync
+    assertEquals(generic?.availableVariables, seeded.availableVariables)
+    assertEquals(generic?.styles, seeded.styles)
   },
 )
 

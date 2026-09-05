@@ -6,6 +6,7 @@ import {
 } from 'modules/templates/db/templates.repository.ts'
 import type { SyncCodeTemplateEntry } from 'modules/templates/db/templates.repository.ts'
 import { DERIVED_TEMPLATES } from 'modules/templates/db/manifest.ts'
+import { DERIVED_FIELDS_VERSION } from 'modules/templates/db/sync.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 
 /**
@@ -362,6 +363,7 @@ Deno.test(
     assertEquals(docs[0].hbs, '<p>new</p>')
     assertEquals(docs[0].hash, 'new-hash')
     assertEquals(docs[0].version, 2)
+    assertEquals(docs[0].derivedVersion, DERIVED_FIELDS_VERSION)
     assertEquals(docs[0].updatedBy, 'system:remote-sync')
   },
 )
@@ -395,8 +397,14 @@ Deno.test(
 )
 
 Deno.test(
-  'TemplatesAdminRepository.syncCodeTemplates leaves a never-synced legacy row alone (no lastSyncedHbs)',
+  'TemplatesAdminRepository.syncCodeTemplates backfills lastSyncedHbs for a never-synced legacy row instead of leaving it stuck forever',
   async () => {
+    // A `source:'code'` row with no `lastSyncedHbs` at all (predates this tracking, or arrived
+    // through some other path) has no baseline `planCodeSync` can use to prove it's still
+    // untouched, so it's excluded from `toResync` no matter how different its content becomes
+    // from code — content is left alone THIS pass (there's no way to retroactively know whether a
+    // manual edit already happened), but `lastSyncedHbs`/`lastSyncedHash` are backfilled with the
+    // row's own current content so a FUTURE code change can resync it normally.
     const { instance, docs } = fakeSyncThis([{
       channel: 'email',
       name: 'generic',
@@ -416,6 +424,50 @@ Deno.test(
     ])
     assertEquals(result, { seeded: derivedCount, resynced: 0 })
     assertEquals(docs[0].hbs, '<p>legacy</p>')
+    assertEquals(docs[0].version, 1)
+    assertEquals(docs[0].lastSyncedHbs, '<p>legacy</p>')
+    assertEquals(docs[0].lastSyncedHash, 'legacy-hash')
+  },
+)
+
+Deno.test(
+  'TemplatesAdminRepository.syncCodeTemplates refreshes availableVariables/styles for an untouched entry even when hbs itself never changed',
+  async () => {
+    // The sync's own equality check only ever compares `hbs` text, so an entry whose `hbs`
+    // genuinely hasn't changed never enters `toResync` — meaning a package upgrade that only
+    // changes HOW `availableVariables`/`styles` are derived (e.g. `styles` gaining a new
+    // sub-field) would otherwise never reach an already-tracked, untouched entry.
+    const { instance, docs } = fakeSyncThis([{
+      channel: 'email',
+      name: 'generic',
+      hbs: '<p>{{content}}</p>',
+      source: 'code',
+      active: true,
+      version: 3,
+      hash: 'same-hash',
+      lastSyncedHbs: '<p>{{content}}</p>',
+      lastSyncedHash: 'same-hash',
+      availableVariables: undefined,
+      styles: undefined,
+      // No `derivedVersion` on record at all — the same state any entry synced before this field
+      // existed would be in.
+    }])
+    const result = await repo.syncCodeTemplates.call(instance, [
+      {
+        channel: 'email',
+        name: 'generic',
+        hbs: '<p>{{content}}</p>',
+        hash: 'same-hash',
+        availableVariables: ['content'],
+        styles: { css: '.x{}', classDefaults: {} },
+      },
+    ])
+    assertEquals(result, { seeded: derivedCount, resynced: 0 })
+    assertEquals(docs[0].hbs, '<p>{{content}}</p>')
+    assertEquals(docs[0].version, 3) // content itself untouched — no version bump
+    assertEquals(docs[0].availableVariables, ['content'])
+    assertEquals(docs[0].styles, { css: '.x{}', classDefaults: {} })
+    assertEquals(docs[0].derivedVersion, DERIVED_FIELDS_VERSION)
   },
 )
 

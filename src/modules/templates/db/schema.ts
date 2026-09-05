@@ -34,6 +34,7 @@ export function templateModelDefinition(): MongoModelDefinition<
       lastSyncedHbs: { type: String },
       lastSyncedHash: { type: String },
       lastSyncedAt: { type: Date },
+      derivedVersion: { type: Number },
       updatedBy: { type: String },
     },
     options: { timestamps: true },

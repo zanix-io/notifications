@@ -199,10 +199,23 @@ take" admin view) — neither is read by `TemplateProvider.resolve()` itself:
 
 For a `source: 'code'` record, both are derived automatically at build time
 (`deno task build-handlebars`, see `handlebars/derive-available-variables.ts`/`compiler.ts`) and
-re-synced on every code→database sync — you never set either by hand for one of these. A
+kept in sync with an internal `derivedVersion` stamp (`db/sync.ts`'s `DERIVED_FIELDS_VERSION`) — you
+never set either by hand for one of these. That stamp exists because `hbs` equality alone can't
+detect every case that should refresh these fields: an already-tracked, untouched entry whose `.hbs`
+text hasn't changed at all still gets `availableVariables`/`styles` recomputed on the next sync
+after a package upgrade changes HOW they're derived (e.g. a new `styles` sub-field, or a different
+variable-extraction algorithm) — it isn't limited to entries whose content also changed. A
 `source: 'database'` record has neither: `availableVariables` is optional input on
 `CreateTemplateRTO`/`UpdateTemplateRTO` for an admin who wants to document it manually, and `styles`
 isn't accepted at all — there's no compiled CSS/schema behind a hand-created record to expose.
+
+> ℹ️ A `source: 'code'` record with no `lastSyncedHbs` on record at all (predates that field, or
+> arrived through some path other than a normal seed/resync) has no baseline to prove it's still
+> untouched, so it's excluded from every future resync — content and derived fields alike — until
+> the next sync backfills that baseline from the record's own current content. That backfill pass
+> doesn't retroactively resync content itself (there's no way to know whether a manual edit already
+> happened before tracking existed); it only unblocks normal reconciliation from the NEXT code
+> change onward.
 
 ### How to update a database template
 

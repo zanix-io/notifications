@@ -10,7 +10,7 @@ import {
   seedMissingDerivedTemplates,
 } from './manifest.ts'
 import type { ExistingTemplateEntry } from './sync.ts'
-import { CODE_SOURCE, planTemplateSync } from './sync.ts'
+import { CODE_SOURCE, DERIVED_FIELDS_VERSION, planTemplateSync } from './sync.ts'
 import logger from '@zanix/logger'
 
 /**
@@ -96,17 +96,47 @@ export class LocalTemplateBackend implements TemplateBackend {
 
     await Promise.all([
       ...plan.toOrphan.map(({ _id }) => Model.updateOne({ _id }, { $set: { source: 'database' } })),
-      ...plan.toResync.map(({ _id, hbs, hash, version, availableVariables, styles }) =>
+      ...plan.toResync.map(
+        ({ _id, hbs, hash, version, availableVariables, styles, derivedVersion }) =>
+          Model.updateOne({ _id }, {
+            $set: {
+              hbs,
+              lastSyncedHbs: hbs,
+              hash,
+              lastSyncedHash: hash,
+              lastSyncedAt: now,
+              version,
+              availableVariables,
+              styles,
+              derivedVersion,
+              updatedBy: 'system:bootstrap-sync',
+            },
+          }),
+      ),
+      // A `source:'code'` entry with no `lastSyncedHbs` on record has no baseline `planCodeSync`
+      // can compare against, so it never enters `toResync` above no matter how code changes —
+      // adopting its own current content as that baseline lets a FUTURE code change resync it
+      // normally. See `planUntouchedTemplateUpdates`'s own JSDoc for the full rationale.
+      ...plan.toBackfillLastSynced.map(({ _id, hbs, hash }) =>
         Model.updateOne({ _id }, {
           $set: {
-            hbs,
             lastSyncedHbs: hbs,
-            hash,
             lastSyncedHash: hash,
             lastSyncedAt: now,
-            version,
+            updatedBy: 'system:bootstrap-sync',
+          },
+        })
+      ),
+      // An entry whose `hbs` hasn't changed never enters `toResync` above, so a package upgrade
+      // that only changes HOW `availableVariables`/`styles` are derived (not the `.hbs` text
+      // itself) would otherwise never reach already-tracked entries. Refreshed independently of
+      // content, without touching `hbs`/`hash`/`version`.
+      ...plan.toRefreshDerived.map(({ _id, availableVariables, styles }) =>
+        Model.updateOne({ _id }, {
+          $set: {
             availableVariables,
             styles,
+            derivedVersion: DERIVED_FIELDS_VERSION,
             updatedBy: 'system:bootstrap-sync',
           },
         })
@@ -166,6 +196,7 @@ export class LocalTemplateBackend implements TemplateBackend {
               source: CODE_SOURCE,
               availableVariables: entry.availableVariables,
               styles: entry.styles,
+              derivedVersion: DERIVED_FIELDS_VERSION,
               updatedBy: 'system:bootstrap-sync',
             },
           })
@@ -185,6 +216,7 @@ export class LocalTemplateBackend implements TemplateBackend {
               lastSyncedAt: now,
               availableVariables: entry.availableVariables,
               styles: entry.styles,
+              derivedVersion: DERIVED_FIELDS_VERSION,
               updatedBy: 'system:bootstrap-sync',
             })),
           )

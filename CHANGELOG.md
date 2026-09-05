@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-04
+
+### Fixed
+
+- **A `source: 'code'` template could get permanently stuck excluded from every future code→database
+  sync, in two distinct ways, with no error or signal anywhere that it happened:**
+  - An entry with no `lastSyncedHbs` on record at all (predates that field, or arrived through some
+    path other than a normal seed/resync) gave the sync's own reconciliation no baseline to prove it
+    was still untouched, so it was excluded from `toResync` forever, regardless of how different its
+    content became from code. Now backfilled with the entry's own current `{hbs, hash}` as the new
+    synced baseline on the next sync, re-entering normal reconciliation from the NEXT code change
+    onward (this doesn't retroactively resync content itself — there's no way to know whether a
+    manual edit already happened before tracking existed).
+  - An entry whose `hbs` genuinely hadn't changed never entered `toResync`, so `availableVariables`/
+    `styles` — only ever written as a side effect of an `hbs`-triggered resync — stayed frozen even
+    after a package upgrade changed HOW they're derived, exactly what happened between 1.1.0 and
+    1.2.0: `styles` was added and `availableVariables` derivation was fixed (see 1.2.0 below), but
+    neither ever reached an already-tracked, untouched `source: 'code'` template whose `.hbs` text
+    hadn't itself changed. A new `ZanixTemplateAttrs.derivedVersion` stamp (`db/sync.ts`'s
+    `DERIVED_FIELDS_VERSION`) now tracks this independently of `hbs` equality, so a future change to
+    the derivation algorithm alone is enough to trigger a refresh. See `docs/templates.md`'s
+    "`availableVariables` and `styles`" section.
+
 ## [1.2.0] - 2026-09-04
 
 ### Added

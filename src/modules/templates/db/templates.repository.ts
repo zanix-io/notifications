@@ -14,6 +14,7 @@ import { generateUUID, planCodeSync } from '@zanix/helpers'
 import { assertValidHandlebarsSyntax } from '../hbs-validation.ts'
 import { templatesModelName } from '../provider.ts'
 import { DERIVED_TEMPLATES, isDuplicateKeyError, seedMissingDerivedTemplates } from './manifest.ts'
+import { DERIVED_FIELDS_VERSION, planUntouchedTemplateUpdates } from './sync.ts'
 
 // Re-exported for backward compatibility — `SyncCodeTemplateEntry`/`SyncCodeTemplatesResult` used
 // to be declared directly in this file; they now live in `typings/templates-db.ts` alongside
@@ -280,9 +281,52 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
             lastSyncedAt: now,
             availableVariables: value.availableVariables,
             styles: value.styles,
+            derivedVersion: DERIVED_FIELDS_VERSION,
             updatedBy,
           },
           $inc: { version: 1 },
+        })
+      ),
+    )
+
+    // Two additional updates `planCodeSync` above can never make on its own for an entry it left
+    // untouched this pass — see `planUntouchedTemplateUpdates`'s own JSDoc for the full rationale
+    // behind each: an entry with no `lastSyncedHbs` on record has no baseline to compare against,
+    // so it never enters `toResync` on its own; and an `hbs`-only equality check never notices a
+    // package upgrade that only changes HOW `availableVariables`/`styles` are derived.
+    const untouchedUpdates = planUntouchedTemplateUpdates(
+      existingDocs.map((doc) => ({
+        _id: doc._id,
+        key: `${doc.channel}:${doc.name}`,
+        hbs: doc.hbs,
+        hash: doc.hash,
+        lastSyncedHbs: doc.lastSyncedHbs,
+        derivedVersion: doc.derivedVersion,
+      })),
+      new Map(
+        entries.map((entry) => [
+          `${entry.channel}:${entry.name}`,
+          { availableVariables: entry.availableVariables, styles: entry.styles },
+        ]),
+      ),
+      new Set([
+        ...plan.toResync.map(({ _id }) => _id),
+        ...plan.toOrphan.map(({ _id }) => _id),
+      ]),
+    )
+
+    await Promise.all(
+      untouchedUpdates.toBackfillLastSynced.map(({ _id, hbs, hash }) =>
+        Model.updateOne({ _id }, {
+          $set: { lastSyncedHbs: hbs, lastSyncedHash: hash, lastSyncedAt: now, updatedBy },
+        })
+      ),
+    )
+
+    await Promise.all(
+      untouchedUpdates.toRefreshDerived.map(({ _id, availableVariables, styles }) =>
+        Model.updateOne({ _id }, {
+          $set: { availableVariables, styles, derivedVersion: DERIVED_FIELDS_VERSION, updatedBy },
         })
       ),
     )
@@ -311,6 +355,7 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
                 lastSyncedAt: now,
                 availableVariables: value.availableVariables,
                 styles: value.styles,
+                derivedVersion: DERIVED_FIELDS_VERSION,
                 updatedBy,
               },
             },
