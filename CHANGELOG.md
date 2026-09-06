@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-09-06
+
+### Fixed
+
+- **`SmtpConnection.open()` sent `AUTH LOGIN` unconditionally, with no equivalent to the `STARTTLS`
+  gate added in 1.2.2 — a server that never advertises an `AUTH` capability line in its `EHLO` reply
+  (a local dev catcher accepting unauthenticated mail by design — Mailpit, MailDev, MailHog,
+  smtp4dev, ...; or a relay configured for unauthenticated/IP-allowlisted submission) replies to the
+  unsolicited command with `502` instead of the expected `334` continuation prompt, failing the
+  whole handshake before a message is ever queued.** `AUTH LOGIN` is now only attempted when the
+  (possibly post-`STARTTLS`, re-issued) `EHLO` reply actually advertises `AUTH`; otherwise the
+  session proceeds unauthenticated, and — only when credentials were actually configured — a
+  `logger.warn` flags that they went unused, since a config expecting authenticated delivery
+  silently going unauthenticated against a misconfigured relay is a real, distinct footgun.
+
+### Added
+
+- **`src/@tests/functional/smtp-catcher.test.ts`**: a functional test that sends a real message
+  through `SmtpClient` over a real TCP socket against an open, unauthenticated SMTP catcher, and
+  (when `SMTP_CATCHER_API` is set) confirms actual delivery by reading it back through the catcher's
+  own HTTP API — the two `pool.ts` fixes above only reproduce against a real target server's real
+  behavior, not the mocked `Deno.Conn` the rest of the SMTP test suite uses. Wired into CI
+  (`publish.yml`) against a `mailpit` service container, so every push/PR now exercises
+  `SmtpConnection` end to end without needing any real-provider credentials; skipped with a warning
+  when `SMTP_CATCHER_HOST`/`SMTP_CATCHER_PORT` aren't set (see `.env.test.example` to run it locally
+  against a local Mailpit instance).
+
 ## [1.2.2] - 2026-09-06
 
 ### Fixed

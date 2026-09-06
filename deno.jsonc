@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true

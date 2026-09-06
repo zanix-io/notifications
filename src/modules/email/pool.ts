@@ -74,6 +74,13 @@ export class SmtpConnection {
    * all (MailDev, Mailpit, MailHog, smtp4dev, ...) both need: dialing every connection straight
    * into `Deno.connectTls` made Deno's own TLS record-layer parser reject a plaintext server's `220`
    * greeting as a corrupt TLS record, tearing the connection down before the handshake ever began.
+   *
+   * `AUTH LOGIN` gets the same treatment: it's only attempted if the (possibly post-`STARTTLS`,
+   * re-issued) `EHLO` response actually advertises an `AUTH` capability line. A local dev catcher
+   * accepting unauthenticated mail by design (Mailpit, MailDev, MailHog, smtp4dev, ...) — or a
+   * relay configured for unauthenticated/IP-allowlisted submission — never advertises one, and
+   * replies to an unsolicited `AUTH LOGIN` with `502` (command not implemented) instead of the
+   * `334` continuation prompt, failing the whole handshake before a message is ever queued.
    */
   public static async open(config: ServerConfig): Promise<SmtpConnection> {
     const implicitTls = config.port === SMTP_IMPLICIT_TLS_PORT
@@ -88,7 +95,7 @@ export class SmtpConnection {
     )
 
     await session.sendCommand(undefined, SMTP_RESPONSE_CODE.READY)
-    const ehloResponse = await session.sendCommand(
+    let ehloResponse = await session.sendCommand(
       `EHLO ${config.hostname}`,
       SMTP_RESPONSE_CODE.OK,
     )
@@ -108,19 +115,32 @@ export class SmtpConnection {
         tlsConnection.writable.getWriter(),
       )
       // The server forgets any capabilities announced before the upgrade — RFC 3207 requires
-      // re-issuing EHLO over the now-encrypted channel before authenticating.
-      await session.sendCommand(`EHLO ${config.hostname}`, SMTP_RESPONSE_CODE.OK)
+      // re-issuing EHLO over the now-encrypted channel before authenticating, and a server that
+      // hides AUTH until the channel is encrypted only advertises it in this reply, not the one
+      // above.
+      ehloResponse = await session.sendCommand(`EHLO ${config.hostname}`, SMTP_RESPONSE_CODE.OK)
     }
 
-    await session.sendCommand('AUTH LOGIN', SMTP_RESPONSE_CODE.AUTH_NEXT)
-    await session.sendCommand(
-      btoa(config.username),
-      SMTP_RESPONSE_CODE.AUTH_NEXT,
-    )
-    await session.sendCommand(
-      btoa(config.password),
-      SMTP_RESPONSE_CODE.AUTH_SUCCESS,
-    )
+    if (ehloResponse?.toUpperCase().includes('AUTH')) {
+      await session.sendCommand('AUTH LOGIN', SMTP_RESPONSE_CODE.AUTH_NEXT)
+      await session.sendCommand(
+        btoa(config.username),
+        SMTP_RESPONSE_CODE.AUTH_NEXT,
+      )
+      await session.sendCommand(
+        btoa(config.password),
+        SMTP_RESPONSE_CODE.AUTH_SUCCESS,
+      )
+    } else if (config.username) {
+      // Credentials were configured, but the server never offered a way to use them — most
+      // likely a relay expecting unauthenticated/IP-allowlisted submission. Proceeding
+      // unauthenticated (rather than throwing) matches `STARTTLS`'s own permissive precedent
+      // above, but this is still worth a `warn`: a config expecting authenticated delivery
+      // silently going unauthenticated against a misconfigured relay is a real, distinct footgun.
+      logger.warn(
+        '[SmtpConnection] Server does not advertise AUTH support — proceeding unauthenticated; configured credentials will not be used.',
+      )
+    }
 
     return session
   }

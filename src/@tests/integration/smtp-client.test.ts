@@ -92,7 +92,7 @@ function newClient(config: Partial<typeof baseConfig> = {}) {
 Deno.test('SmtpClient: initialize() performs the full SMTP handshake', async () => {
   const { conn, written } = makeFakeConn([
     '220 smtp.example.com Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 VXNlcm5hbWU6\r\n',
     '334 UGFzc3dvcmQ6\r\n',
     '235 Authentication successful\r\n',
@@ -112,7 +112,7 @@ Deno.test('SmtpClient: initialize() performs the full SMTP handshake', async () 
 Deno.test('SmtpClient: initialize() sends base64-encoded username and password', async () => {
   const { conn, written } = makeFakeConn([
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 Username\r\n',
     '334 Password\r\n',
     '235 OK\r\n',
@@ -272,14 +272,14 @@ Deno.test(
     // failing the notification outright.
     const firstConnResponses = [
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ]
     let firstConnReadIndex = 0
     const firstConnReadable = new ReadableStream<Uint8Array>({
@@ -311,14 +311,14 @@ Deno.test(
 
     const { conn: secondConn, written: secondConnWritten } = makeFakeConn([
       '220 Ready\r\n', // reconnect handshake
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM (retried send)
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // MAIL FROM (retried send)
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ])
 
     const conns = [firstConn, secondConn]
@@ -361,14 +361,14 @@ Deno.test(
     // a send starts failing again, even if the automatic reconnect attempt itself doesn't pan out.
     const firstConnResponses = [
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ]
     let firstConnReadIndex = 0
     const firstConnReadable = new ReadableStream<Uint8Array>({
@@ -442,7 +442,7 @@ Deno.test(
     // must propagate as-is, with no reconnect attempt.
     const { conn } = makeFakeConn([
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
@@ -490,7 +490,7 @@ Deno.test(
     // own fake connection since `getReader()`/`getWriter()` can only lock a given stream once.
     const handshakeResponses = [
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
@@ -548,14 +548,14 @@ Deno.test('SmtpClient: send() writes commands in order and marks the client heal
 
   const { conn, written } = makeFakeConn([
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',
-    '250 OK\r\n', // MAIL FROM
-    '250 OK\r\n', // RCPT TO
+    '250 AUTH LOGIN\r\n', // MAIL FROM
+    '250 AUTH LOGIN\r\n', // RCPT TO
     '354 Go ahead\r\n', // DATA
-    '250 OK\r\n', // final '.'
+    '250 AUTH LOGIN\r\n', // final '.'
   ])
 
   const client = newClient()
@@ -602,7 +602,7 @@ Deno.test('SmtpClient: send() writes commands in order and marks the client heal
 Deno.test('SmtpClient: send() rejects a CRLF-injected subject before writing to wire', async () => {
   const { conn, written } = makeFakeConn([
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',
@@ -634,14 +634,14 @@ Deno.test('SmtpClient: send() rejects a CRLF-injected subject before writing to 
 Deno.test('SmtpClient: send() uses email.date, or falls back to now', async () => {
   const responses = [
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',
-    '250 OK\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
+    '250 AUTH LOGIN\r\n',
     '354 Go ahead\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
   ]
 
   // Case 1: explicit date is used as-is.
@@ -682,14 +682,14 @@ Deno.test('SmtpClient: send() uses email.date, or falls back to now', async () =
 Deno.test('SmtpClient: parses display-name and bare email addresses differently', async () => {
   const responses = [
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',
-    '250 OK\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
+    '250 AUTH LOGIN\r\n',
     '354 Go ahead\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
   ]
 
   const { conn, written } = makeFakeConn(responses)
@@ -722,7 +722,7 @@ Deno.test('SmtpClient: parses display-name and bare email addresses differently'
 Deno.test('SmtpClient: close() sends QUIT, expects BYE, and closes the writer', async () => {
   const { conn, written, isWritableClosed } = makeFakeConn([
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',
@@ -838,14 +838,14 @@ Deno.test(
 
     const firstConnResponses = [
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ]
     let firstConnReadIndex = 0
     const firstConnReadable = new ReadableStream<Uint8Array>({
@@ -920,7 +920,7 @@ Deno.test(
 Deno.test('SmtpClient: static config takes precedence over constructor config', async () => {
   const { conn, written } = makeFakeConn([
     '220 Ready\r\n',
-    '250 OK\r\n',
+    '250 AUTH LOGIN\r\n',
     '334 U\r\n',
     '334 P\r\n',
     '235 OK\r\n',

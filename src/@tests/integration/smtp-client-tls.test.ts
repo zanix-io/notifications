@@ -1,6 +1,8 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@^1.0.15'
+import { stub } from '@std/testing/mock'
 import { SmtpClient } from 'modules/email/connector.ts'
 import { encoder } from '@zanix/helpers'
+import logger from '@zanix/logger'
 
 console.error = () => {}
 
@@ -63,7 +65,7 @@ Deno.test(
   async () => {
     const { conn, written } = makeFakeConn([
       '220 smtp.example.com Ready\r\n',
-      '250 OK\r\n', // EHLO reply with no STARTTLS capability line, e.g. a local dev catcher
+      '250 AUTH LOGIN\r\n', // EHLO reply with no STARTTLS capability line, e.g. a local dev catcher
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
@@ -114,7 +116,7 @@ Deno.test(
   async () => {
     const { conn, written } = makeFakeConn([
       '220 smtp.example.com Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
@@ -168,7 +170,7 @@ Deno.test(
       '220 2.0.0 Ready to start TLS\r\n', // STARTTLS reply
     ])
     const { conn: tlsConn, written: tlsWritten } = makeFakeConn([
-      '250 OK\r\n', // EHLO re-issued over TLS
+      '250 AUTH LOGIN\r\n', // EHLO re-issued over TLS
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
@@ -205,5 +207,94 @@ Deno.test(
     assertEquals(tlsWritten[3], `${btoa(baseConfig.password)}\r\n`)
 
     assertEquals(startTlsHostname, baseConfig.hostname)
+  },
+)
+
+/**
+ * Regression coverage for a second bug found while completing a full send round-trip against the
+ * TLS fix above: `AUTH LOGIN` used to be sent unconditionally, with no equivalent gate to
+ * `STARTTLS`'s own `EHLO`-advertised check. A server that accepts unauthenticated mail by design
+ * (Mailpit, MailDev, MailHog, smtp4dev, ...) never advertises an `AUTH` capability line and replies
+ * to an unsolicited `AUTH LOGIN` with `502` (command not implemented) instead of the `334`
+ * continuation prompt, failing the whole handshake before a message is ever queued — confirmed
+ * live against a real Mailpit catcher.
+ */
+Deno.test(
+  'SmtpConnection: skips AUTH LOGIN (and warns) when the server never advertises AUTH support',
+  async () => {
+    const { conn, written } = makeFakeConn([
+      '220 smtp.example.com Ready\r\n',
+      '250-smtp.example.com\r\n250 PIPELINING\r\n', // no AUTH capability line, e.g. Mailpit/MailDev
+    ])
+
+    const originalConnect = Deno.connect
+    // deno-lint-ignore require-await
+    Deno.connect = (async () => conn) as unknown as typeof Deno.connect
+
+    const warnStub = stub(logger, 'warn', () => undefined)
+
+    const client = newClient()
+    try {
+      await client['initialize']()
+    } finally {
+      Deno.connect = originalConnect
+      warnStub.restore()
+    }
+
+    // The handshake completes right after EHLO — no AUTH LOGIN, no credentials, ever sent.
+    assertEquals(written.length, 1)
+    assertStringIncludes(written[0], `EHLO ${baseConfig.hostname}`)
+
+    // Configured credentials that end up unused are worth a warning — a real, distinct footgun
+    // against a misconfigured relay expecting authenticated delivery.
+    assertEquals(warnStub.calls.length, 1)
+    assertStringIncludes(warnStub.calls[0].args[0] as string, 'does not advertise AUTH')
+  },
+)
+
+/**
+ * A server may only advertise `AUTH` once the channel is encrypted (a common STARTTLS-server
+ * pattern, to avoid ever accepting credentials in the clear) — so the gate must consult the
+ * re-issued, post-upgrade `EHLO` reply, not the pre-upgrade one it replaces.
+ */
+Deno.test(
+  'SmtpConnection: authenticates when AUTH is advertised only after the STARTTLS upgrade, not before',
+  async () => {
+    const { conn: plainConn, written: plainWritten } = makeFakeConn([
+      '220 smtp.example.com Ready\r\n',
+      '250-smtp.example.com\r\n250 STARTTLS\r\n', // no AUTH yet — only offered post-upgrade
+      '220 2.0.0 Ready to start TLS\r\n',
+    ])
+    const { conn: tlsConn, written: tlsWritten } = makeFakeConn([
+      '250-smtp.example.com\r\n250 AUTH LOGIN\r\n', // AUTH now advertised, over the encrypted channel
+      '334 U\r\n',
+      '334 P\r\n',
+      '235 OK\r\n',
+    ])
+
+    const originalConnect = Deno.connect
+    // deno-lint-ignore require-await
+    Deno.connect = (async () => plainConn) as unknown as typeof Deno.connect
+
+    const originalStartTls = Deno.startTls
+    Deno.startTls =
+      (() => Promise.resolve(tlsConn as unknown as Deno.TlsConn)) as typeof Deno.startTls
+
+    const warnStub = stub(logger, 'warn', () => undefined)
+
+    const client = newClient()
+    try {
+      await client['initialize']()
+    } finally {
+      Deno.connect = originalConnect
+      Deno.startTls = originalStartTls
+      warnStub.restore()
+    }
+
+    assertEquals(plainWritten.length, 2) // EHLO, STARTTLS — no AUTH attempted before the upgrade
+    assertEquals(tlsWritten[1], 'AUTH LOGIN\r\n')
+    assertEquals(tlsWritten[2], `${btoa(baseConfig.username)}\r\n`)
+    assertEquals(tlsWritten[3], `${btoa(baseConfig.password)}\r\n`)
+    assertEquals(warnStub.calls.length, 0) // AUTH was advertised (post-upgrade) — no footgun to warn about
   },
 )

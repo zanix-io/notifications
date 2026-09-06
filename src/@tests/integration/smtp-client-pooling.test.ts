@@ -46,18 +46,18 @@ Deno.test(
 
     const { conn, written } = makeFakeConn([
       '220 Ready\r\n', // initialize() handshake — happens exactly once for both clients
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // client1's send(): MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // client1's send(): MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
-      '250 OK\r\n', // client2's send(): MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // client2's send(): MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ])
 
     let connectCount = 0
@@ -105,14 +105,14 @@ Deno.test(
 
     const firstConnResponses = [
       '220 Ready\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM
-      '250 OK\r\n', // RCPT TO
+      '250 AUTH LOGIN\r\n', // MAIL FROM
+      '250 AUTH LOGIN\r\n', // RCPT TO
       '354 Go ahead\r\n', // DATA
-      '250 OK\r\n', // final '.'
+      '250 AUTH LOGIN\r\n', // final '.'
     ]
     let firstConnReadIndex = 0
     const firstConnReadable = new ReadableStream<Uint8Array>({
@@ -140,14 +140,14 @@ Deno.test(
 
     const { conn: secondConn, written: secondConnWritten } = makeFakeConn([
       '220 Ready\r\n', // reconnect handshake
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
       '334 U\r\n',
       '334 P\r\n',
       '235 OK\r\n',
-      '250 OK\r\n', // MAIL FROM (retried send)
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n', // MAIL FROM (retried send)
+      '250 AUTH LOGIN\r\n',
       '354 Go ahead\r\n',
-      '250 OK\r\n',
+      '250 AUTH LOGIN\r\n',
     ])
 
     const conns = [firstConn, secondConn]

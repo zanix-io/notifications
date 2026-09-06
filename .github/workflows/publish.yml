@@ -30,6 +30,14 @@ jobs:
         image: mongo:7
         ports:
           - 27017:27017
+      # A real, unauthenticated SMTP catcher for `smtp-catcher.test.ts` — proves `SmtpConnection`
+      # actually round-trips a real socket (dial, EHLO, no advertised AUTH/STARTTLS, delivery),
+      # not just a mocked `Deno.Conn`. Exposes SMTP on 1025 and its own HTTP API on 8025.
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     steps:
       - name: Checkout code
@@ -47,6 +55,9 @@ jobs:
         run: deno test --allow-all
         env:
           MONGO_TEST_URI: mongodb://localhost:27017
+          SMTP_CATCHER_HOST: localhost
+          SMTP_CATCHER_PORT: 1025
+          SMTP_CATCHER_API: http://localhost:8025
 
       - name: Publish to Deno
         # `needs.ci.result == 'success'` is explicit, not just relying on the default `needs:`
