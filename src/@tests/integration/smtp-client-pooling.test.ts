@@ -4,7 +4,7 @@ import { encoder } from '@zanix/helpers'
 
 console.error = () => {}
 
-/** Builds a fake `Deno.TlsConn`-shaped connection backed by real Web Streams. */
+/** Builds a fake `Deno.TcpConn`-shaped connection backed by real Web Streams. */
 function makeFakeConn(responses: string[]) {
   const written: string[] = []
   let index = 0
@@ -25,7 +25,7 @@ function makeFakeConn(responses: string[]) {
     },
   })
 
-  return { conn: { readable, writable } as unknown as Deno.TlsConn, written }
+  return { conn: { readable, writable } as unknown as Deno.TcpConn, written }
 }
 
 function newClient() {
@@ -61,11 +61,11 @@ Deno.test(
     ])
 
     let connectCount = 0
-    const original = Deno.connectTls
-    Deno.connectTls = (() => {
+    const original = Deno.connect
+    Deno.connect = (() => {
       connectCount++
       return Promise.resolve(conn)
-    }) as typeof Deno.connectTls
+    }) as unknown as typeof Deno.connect
 
     try {
       const client1 = newClient()
@@ -88,7 +88,7 @@ Deno.test(
       })
       assertEquals(client2.isHealthy(), true)
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
       Deno.env.delete('SMTP_POOL_SIZE')
     }
 
@@ -136,7 +136,7 @@ Deno.test(
     const firstConn = {
       readable: firstConnReadable,
       writable: firstConnWritable,
-    } as unknown as Deno.TlsConn
+    } as unknown as Deno.TcpConn
 
     const { conn: secondConn, written: secondConnWritten } = makeFakeConn([
       '220 Ready\r\n', // reconnect handshake
@@ -152,8 +152,8 @@ Deno.test(
 
     const conns = [firstConn, secondConn]
     let connectCount = 0
-    const original = Deno.connectTls
-    Deno.connectTls = (() => Promise.resolve(conns[connectCount++])) as typeof Deno.connectTls
+    const original = Deno.connect
+    Deno.connect = (() => Promise.resolve(conns[connectCount++])) as unknown as typeof Deno.connect
 
     try {
       const client = newClient()
@@ -179,7 +179,7 @@ Deno.test(
       const client2 = newClient()
       await client2['initialize']() // must reuse the released healthy one — no third dial
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
       Deno.env.delete('SMTP_POOL_SIZE')
     }
 

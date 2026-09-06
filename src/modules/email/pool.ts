@@ -14,6 +14,14 @@ import logger from '@zanix/logger'
 export const SMTP_POOL_SIZE_ENV = 'SMTP_POOL_SIZE'
 
 /**
+ * The one standard implicit-TLS ("SMTPS") SMTP port — see `ServerConfig.port`'s own doc. Every
+ * other port (587, 25, a local dev catcher's arbitrary port, ...) is dialed in plaintext first;
+ * `SmtpConnection.open()` only upgrades it via `STARTTLS` if the server's own `EHLO` response
+ * actually advertises that capability, never unconditionally.
+ */
+const SMTP_IMPLICIT_TLS_PORT = 465
+
+/**
  * Thrown when an SMTP connection is found closed (idle timeout, remote reset, etc.) while being
  * used. Distinct from a generic error so `SmtpClient.send()` can tell "connection died" apart
  * from any other failure and react to it (reconnect and retry, or discard from the pool).
@@ -35,12 +43,12 @@ export class SmtpConnectionClosedError extends ApplicationError {
 }
 
 /**
- * A single authenticated SMTP session over one TLS connection.
+ * A single authenticated SMTP session.
  *
  * Only ever obtained via `SmtpConnection.open()`, which dials and completes the full handshake
- * (EHLO, AUTH LOGIN) before returning — so there's no "constructed but not ready" state to guard
- * against here; that responsibility belongs to whatever holds a (possibly not-yet-assigned)
- * reference to one of these, e.g. `SmtpClient`.
+ * (EHLO, optionally STARTTLS, AUTH LOGIN) before returning — so there's no "constructed but not
+ * ready" state to guard against here; that responsibility belongs to whatever holds a (possibly
+ * not-yet-assigned) reference to one of these, e.g. `SmtpClient`.
  */
 export class SmtpConnection {
   #reader: ReadableStreamDefaultReader<Uint8Array>
@@ -55,19 +63,55 @@ export class SmtpConnection {
     this.#writer = writer
   }
 
-  /** Dials the server and completes the SMTP handshake, returning a ready-to-use session. */
+  /**
+   * Dials the server and completes the SMTP handshake, returning a ready-to-use session.
+   *
+   * Only `SMTP_IMPLICIT_TLS_PORT` (465, "SMTPS") is wrapped in TLS from the first byte. Every
+   * other port is dialed in plaintext (`Deno.connect`) and only upgraded via `STARTTLS`
+   * (`Deno.startTls`) when the server's own `EHLO` response actually advertises that capability —
+   * never unconditionally. This matches standard SMTP client behavior and is what real relays
+   * expecting STARTTLS on 587 (Gmail, SES, SendGrid, ...) and local dev catchers with no TLS at
+   * all (MailDev, Mailpit, MailHog, smtp4dev, ...) both need: dialing every connection straight
+   * into `Deno.connectTls` made Deno's own TLS record-layer parser reject a plaintext server's `220`
+   * greeting as a corrupt TLS record, tearing the connection down before the handshake ever began.
+   */
   public static async open(config: ServerConfig): Promise<SmtpConnection> {
-    const connection = await Deno.connectTls({
-      hostname: config.hostname,
-      port: config.port,
-    })
-    const session = new SmtpConnection(
+    const implicitTls = config.port === SMTP_IMPLICIT_TLS_PORT
+
+    const connection = implicitTls
+      ? await Deno.connectTls({ hostname: config.hostname, port: config.port })
+      : await Deno.connect({ hostname: config.hostname, port: config.port })
+
+    let session = new SmtpConnection(
       connection.readable.getReader(),
       connection.writable.getWriter(),
     )
 
     await session.sendCommand(undefined, SMTP_RESPONSE_CODE.READY)
-    await session.sendCommand(`EHLO ${config.hostname}`, SMTP_RESPONSE_CODE.OK)
+    const ehloResponse = await session.sendCommand(
+      `EHLO ${config.hostname}`,
+      SMTP_RESPONSE_CODE.OK,
+    )
+
+    if (!implicitTls && ehloResponse?.toUpperCase().includes('STARTTLS')) {
+      // The `220` reply to `STARTTLS` shares the same code as the initial greeting (RFC 3207).
+      await session.sendCommand('STARTTLS', SMTP_RESPONSE_CODE.READY)
+      // `Deno.startTls` takes over the raw TCP socket — it requires the streams handed out above
+      // to have no active lock on them.
+      session.#reader.releaseLock()
+      session.#writer.releaseLock()
+      const tlsConnection = await Deno.startTls(connection as Deno.TcpConn, {
+        hostname: config.hostname,
+      })
+      session = new SmtpConnection(
+        tlsConnection.readable.getReader(),
+        tlsConnection.writable.getWriter(),
+      )
+      // The server forgets any capabilities announced before the upgrade — RFC 3207 requires
+      // re-issuing EHLO over the now-encrypted channel before authenticating.
+      await session.sendCommand(`EHLO ${config.hostname}`, SMTP_RESPONSE_CODE.OK)
+    }
+
     await session.sendCommand('AUTH LOGIN', SMTP_RESPONSE_CODE.AUTH_NEXT)
     await session.sendCommand(
       btoa(config.username),
@@ -85,8 +129,13 @@ export class SmtpConnection {
    * Writes a command to the server and optionally checks the response code.
    * @param command Command line to send
    * @param expectedCode Expected SMTP response code
+   * @returns The raw (trimmed) response text when `expectedCode` is given — e.g. so `open()` can
+   * inspect an `EHLO` reply for a `STARTTLS` capability line — `undefined` otherwise.
    */
-  public async sendCommand(command?: string, expectedCode?: SmtpResponseCode) {
+  public async sendCommand(
+    command?: string,
+    expectedCode?: SmtpResponseCode,
+  ): Promise<string | undefined> {
     if (command) {
       await this.#writer.ready
       await this.#writer.write(encoder.encode(`${command}\r\n`)).catch((e) =>
@@ -116,6 +165,7 @@ export class SmtpConnection {
           meta: { expectedCode, actualCode: code },
         })
       }
+      return response
     }
   }
 

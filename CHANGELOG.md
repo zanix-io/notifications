@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-09-06
+
+### Fixed
+
+- **`SmtpConnection` dialed every SMTP connection via implicit TLS (`Deno.connectTls`) regardless of
+  the configured port or what the target server actually spoke, so any plaintext server rejected the
+  ClientHello outright — Deno's own TLS record-layer parser read the server's plaintext `220`
+  greeting as a corrupt TLS record and tore the connection down before the handshake ever began.**
+  This made every local dev/test SMTP catcher unusable (MailDev, Mailpit, MailHog, smtp4dev — none
+  of them speak implicit TLS on their catch-all port) and would break a real relay expecting
+  STARTTLS on port 587 (Gmail, SES, SendGrid, ...) the same way. `SmtpConnection.open()` now only
+  wraps the connection in implicit TLS for the standard SMTPS port (465); every other port dials in
+  plaintext (`Deno.connect`), sends `EHLO`, and upgrades via `Deno.startTls` only if the server's
+  own `EHLO` reply actually advertises `STARTTLS` — re-issuing `EHLO` afterward per RFC 3207, and
+  sending `AUTH LOGIN`/credentials only once that upgrade (when it happens) has completed, never
+  over a plaintext socket.
+
 ## [1.2.1] - 2026-09-04
 
 ### Fixed

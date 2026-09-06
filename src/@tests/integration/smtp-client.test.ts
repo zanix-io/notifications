@@ -18,7 +18,7 @@ const baseConfig = {
 }
 
 /**
- * Builds a fake `Deno.TlsConn`-shaped connection backed by real Web Streams.
+ * Builds a fake `Deno.Conn`-shaped connection backed by real Web Streams.
  *
  * - `readable` yields the given canned SMTP response lines, one per `read()` call.
  * - `writable` records every written chunk (decoded) so tests can assert on the
@@ -49,28 +49,35 @@ function makeFakeConn(responses: string[]) {
   })
 
   return {
-    conn: { readable, writable } as unknown as Deno.TlsConn,
+    conn: { readable, writable } as unknown as Deno.TcpConn,
     written,
     isWritableClosed: () => writableClosed,
   }
 }
 
-/** Stubs `Deno.connectTls` to resolve with the given fake connection, restoring it afterward. */
-async function withFakeConnectTls<T>(
-  conn: Deno.TlsConn,
+/**
+ * Stubs `Deno.connect` to resolve with the given fake connection, restoring it afterward.
+ *
+ * `baseConfig.port` (587) is not the implicit-TLS port, so `SmtpConnection.open()` dials with
+ * plain `Deno.connect`, not `Deno.connectTls` — see `pool.ts`. None of the canned `EHLO` responses
+ * used across this file advertise `STARTTLS`, so the connection these tests exercise stays
+ * plaintext end-to-end, exactly like it would against a real local dev SMTP catcher.
+ */
+async function withFakeConnect<T>(
+  conn: Deno.TcpConn,
   fn: () => Promise<T> | T,
-  onConnect?: (options: Deno.ConnectTlsOptions) => void,
+  onConnect?: (options: Deno.ConnectOptions) => void,
 ): Promise<T> {
-  const original = Deno.connectTls
+  const original = Deno.connect
   // deno-lint-ignore require-await
-  Deno.connectTls = (async (options: Deno.ConnectTlsOptions) => {
+  Deno.connect = (async (options: Deno.ConnectOptions) => {
     onConnect?.(options)
     return conn
-  }) as typeof Deno.connectTls
+  }) as unknown as typeof Deno.connect
   try {
     return await fn()
   } finally {
-    Deno.connectTls = original
+    Deno.connect = original
   }
 }
 
@@ -93,7 +100,7 @@ Deno.test('SmtpClient: initialize() performs the full SMTP handshake', async () 
 
   const client = newClient()
 
-  await withFakeConnectTls(conn, () => client['initialize']())
+  await withFakeConnect(conn, () => client['initialize']())
 
   assertEquals(written.length, 4)
   assertStringIncludes(written[0], `EHLO ${baseConfig.hostname}`)
@@ -116,7 +123,7 @@ Deno.test('SmtpClient: initialize() sends base64-encoded username and password',
     password: 'hunter2',
   })
 
-  await withFakeConnectTls(conn, () => client['initialize']())
+  await withFakeConnect(conn, () => client['initialize']())
 
   assertEquals(written[2], `${btoa('someone@example.com')}\r\n`)
   assertEquals(written[3], `${btoa('hunter2')}\r\n`)
@@ -130,7 +137,7 @@ Deno.test('SmtpClient: initialize() throws when a response code does not match',
 
   const client = newClient()
 
-  await withFakeConnectTls(
+  await withFakeConnect(
     conn,
     async () => {
       // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a
@@ -155,7 +162,7 @@ Deno.test(
 
     const client = newClient()
 
-    await withFakeConnectTls(
+    await withFakeConnect(
       conn,
       // Specifically `SmtpConnectionClosedError` (now extends `ApplicationError`, not `Error`
       // directly — still its own distinct, `instanceof`-catchable type; see `pool.ts`'s own doc).
@@ -180,7 +187,7 @@ Deno.test(
 
     const client = newClient()
 
-    await withFakeConnectTls(
+    await withFakeConnect(
       conn,
       async () => {
         // Specifically `InternalError`, not just any `Error` — locks in the fix that replaced a
@@ -213,11 +220,11 @@ Deno.test(
         throw new Error('Broken pipe (os error 32)')
       },
     })
-    const conn = { readable, writable } as unknown as Deno.TlsConn
+    const conn = { readable, writable } as unknown as Deno.TcpConn
 
     const client = newClient()
 
-    await withFakeConnectTls(conn, () =>
+    await withFakeConnect(conn, () =>
       assertRejects(
         () => client['initialize'](),
         SmtpConnectionClosedError,
@@ -241,11 +248,11 @@ Deno.test(
     const writable = new WritableStream<Uint8Array>({
       write() {},
     })
-    const conn = { readable, writable } as unknown as Deno.TlsConn
+    const conn = { readable, writable } as unknown as Deno.TcpConn
 
     const client = newClient()
 
-    await withFakeConnectTls(conn, () =>
+    await withFakeConnect(conn, () =>
       assertRejects(
         () => client['initialize'](),
         SmtpConnectionClosedError,
@@ -300,7 +307,7 @@ Deno.test(
     const firstConn = {
       readable: firstConnReadable,
       writable: firstConnWritable,
-    } as unknown as Deno.TlsConn
+    } as unknown as Deno.TcpConn
 
     const { conn: secondConn, written: secondConnWritten } = makeFakeConn([
       '220 Ready\r\n', // reconnect handshake
@@ -316,9 +323,9 @@ Deno.test(
 
     const conns = [firstConn, secondConn]
     let connectCount = 0
-    const original = Deno.connectTls
+    const original = Deno.connect
     // deno-lint-ignore require-await
-    Deno.connectTls = (async () => conns[connectCount++]) as typeof Deno.connectTls
+    Deno.connect = (async () => conns[connectCount++]) as unknown as typeof Deno.connect
 
     const client = newClient()
     try {
@@ -337,7 +344,7 @@ Deno.test(
         content: 'body',
       })
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
     }
 
     assertEquals(connectCount, 2)
@@ -385,7 +392,7 @@ Deno.test(
     const firstConn = {
       readable: firstConnReadable,
       writable: firstConnWritable,
-    } as unknown as Deno.TlsConn
+    } as unknown as Deno.TcpConn
 
     // The reconnect's own handshake gets rejected outright (e.g. credentials revoked meanwhile).
     const { conn: secondConn } = makeFakeConn([
@@ -395,9 +402,9 @@ Deno.test(
 
     const conns = [firstConn, secondConn]
     let connectCount = 0
-    const original = Deno.connectTls
+    const original = Deno.connect
     // deno-lint-ignore require-await
-    Deno.connectTls = (async () => conns[connectCount++]) as typeof Deno.connectTls
+    Deno.connect = (async () => conns[connectCount++]) as unknown as typeof Deno.connect
 
     const client = newClient()
     try {
@@ -421,7 +428,7 @@ Deno.test(
       )
       assertEquals(error.code, 'SMTP_UNEXPECTED_RESPONSE_CODE')
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
     }
 
     assertEquals(client.isHealthy(), false)
@@ -443,12 +450,12 @@ Deno.test(
     ])
 
     let connectCount = 0
-    const original = Deno.connectTls
+    const original = Deno.connect
     // deno-lint-ignore require-await
-    Deno.connectTls = (async () => {
+    Deno.connect = (async () => {
       connectCount++
       return conn
-    }) as typeof Deno.connectTls
+    }) as unknown as typeof Deno.connect
 
     const client = newClient()
     try {
@@ -466,7 +473,7 @@ Deno.test(
       )
       assertEquals(error.code, 'SMTP_UNEXPECTED_RESPONSE_CODE')
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
     }
 
     assertEquals(connectCount, 1) // no reconnect was attempted
@@ -493,10 +500,10 @@ Deno.test(
       makeFakeConn(handshakeResponses).conn,
     ]
 
-    const original = Deno.connectTls
+    const original = Deno.connect
     let connectCount = 0
     // deno-lint-ignore require-await
-    Deno.connectTls = (async () => conns[connectCount++]) as typeof Deno.connectTls
+    Deno.connect = (async () => conns[connectCount++]) as unknown as typeof Deno.connect
 
     try {
       const client = new SmtpClient({
@@ -531,7 +538,7 @@ Deno.test(
       await client.isReady.catch(() => {})
       await client2.isReady.catch(() => {})
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
     }
   },
 )
@@ -553,7 +560,7 @@ Deno.test('SmtpClient: send() writes commands in order and marks the client heal
 
   const client = newClient()
 
-  await withFakeConnectTls(conn, async () => {
+  await withFakeConnect(conn, async () => {
     await client['initialize']()
 
     assertEquals(client.isHealthy(), false)
@@ -603,7 +610,7 @@ Deno.test('SmtpClient: send() rejects a CRLF-injected subject before writing to 
 
   const client = newClient()
 
-  await withFakeConnectTls(conn, async () => {
+  await withFakeConnect(conn, async () => {
     await client['initialize']()
     const writtenBefore = written.length
 
@@ -641,7 +648,7 @@ Deno.test('SmtpClient: send() uses email.date, or falls back to now', async () =
   {
     const { conn, written } = makeFakeConn(responses)
     const client = newClient()
-    await withFakeConnectTls(conn, async () => {
+    await withFakeConnect(conn, async () => {
       await client['initialize']()
       await client.send({
         to: 'dest@example.com',
@@ -659,7 +666,7 @@ Deno.test('SmtpClient: send() uses email.date, or falls back to now', async () =
     using _time = new FakeTime('2025-06-15T12:00:00.000Z')
     const { conn, written } = makeFakeConn(responses)
     const client = newClient()
-    await withFakeConnectTls(conn, async () => {
+    await withFakeConnect(conn, async () => {
       await client['initialize']()
       await client.send({
         to: 'dest@example.com',
@@ -688,7 +695,7 @@ Deno.test('SmtpClient: parses display-name and bare email addresses differently'
   const { conn, written } = makeFakeConn(responses)
   const client = newClient()
 
-  await withFakeConnectTls(conn, async () => {
+  await withFakeConnect(conn, async () => {
     await client['initialize']()
     await client.send({
       from: 'Sender Name <sender@example.com>',
@@ -724,7 +731,7 @@ Deno.test('SmtpClient: close() sends QUIT, expects BYE, and closes the writer', 
 
   const client = newClient()
 
-  await withFakeConnectTls(conn, async () => {
+  await withFakeConnect(conn, async () => {
     await client['initialize']()
     await client.close()
   })
@@ -744,7 +751,7 @@ Deno.test(
 
     const client = newClient()
     try {
-      await withFakeConnectTls(
+      await withFakeConnect(
         conn,
         () =>
           assertRejects(
@@ -778,7 +785,7 @@ Deno.test(
 
     const client = newClient()
     try {
-      await withFakeConnectTls(
+      await withFakeConnect(
         conn,
         () =>
           assertRejects(
@@ -806,7 +813,7 @@ Deno.test(
 
     const client = newClient()
     try {
-      await withFakeConnectTls(
+      await withFakeConnect(
         conn,
         () =>
           assertRejects(
@@ -862,7 +869,7 @@ Deno.test(
     const firstConn = {
       readable: firstConnReadable,
       writable: firstConnWritable,
-    } as unknown as Deno.TlsConn
+    } as unknown as Deno.TcpConn
 
     // The reconnect's own handshake gets rejected outright (e.g. credentials revoked meanwhile).
     const { conn: secondConn } = makeFakeConn([
@@ -872,9 +879,9 @@ Deno.test(
 
     const conns = [firstConn, secondConn]
     let connectCount = 0
-    const original = Deno.connectTls
+    const original = Deno.connect
     // deno-lint-ignore require-await
-    Deno.connectTls = (async () => conns[connectCount++]) as typeof Deno.connectTls
+    Deno.connect = (async () => conns[connectCount++]) as unknown as typeof Deno.connect
 
     const client = newClient()
     try {
@@ -904,7 +911,7 @@ Deno.test(
       assertEquals(loggedText.includes('dest@example.com'), false)
       assertStringIncludes(loggedText, 'giving up')
     } finally {
-      Deno.connectTls = original
+      Deno.connect = original
       errorStub.restore()
     }
   },
@@ -936,8 +943,8 @@ Deno.test('SmtpClient: static config takes precedence over constructor config', 
       autoInitialize: false,
     })
 
-    let connectOptions: Deno.ConnectTlsOptions | undefined
-    await withFakeConnectTls(conn, () => client['initialize'](), (options) => {
+    let connectOptions: Deno.ConnectOptions | undefined
+    await withFakeConnect(conn, () => client['initialize'](), (options) => {
       connectOptions = options
     })
 
