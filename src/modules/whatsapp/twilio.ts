@@ -13,8 +13,8 @@ const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01'
  * `MetaCloudWhatsappAdapter`. Twilio sends WhatsApp messages through the exact same `Messages`
  * endpoint it uses for SMS (see `sms/twilio.ts`'s `TwilioSmsAdapter`), just with `to`/`from`
  * prefixed `whatsapp:`, so this reuses the same `TwilioConfig` shape (and, in practice, usually
- * the same account credentials — only `from` tends to differ, since a WhatsApp-enabled sender is
- * typically a different number than the plain SMS one).
+ * the same account credentials — only `from` tends to differ; see `sms/defs.ts`'s
+ * `TWILIO_FROM_NUMBER_ENV` doc for why).
  *
  * Not the default: `WhatsappClient` builds `MetaCloudWhatsappAdapter` unless a custom `adapter` is
  * configured — set `WhatsappClient.config = { adapter: new TwilioWhatsappAdapter({...}) }` (or

@@ -36,7 +36,7 @@ export const META_API_BASE_ENV = 'META_API_BASE'
 const TWILIO_ACCOUNT_SID_ENV = 'TWILIO_ACCOUNT_SID'
 /** Env var naming Twilio's auth token — required alongside `TWILIO_ACCOUNT_SID_ENV`/`TWILIO_WHATSAPP_FROM_ENV`. Same non-export rationale as `TWILIO_ACCOUNT_SID_ENV` above — publicly exported from `sms/defs.ts` instead. */
 const TWILIO_AUTH_TOKEN_ENV = 'TWILIO_AUTH_TOKEN'
-/** Env var naming the WhatsApp-enabled sender number — required alongside `TWILIO_ACCOUNT_SID_ENV`/`TWILIO_AUTH_TOKEN_ENV`. Deliberately a separate variable from `sms/defs.ts`'s `TWILIO_FROM_NUMBER_ENV`, since a WhatsApp-enabled Twilio sender is typically a different number than the plain SMS one, even under the same account. Unique to this module — exported normally, no collision risk. */
+/** Env var naming the WhatsApp-enabled sender number — required alongside `TWILIO_ACCOUNT_SID_ENV`/`TWILIO_AUTH_TOKEN_ENV`. Deliberately a separate variable from `sms/defs.ts`'s `TWILIO_FROM_NUMBER_ENV` — see that doc for why. Unique to this module — exported normally, no collision risk. */
 export const TWILIO_WHATSAPP_FROM_ENV = 'TWILIO_WHATSAPP_FROM'
 /** Env var optionally overriding Twilio's REST API base URL (proxy, mock server, alternate API version). Same non-export rationale as `TWILIO_ACCOUNT_SID_ENV` above — publicly exported from `sms/defs.ts` instead. */
 const TWILIO_API_BASE_ENV = 'TWILIO_API_BASE'
