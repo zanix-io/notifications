@@ -23,7 +23,16 @@ export {
   type TemplatesControllerInstance,
   type TemplatesControllerOptions,
 } from './templates.handler.ts'
-export { CreateTemplateRTO, TemplateParamsRTO, UpdateTemplateRTO } from './rtos/templates.rto.ts'
+export {
+  CreateTemplateRTO,
+  MessageEntriesSearchRTO,
+  MessageParamsRTO,
+  MessagesSearchRTO,
+  PreviewTemplateRTO,
+  SetMessageRTO,
+  TemplateParamsRTO,
+  UpdateTemplateRTO,
+} from './rtos/templates.rto.ts'
 
 /**
  * The CRUD data-access layer {@link createTemplatesController} itself sits on top of — re-exported

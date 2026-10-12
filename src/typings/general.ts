@@ -63,9 +63,30 @@ export type TemplateDataOf<
 export type MessageContentOf<
   Templates extends Record<string, (data: never) => Promise<string>>,
   T extends keyof Templates,
-> =
-  | { content: string; zanixTemplate?: never; data?: never }
-  | { zanixTemplate: T; data?: TemplateDataOf<Templates, T>; content?: never }
+> = TextContent | TemplateContentOf<Templates, T>
+
+/** A message whose body is the plain `content` text: it has no template, so no language to pick. */
+export type TextContent = {
+  content: string
+  zanixTemplate?: never
+  data?: never
+  lang?: never
+}
+
+/**
+ * A message whose body is a template rendered with `data`, in `lang`: the language the template's
+ * `{{t 'key'}}` texts resolve in (a BCP 47 tag such as `es` or `es-MX`), falling back to the language
+ * of its base, then to `NOTIFICATIONS_DEFAULT_LANG`. Omitted, only the default language is used.
+ */
+export type TemplateContentOf<
+  Templates extends Record<string, (data: never) => Promise<string>>,
+  T extends keyof Templates,
+> = {
+  zanixTemplate: T
+  data?: TemplateDataOf<Templates, T>
+  lang?: string
+  content?: never
+}
 
 /**
  * Controls whether `sendMessage()` offloads a message to a background worker instead of sending

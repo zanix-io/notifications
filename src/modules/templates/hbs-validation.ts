@@ -24,5 +24,8 @@ export async function assertValidHandlebarsSyntax(hbs: string): Promise<void> {
   // materialization. Revisit if `templates.repository.ts` (or this function) is ever exposed from
   // a narrow subpath that doesn't already reach `provider.ts`'s template registries.
   const { default: Handlebars } = await import('handlebars')
-  Handlebars.compile(hbs)({})
+  // The `t` helper (`{{t 'key'}}`, the message texts) exists only while a message renders, bound to
+  // its language: here a stand-in, so a template that reads texts is not rejected for a helper it will
+  // have when it is sent.
+  Handlebars.compile(hbs)({}, { helpers: { t: () => '' } })
 }

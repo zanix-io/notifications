@@ -1,13 +1,19 @@
 import type { Notifiers } from 'typings/general.ts'
+import type { MessageCatalog } from '../i18n.ts'
 import type {
   CreateTemplateInput,
+  MessageEntry,
   SyncCodeTemplateEntry,
   SyncCodeTemplatesResult,
+  TemplatePreview,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
+  ZanixTemplateMessageAttrs,
 } from 'typings/templates-db.ts'
 
 import { Interactor, ZanixInteractor } from '@zanix/server'
+import { HttpError } from '@zanix/errors'
+import { TemplateProvider } from '../provider.ts'
 import { TemplatesAdminRepository } from './templates.repository.ts'
 
 /**
@@ -75,5 +81,73 @@ export class TemplatesAdminService extends ZanixInteractor {
     updatedBy?: string,
   ): Promise<SyncCodeTemplatesResult> {
     return this.repository.syncCodeTemplates(entries, updatedBy)
+  }
+
+  /** See {@link TemplatesAdminRepository.listMessages}. */
+  public listMessages(langs?: string[]): Promise<MessageCatalog> {
+    return this.repository.listMessages(langs)
+  }
+
+  /** See {@link TemplatesAdminRepository.setMessage}. */
+  public setMessage(
+    lang: string,
+    key: string,
+    text: string,
+    updatedBy: string,
+  ): Promise<ZanixTemplateMessageAttrs> {
+    return this.repository.setMessage(lang, key, text, updatedBy)
+  }
+
+  /** See {@link TemplatesAdminRepository.removeMessage}. */
+  public removeMessage(lang: string, key: string): Promise<void> {
+    return this.repository.removeMessage(lang, key)
+  }
+
+  /** See {@link TemplatesAdminRepository.listMessageEntries}. */
+  public listMessageEntries(
+    options: { langs?: string[]; search?: string } = {},
+  ): Promise<MessageEntry[]> {
+    return this.repository.listMessageEntries(options)
+  }
+
+  /** See {@link TemplatesAdminRepository.resetMessage}. */
+  public resetMessage(
+    lang: string,
+    key: string,
+    updatedBy: string,
+  ): Promise<ZanixTemplateMessageAttrs> {
+    return this.repository.resetMessage(lang, key, updatedBy)
+  }
+
+  /**
+   * Renders a template with `data` in `lang` exactly as a send would (the live backend, the code
+   * registry as the fallback), without sending anything: what a screen shows next to the text being
+   * edited. An email also answers its subject.
+   *
+   * @throws {HttpError} `BAD_REQUEST` if the template cannot be rendered with that data (a code template
+   * validates it), or does not exist.
+   */
+  public async preview(
+    channel: Notifiers,
+    name: string,
+    data: Record<string, unknown>,
+    lang?: string,
+  ): Promise<TemplatePreview> {
+    try {
+      const { body, subject } = await this.providers.get(TemplateProvider).resolveMessage(
+        channel,
+        name,
+        data,
+        lang,
+        { subject: channel === 'email' },
+      )
+      return { body, ...(subject && { subject }) }
+    } catch (error) {
+      throw new HttpError('BAD_REQUEST', {
+        message: `The template could not be rendered: ${(error as Error).message}`,
+        cause: error,
+        meta: { source: 'zanix', method: 'TemplatesAdminService', channel, name },
+      })
+    }
   }
 }

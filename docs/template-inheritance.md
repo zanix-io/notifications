@@ -168,7 +168,8 @@ A derived template has no `.hbs`/`schema.ts`/`styles.css` of its own — it tran
 into an existing template's data shape and renders through that one (see
 [How it works](#how-it-works) above for the runtime mechanics). To add one:
 
-1. Write a standalone transform function — `(data: YourSchema) => ParentSchema` — in the relevant
+1. Write a standalone transform function — `(data: YourSchema, t: Translator) => ParentSchema`,
+   taking its words from `t` (keys in `LIBRARY_MESSAGES`, `library-messages.ts`) — in the relevant
    `transactional/*` file, and a thin wrapper calling
    `execTemplate('{channel}/{parent}',
    yourTransform(data))` through it (mirrors `sms.ts`'s

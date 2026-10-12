@@ -8,7 +8,15 @@ import type {
   WelcomeTemplateSchema,
 } from 'typings/templates.ts'
 
+import type { Translator } from '../../i18n.ts'
+
 import { execTemplate } from '../../mod.ts'
+import { libraryTranslator } from '../../library-messages.ts'
+
+const defaultT = libraryTranslator('email')
+
+const rights = (t: Translator, app: string) =>
+  t('footer.rights', { year: new Date().getFullYear(), app })
 
 /**
  * Transforms welcome data into the shape `generic` (its parent template — see `db/manifest.ts`'s
@@ -18,52 +26,51 @@ import { execTemplate } from '../../mod.ts'
  */
 export const welcomeToGeneric = (
   data: WelcomeTemplateSchema = {},
+  t: Translator = defaultT,
 ): GenericTemplateSchema => {
   const { app = 'Zanix', html = { title: 'Welcome Email' }, ...content } = data
   return {
-    title: 'Welcome, Astronaut!',
-    content: `Greetings, Space Explorer!<br><br>
-    We’re thrilled to have you aboard Zanix, your mission control 
-    for an out-of-this-world experience. 🚀<br>
-    Prepare to explore new features, discover exciting tools, 
-    and launch your journey to the stars with us.<br>
-    Your adventure starts now - we promise it will be stellar!`,
-    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    title: t('welcome.title'),
+    content: t('welcome.content', { app }),
+    footer: rights(t, app),
     html,
     ...content,
   }
 }
 
-export const welcome = (data: WelcomeTemplateSchema = {}): Promise<string> => {
-  return execTemplate('email/generic', welcomeToGeneric(data))
+export const welcome = (data?: WelcomeTemplateSchema, lang?: string): Promise<string> => {
+  return execTemplate('email/generic', welcomeToGeneric(data, libraryTranslator('email', lang)))
 }
 
 /** Transforms password-changed data into `generic`'s shape — see `welcomeToGeneric()` above. */
 export const passwordChangedToGeneric = (
   data: PasswordChangedTemplateSchema = {},
+  t: Translator = defaultT,
 ): GenericTemplateSchema => {
   const { app = 'Zanix', html = { title: 'Password Changed' }, ...content } = data
   return {
-    title: 'Password Successfully Changed',
-    content: `<p>We wanted to let you know that your password has been successfully changed.</p>
-    <p>If you didn't make this change, please contact support immediately.</p>
-    <p>For security reasons, please do not share your password with anyone. 
-    If you need assistance, feel free to reach out to us.</p>`,
-    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    title: t('password-changed.title'),
+    content: t('password-changed.content'),
+    footer: rights(t, app),
     html,
     ...content,
   }
 }
 
 export const passwordChanged = (
-  data: PasswordChangedTemplateSchema = {},
+  data?: PasswordChangedTemplateSchema,
+  lang?: string,
 ): Promise<string> => {
-  return execTemplate('email/generic', passwordChangedToGeneric(data))
+  return execTemplate(
+    'email/generic',
+    passwordChangedToGeneric(data, libraryTranslator('email', lang)),
+  )
 }
 
 /** Transforms new-login data into `generic`'s shape — see `welcomeToGeneric()` above. */
 export const newLoginToGeneric = (
   data: NewLoginEmailTemplateSchema,
+  t: Translator = defaultT,
 ): GenericTemplateSchema => {
   const {
     app = 'Zanix',
@@ -74,14 +81,15 @@ export const newLoginToGeneric = (
     ...content
   } = data
   return {
-    title: 'New Login Detected',
-    content: `<p>We noticed a login to your account from a new device.</p>
-    <p><strong>Device:</strong> ${device}</p>
-    <p><strong>Time:</strong> ${time}</p>
-    ${location ? `<p><strong>Location:</strong> ${location}</p>` : ''}
-    <p>If this was you, no action is needed. If you don't recognize this activity,
-    please secure your account immediately.</p>`,
-    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    title: t('new-login.title'),
+    // Three texts joined, not one with the location nested in it: a value is escaped in an email,
+    // and the location line is markup.
+    content: [
+      t('new-login.content', { device, time }),
+      location ? t('new-login.location', { location }) : '',
+      t('new-login.outro'),
+    ].join(''),
+    footer: rights(t, app),
     html,
     ...content,
   }
@@ -89,58 +97,63 @@ export const newLoginToGeneric = (
 
 export const newLogin = (
   data: NewLoginEmailTemplateSchema,
+  lang?: string,
 ): Promise<string> => {
-  return execTemplate('email/generic', newLoginToGeneric(data))
+  return execTemplate('email/generic', newLoginToGeneric(data, libraryTranslator('email', lang)))
 }
 
 /** Transforms login-OTP data into `generic`'s shape — see `welcomeToGeneric()` above. */
 export const loginWithOTPToGeneric = (
   data: LoginWithOTPTemplateSchema = { code: '123456', ttl: 5 },
+  t: Translator = defaultT,
 ): GenericTemplateSchema => {
   const { app = 'Zanix', html = { title: 'Login OTP' }, ...content } = data
   return {
-    title: 'Your code for Login',
-    content:
-      ` <p>We received a login request for your account. To complete your login, please use the One-Time Password (OTP) below:</p>`,
+    title: t('login-otp.title'),
+    content: t('login-otp.content'),
     buttonText: data.code,
-    message:
-      `This OTP is valid for ${data.ttl} minutes. If you did not request this login, please disregard this email.\n
-      For additional security, please do not share this OTP with anyone.`,
-    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    message: t('login-otp.message', { ttl: data.ttl }),
+    footer: rights(t, app),
     html,
     ...content,
   }
 }
 
 export const loginWithOTP = (
-  data: LoginWithOTPTemplateSchema = { code: '123456', ttl: 5 },
+  data?: LoginWithOTPTemplateSchema,
+  lang?: string,
 ): Promise<string> => {
-  return execTemplate('email/generic', loginWithOTPToGeneric(data))
+  return execTemplate(
+    'email/generic',
+    loginWithOTPToGeneric(data, libraryTranslator('email', lang)),
+  )
 }
 
 /** Transforms password-recovery data into `generic`'s shape — see `welcomeToGeneric()` above. */
 export const passwordRecoveryToGeneric = (
   data: PasswordRecoveryTemplateSchema = { code: '123456', ttl: 5 },
+  t: Translator = defaultT,
 ): GenericTemplateSchema => {
   const { app = 'Zanix', html = { title: 'Password Recovery' }, ...content } = data
   return {
-    title: 'Password Recovery Request',
-    content:
-      `<p>We have received a request to reset your password. Use the following code to proceed:</p>`,
+    title: t('password-recovery.title'),
+    content: t('password-recovery.content'),
     buttonText: data.code,
-    message:
-      `This OTP is valid for ${data.ttl} minutes. If you did not request this change, please ignore this email.\n
-      For additional security, please do not share this OTP with anyone.`,
-    footer: `© ${new Date().getFullYear()} ${app}. All rights reserved.`,
+    message: t('password-recovery.message', { ttl: data.ttl }),
+    footer: rights(t, app),
     html,
     ...content,
   }
 }
 
 export const passwordRecovery = (
-  data: PasswordRecoveryTemplateSchema = { code: '123456', ttl: 5 },
+  data?: PasswordRecoveryTemplateSchema,
+  lang?: string,
 ): Promise<string> => {
-  return execTemplate('email/generic', passwordRecoveryToGeneric(data))
+  return execTemplate(
+    'email/generic',
+    passwordRecoveryToGeneric(data, libraryTranslator('email', lang)),
+  )
 }
 
 /** This channel's derived templates — see `transactional/sms.ts`'s `derivedTemplates` for the full rationale. */

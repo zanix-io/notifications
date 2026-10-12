@@ -222,3 +222,93 @@ Deno.test(
     assertEquals(await guard(fakeGuardContext), {})
   },
 )
+
+Deno.test('TemplatesController.messages splits the languages asked, and asks for all when none', async () => {
+  const calls: unknown[][] = []
+  const interactor = {
+    listMessages: (...args: unknown[]) => (calls.push(args), Promise.resolve({ es: { a: 'uno' } })),
+  }
+  const ask = (langs?: string) =>
+    handler.messages.call(
+      fakeThis(interactor),
+      { payload: { search: { langs } } } as HandlerContext<never>,
+    )
+
+  assertEquals(await ask('es, en,,'), { es: { a: 'uno' } })
+  await ask(undefined)
+  assertEquals(calls, [[['es', 'en']], [undefined]])
+})
+
+Deno.test('TemplatesController.setMessage forwards lang, key, text and the session id', async () => {
+  const calls: unknown[][] = []
+  const result: unknown = await handler.setMessage.call(
+    fakeThis({
+      setMessage: (
+        ...args: unknown[]
+      ) => (calls.push(args), Promise.resolve({ lang: 'es', key: 'a' })),
+    }),
+    {
+      payload: { params: { lang: 'es', key: 'a' }, body: { text: 'uno' } },
+      session: { id: 'admin-7' },
+    } as unknown as HandlerContext<never>,
+  )
+  assertEquals(result, { lang: 'es', key: 'a' })
+  assertEquals(calls, [['es', 'a', 'uno', 'admin-7']])
+})
+
+Deno.test('TemplatesController.removeMessage forwards lang and key, reports what was removed', async () => {
+  const calls: unknown[][] = []
+  const result: unknown = await handler.removeMessage.call(
+    fakeThis({ removeMessage: (...args: unknown[]) => (calls.push(args), Promise.resolve()) }),
+    { payload: { params: { lang: 'es', key: 'a' } } } as HandlerContext<never>,
+  )
+  assertEquals(result, { removed: 'es/a' })
+  assertEquals(calls, [['es', 'a']])
+})
+
+Deno.test('TemplatesController.messageEntries splits the languages, passes the search and wraps the rows', async () => {
+  const calls: unknown[][] = []
+  const result: unknown = await handler.messageEntries.call(
+    fakeThis({
+      listMessageEntries: (
+        ...args: unknown[]
+      ) => (calls.push(args), Promise.resolve([{ key: 'a' }])),
+    }),
+    { payload: { search: { langs: 'es, en', q: 'hola' } } } as HandlerContext<never>,
+  )
+  assertEquals(result, { entries: [{ key: 'a' }] })
+  assertEquals(calls, [[{ langs: ['es', 'en'], search: 'hola' }]])
+})
+
+Deno.test('TemplatesController.resetMessage forwards lang, key and the session id', async () => {
+  const calls: unknown[][] = []
+  const result: unknown = await handler.resetMessage.call(
+    fakeThis({
+      resetMessage: (...args: unknown[]) => (calls.push(args), Promise.resolve({ text: 'uno' })),
+    }),
+    {
+      payload: { params: { lang: 'es', key: 'a' } },
+      session: { id: 'admin-7' },
+    } as unknown as HandlerContext<never>,
+  )
+  assertEquals(result, { text: 'uno' })
+  assertEquals(calls, [['es', 'a', 'admin-7']])
+})
+
+Deno.test('TemplatesController.preview renders with the data and language of the body, no data meaning {}', async () => {
+  const calls: unknown[][] = []
+  const interactor = {
+    preview: (...args: unknown[]) => (calls.push(args), Promise.resolve({ body: 'x' })),
+  }
+  const ask = (body: unknown) =>
+    handler.preview.call(
+      fakeThis(interactor),
+      {
+        payload: { params: { channel: 'email', name: 'welcome' }, body },
+      } as unknown as HandlerContext<never>,
+    )
+
+  assertEquals(await ask({ data: { n: 1 }, lang: 'es' }), { body: 'x' })
+  await ask({})
+  assertEquals(calls, [['email', 'welcome', { n: 1 }, 'es'], ['email', 'welcome', {}, undefined]])
+})

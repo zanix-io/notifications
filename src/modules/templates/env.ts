@@ -90,6 +90,12 @@ export const templatesModelName = (): string =>
   Deno.env.get(TEMPLATES_MODEL_ENV) || DEFAULT_TEMPLATES_MODEL_NAME
 
 /**
+ * The collection of the message catalog (the texts a template reads with `{{t 'key'}}`), named after
+ * the templates collection so the two always travel together: no env var of its own.
+ */
+export const templatesMessagesModelName = (): string => `${templatesModelName()}-messages`
+
+/**
  * Env var naming the central Notification/Template Service's *internal admin* base URL — required
  * when `TEMPLATES_BACKEND=remote` is selected (see `templatesBackendMode()`; Mode C,
  * `docs/templates.md#mode-c-remote-only-templates`): every `resolve()` call is then fetched against

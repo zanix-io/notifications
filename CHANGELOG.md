@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-12
+
+### Added
+
+- **`registerTemplateSeeds()`: a consumer registers the templates and texts it wants in the
+  collections, and they sync automatically.** `{ templates, messages }`, called at module level
+  before the app starts. They are **code templates and code texts**: one more source of the sync the
+  library already does for its built-ins (`planTemplateSync` for the templates, `planCodeSync` for
+  the texts), so they follow the same rule and lifecycle — added when missing with `source: 'code'`,
+  updated while nobody edits the record, an edit never overwritten, one the consumer stops
+  registering becomes `source: 'database'` and stays. A name the library already has replaces the
+  library's words (a branded built-in). They are synced by the models' own seeders when the
+  collection is ready (`DATABASE_SEEDERS=false`: by the first `resolve()`), so a consumer needs no
+  call after start, and no seeder name, hash or owner is stored on the record. Invalid Handlebars is
+  skipped and logged. Only the `local` backend has a collection. New types `TemplateSeed` and
+  `TemplateSeedOptions`, also on `@zanix/notifications/templates-types`; see
+  [Seeding templates from the consumer](./docs/templates.md#seeding-templates-from-the-consumer).
+- **Messages in several languages without a template per language: `lang`, the `t` helper and a
+  message catalog.** A message sent from a template takes `lang`
+  (`email({ to, zanixTemplate, lang,
+  data })`); the template reads its words with
+  `{{t 'key' name=value}}`; the words live in a catalog of texts by `{lang, key}`, so a new language
+  is a set of texts and no new template. A text is looked up in the language, its base (`es-MX` →
+  `es`) and `NOTIFICATIONS_DEFAULT_LANG` (`en` by default); `count` picks the plural form
+  (`key.one`, `key.other`, from `Intl.PluralRules`); a missing key shows as the key and is logged
+  once. The helper is built per render, bound to the language, so the compiled-template cache does
+  not grow per language; values are escaped in an email and not in an SMS or WhatsApp message. The
+  catalog loads only for a template that uses `t`, once per message. New:
+  `TemplateProvider.resolveMessage()` (body and subject; `resolve()` keeps answering the body, now
+  with an optional `lang`), the `ZanixTemplateMessage` model (`<templates model>-messages`,
+  registered with the templates model on `local`), and
+  `TemplatesAdminRepository`/`TemplatesAdminService` `listMessages`/`setMessage`/`removeMessage`
+  with `GET /templates/messages?langs=`, `PUT`/`DELETE /templates/messages/:lang/:key` on the
+  templates controller. `RemoteTemplateBackend` reads the catalog from the central service's
+  `GET <prefix>/messages` (a `404` is an empty catalog), and `NotifierProvider` loads the languages
+  of the queued messages on the main thread for a background worker, as it does the templates.
+  Exported: `defaultLang`, `langChain`, `DEFAULT_LANG_ENV`, `MessageCatalog`, `MessageTexts`,
+  `ZanixTemplateMessageAttrs`, `SetTemplateMessageInput`.
+- `registerTemplateSeeds({ messagesDir })` loads the catalog from `<folder>/<lang>/*.json`, and
+  `registerTemplateSeeds({ adopt })` hands over to the code the `source: 'database'` records a
+  consumer wrote before (recognized by its predicate on the `hbs`), so they sync like the rest with
+  no manual migration.
+- **The subject of an email is a text of the catalog.** `<template name>.subject` (Handlebars-free:
+  `{name}` placeholders, same plural rules), in the message's language: an email sent from a
+  template with no `subject` of its own takes it; a `subject` on the message still wins, and with no
+  such text the email has none. The `subject` of a template email message is now optional in the
+  types (a plain-text email still needs it).
+- The message model keeps `source` (`'code'` | `'database'`) and `lastSyncedText`, the same fields
+  the templates use to tell what the code owns from what an operator edited.
+
+- **What a screen that edits the texts needs, in the templates API.**
+  `GET /templates/message-entries` (the texts with `source`, `edited`, `defaultText`, `version`,
+  `updatedBy`; filter by `langs` and `q`), `POST /templates/messages/:lang/:key/reset` (a code text
+  back to the one last synced in) and `POST /templates/:channel/:name/preview` (`{data, lang}` →
+  `{body, subject}`, rendered as a send does). New types `MessageEntry` and `TemplatePreview`,
+  `TemplatesAdminRepository.listMessageEntries`/ `resetMessage` and
+  `TemplatesAdminService.listMessageEntries`/`resetMessage`/`preview`. The `@zanix/validator` import
+  now asks for `@zanix/utils@^4.7.0` (`IsObject`).
+
+- **The built-in templates read their words from a catalog, so `lang` works on them.**
+  `LIBRARY_MESSAGES` (`en`, `es`) holds the words of `welcome`, `password-changed`,
+  `password-recovery`, `login-otp` and `new-login` (email, with their `<name>.subject`) and of the
+  SMS and WhatsApp `otp` and `new-login`. A derived template's `transform` is now
+  `(data, t) => parentData`; the transactional functions take an optional `lang`
+  (`emailTemplates.welcome(data, 'es')`), and `TemplateProvider.resolve()` passes the message's. The
+  texts are synced into the message collection like a consumer's (`source: 'code'`), the library's
+  first so a consumer's same `{lang, key}` replaces them, and the library's stay beneath the
+  database catalog as a fallback, so a deleted or missing text never shows as a bare key. English
+  output keeps its words; line breaks inside the HTML and the SMS were normalized, and the values an
+  email fills in (`device`, `location`...) are now escaped.
+
+### Fixed
+
+- **`assertValidHandlebarsSyntax()` rejected a template that reads message texts.** It runs the
+  compiled template with no data, and `{{t 'key'}}` called a helper that only exists while a message
+  renders; it now stands in for `t`, so the templates API and the seeds accept such a template. Any
+  other unknown helper is still rejected.
+
+### Changed
+
+- The code→database sync is now `ensureTemplatesSynced(Model)`, shared by the first `resolve()` and
+  the model's seeder, so whichever comes first does the work once per process and the other waits
+  for it. `DATABASE_SEEDERS=false` skips the seeder and the first `resolve()` does it, as before.
+
 ## [1.2.3] - 2026-09-06
 
 ### Fixed

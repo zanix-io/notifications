@@ -5,7 +5,12 @@ import type {
   SmsGenericTemplateSchema,
 } from 'typings/templates.ts'
 
+import type { Translator } from '../i18n.ts'
+
 import { execTemplate } from '../mod.ts'
+import { libraryTranslator } from '../library-messages.ts'
+
+const defaultT = libraryTranslator('sms')
 
 /** Renders a generic SMS message. */
 export const generic = (data: SmsGenericTemplateSchema): Promise<string> => {
@@ -20,14 +25,18 @@ export const generic = (data: SmsGenericTemplateSchema): Promise<string> => {
  */
 export const otpToGeneric = (
   data: OTPTemplateSchema,
+  t: Translator = defaultT,
 ): SmsGenericTemplateSchema => ({
-  content: `Your ${data.app ? data.app + ' ' : ''}verification code is ${data.code}. 
-It expires in ${data.ttl} minutes. Don't share this code with anyone.`,
+  content: t('sms.otp.content', {
+    app: data.app ? data.app + ' ' : '',
+    code: data.code,
+    ttl: data.ttl,
+  }),
 })
 
 /** Renders OTP SMS message */
-export const otp = (data: OTPTemplateSchema): Promise<string> => {
-  return execTemplate('sms/generic', otpToGeneric(data))
+export const otp = (data: OTPTemplateSchema, lang?: string): Promise<string> => {
+  return execTemplate('sms/generic', otpToGeneric(data, libraryTranslator('sms', lang)))
 }
 
 /**
@@ -38,17 +47,19 @@ export const otp = (data: OTPTemplateSchema): Promise<string> => {
  */
 export const newLoginToGeneric = (
   data: NewLoginTemplateSchema,
+  t: Translator = defaultT,
 ): SmsGenericTemplateSchema => ({
-  content: `${
-    data.app ? data.app + ' ' : ''
-  }New login detected on your account from ${data.device} at ${data.time}${
-    data.location ? ` (${data.location})` : ''
-  }. If this wasn't you, secure your account immediately.`,
+  content: t('sms.new-login.content', {
+    app: data.app ? data.app + ' ' : '',
+    device: data.device,
+    time: data.time,
+    location: data.location ? t('sms.new-login.location', { location: data.location }) : '',
+  }),
 })
 
 /** Renders new-login (unrecognized device) security notification SMS message */
-export const newLogin = (data: NewLoginTemplateSchema): Promise<string> => {
-  return execTemplate('sms/generic', newLoginToGeneric(data))
+export const newLogin = (data: NewLoginTemplateSchema, lang?: string): Promise<string> => {
+  return execTemplate('sms/generic', newLoginToGeneric(data, libraryTranslator('sms', lang)))
 }
 
 /**
@@ -74,8 +85,8 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
  */
 const smsTemplates: {
   generic: (data: SmsGenericTemplateSchema) => Promise<string>
-  otp: (data: OTPTemplateSchema) => Promise<string>
-  'new-login': (data: NewLoginTemplateSchema) => Promise<string>
+  otp: (data: OTPTemplateSchema, lang?: string) => Promise<string>
+  'new-login': (data: NewLoginTemplateSchema, lang?: string) => Promise<string>
 } = {
   generic,
   otp,

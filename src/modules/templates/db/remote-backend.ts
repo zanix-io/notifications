@@ -1,4 +1,5 @@
 import type { Notifiers } from 'typings/general.ts'
+import type { MessageCatalog } from '../i18n.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { TemplateBackend } from './backend.ts'
 
@@ -67,9 +68,13 @@ interface RemoteCacheEntry {
  */
 const remoteFetchCache = new Map<string, RemoteCacheEntry>()
 
+/** Fetch cache for `RemoteTemplateBackend.messages()`, keyed by the requested languages. */
+const remoteMessagesCache = new Map<string, { value: MessageCatalog; expiresAt: number }>()
+
 /** Resets the module-level remote fetch cache — test-only. */
 export function resetRemoteTemplateBackendCache(): void {
   remoteFetchCache.clear()
+  remoteMessagesCache.clear()
 }
 
 /**
@@ -334,6 +339,41 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
       value,
       expiresAt: Date.now() + this.#cacheTtlMs,
     })
+    return value
+  }
+
+  /**
+   * Nothing to hand over: a background worker reaches the central service on its own.
+   *
+   * @param _langs The languages the queued messages use.
+   */
+  public preloadMessages(_langs: string[]): Promise<MessageCatalog | undefined> {
+    return Promise.resolve(undefined)
+  }
+
+  /**
+   * Loads the message catalog for `langs` from the central service's `GET <pathPrefix>/messages`,
+   * through the same short TTL cache `resolve()` uses. A `404` (a central service older than the
+   * catalog) is an empty catalog, so the templates still render with their keys shown; any other
+   * failure rethrows without being cached.
+   */
+  public async messages(langs: string[]): Promise<MessageCatalog> {
+    const key = [...langs].sort().join(',')
+    const cached = remoteMessagesCache.get(key)
+    if (cached && cached.expiresAt > Date.now()) return cached.value
+
+    let value: MessageCatalog
+    try {
+      value = await this.http.get<MessageCatalog>(
+        `${this.#pathPrefix}/messages?langs=${encodeURIComponent(langs.join(','))}`,
+        { headers: await this.#authHeaders() },
+      )
+    } catch (error) {
+      if (realHttpStatus(error) !== 404) throw error
+      value = {}
+    }
+
+    remoteMessagesCache.set(key, { value, expiresAt: Date.now() + this.#cacheTtlMs })
     return value
   }
 }

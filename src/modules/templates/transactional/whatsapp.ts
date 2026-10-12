@@ -4,7 +4,12 @@ import type {
   WhatsappGenericTemplateSchema,
 } from 'typings/templates.ts'
 
+import type { Translator } from '../i18n.ts'
+
 import { execTemplate } from '../mod.ts'
+import { libraryTranslator } from '../library-messages.ts'
+
+const defaultT = libraryTranslator('whatsapp')
 
 /** Renders a generic WhatsApp message. */
 export const generic = (
@@ -21,14 +26,17 @@ export const generic = (
  */
 export const otpToGeneric = (
   data: OTPTemplateSchema,
+  t: Translator = defaultT,
 ): WhatsappGenericTemplateSchema => ({
-  content: `Your ${data.app ? data.app + ' ' : ''}verification code is ${data.code}.
-It expires in ${data.ttl} minutes. Don't share this code with anyone.`,
+  content: t('whatsapp.otp.content', {
+    app: data.app ? data.app + ' ' : '',
+    code: data.code,
+    ttl: data.ttl,
+  }),
 })
 
-/** Renders an OTP WhatsApp message */
-export const otp = (data: OTPTemplateSchema): Promise<string> => {
-  return execTemplate('whatsapp/generic', otpToGeneric(data))
+export const otp = (data: OTPTemplateSchema, lang?: string): Promise<string> => {
+  return execTemplate('whatsapp/generic', otpToGeneric(data, libraryTranslator('whatsapp', lang)))
 }
 
 /** This channel's derived templates — see `transactional/sms.ts`'s `derivedTemplates` for the full rationale. */
@@ -51,7 +59,7 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
  */
 const whatsappTemplates: {
   generic: (data: WhatsappGenericTemplateSchema) => Promise<string>
-  otp: (data: OTPTemplateSchema) => Promise<string>
+  otp: (data: OTPTemplateSchema, lang?: string) => Promise<string>
 } = {
   generic,
   otp,

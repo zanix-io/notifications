@@ -603,3 +603,73 @@ Deno.test(
     assertEquals(fetchCalls, 0)
   },
 )
+
+Deno.test('RemoteTemplateBackend: messages() GETs admin/templates/messages with the languages and the credentials', async () => {
+  let url: string | undefined
+  let init: RequestInit | undefined
+  const catalog = { es: { a: 'uno' }, en: { a: 'one' } }
+
+  const result = await withFakeFetch(
+    autoSync((input, request) => {
+      url = String(input)
+      init = request
+      return new Response(JSON.stringify(catalog), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }),
+    () => freshBackend().messages(['es', 'en']),
+  )
+
+  assertEquals(url, 'https://templates.internal.example/admin/templates/messages?langs=es%2Cen')
+  assertEquals(
+    (init?.headers as Record<string, string>)['X-Znx-Authorization'],
+    'Bearer service-token',
+  )
+  assertEquals(result, catalog)
+})
+
+Deno.test('RemoteTemplateBackend: messages() is cached for the TTL, whatever the order of the languages', async () => {
+  let fetchCalls = 0
+  await withFakeFetch(
+    autoSync(() => {
+      fetchCalls++
+      return new Response(JSON.stringify({ es: { a: 'uno' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }),
+    async () => {
+      const backend = freshBackend()
+      await backend.messages(['es', 'en'])
+      await backend.messages(['en', 'es'])
+    },
+  )
+  assertEquals(fetchCalls, 1)
+})
+
+Deno.test('RemoteTemplateBackend: messages() is an empty catalog on a 404, and rethrows any other failure without caching it', async () => {
+  const empty = await withFakeFetch(
+    autoSync(() => new Response('{}', { status: 404 })),
+    () => freshBackend().messages(['es']),
+  )
+  assertEquals(empty, {})
+
+  let calls = 0
+  await withFakeFetch(
+    autoSync(() => {
+      calls++
+      return new Response('{}', { status: 500 })
+    }),
+    async () => {
+      const backend = freshBackend()
+      await assertRejects(() => backend.messages(['es']))
+      await assertRejects(() => backend.messages(['es']))
+    },
+  )
+  assertEquals(calls, 2)
+})
+
+Deno.test('RemoteTemplateBackend: a worker reaches the central service on its own, so there is nothing to preload', async () => {
+  assertEquals(await freshBackend().preloadMessages(['es']), undefined)
+})

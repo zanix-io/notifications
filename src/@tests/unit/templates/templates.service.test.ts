@@ -1,4 +1,4 @@
-import { assertEquals } from 'jsr:@std/assert@^1.0.15'
+import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
 import { TemplatesAdminService } from 'modules/templates/db/templates.service.ts'
 import type { TemplatesAdminRepository } from 'modules/templates/db/templates.repository.ts'
 
@@ -63,4 +63,78 @@ Deno.test('TemplatesAdminService delegates every method to the repository', asyn
       'admin-1',
     ],
   ])
+})
+
+Deno.test('TemplatesAdminService delegates the message catalog to the repository', async () => {
+  const calls: unknown[] = []
+  const repository: Partial<TemplatesAdminRepository> = {
+    listMessages: (langs) => (calls.push(['listMessages', langs]), Promise.resolve({})),
+    setMessage: (lang, key, text, by) => (
+      calls.push(['setMessage', lang, key, text, by]), Promise.resolve({} as never)
+    ),
+    removeMessage: (lang, key) => (calls.push(['removeMessage', lang, key]), Promise.resolve()),
+  }
+  const service: TemplatesAdminService = fakeService(repository)
+
+  await service.listMessages(['es'])
+  await service.setMessage('es', 'k', 'texto', 'admin')
+  await service.removeMessage('es', 'k')
+
+  assertEquals(calls, [
+    ['listMessages', ['es']],
+    ['setMessage', 'es', 'k', 'texto', 'admin'],
+    ['removeMessage', 'es', 'k'],
+  ])
+})
+
+Deno.test('TemplatesAdminService delegates the catalog listing and the reset to the repository', async () => {
+  const calls: unknown[] = []
+  const service: TemplatesAdminService = fakeService({
+    listMessageEntries: (options) => (calls.push(['entries', options]), Promise.resolve([])),
+    resetMessage: (lang, key, by) => (
+      calls.push(['reset', lang, key, by]), Promise.resolve({} as never)
+    ),
+  })
+
+  await service.listMessageEntries({ langs: ['es'], search: 'hola' })
+  await service.resetMessage('es', 'k', 'admin')
+
+  assertEquals(calls, [['entries', { langs: ['es'], search: 'hola' }], [
+    'reset',
+    'es',
+    'k',
+    'admin',
+  ]])
+})
+
+function previewService(resolveMessage: (...args: unknown[]) => Promise<unknown>) {
+  const instance = Object.create(TemplatesAdminService.prototype)
+  Object.defineProperty(instance, 'providers', { value: { get: () => ({ resolveMessage }) } })
+  return instance as TemplatesAdminService
+}
+
+Deno.test('TemplatesAdminService.preview renders like a send does, asking an email for its subject', async () => {
+  const asked: unknown[][] = []
+  const service = previewService((...args) => {
+    asked.push(args)
+    return Promise.resolve({ body: '<p>hola</p>', subject: 'Asunto' })
+  })
+
+  assertEquals(await service.preview('email', 'welcome', { a: 1 }, 'es'), {
+    body: '<p>hola</p>',
+    subject: 'Asunto',
+  })
+  assertEquals(asked[0], ['email', 'welcome', { a: 1 }, 'es', { subject: true }])
+
+  const sms = previewService((...args) => (asked.push(args), Promise.resolve({ body: 'hola' })))
+  assertEquals(await sms.preview('sms', 'otp', {}), { body: 'hola' })
+  assertEquals(asked[1][4], { subject: false })
+})
+
+Deno.test('TemplatesAdminService.preview answers BAD_REQUEST when the template cannot be rendered', async () => {
+  const service = previewService(() => Promise.reject(new Error('Template not found: email/x')))
+
+  const error = await assertRejects(() => service.preview('email', 'x', {}), Error)
+
+  assertEquals((error as { status?: { code: string } }).status?.code, 'BAD_REQUEST')
 })

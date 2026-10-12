@@ -35,11 +35,18 @@
 
 export type {
   CreateTemplateInput,
+  MessageEntry,
+  SetTemplateMessageInput,
   SyncCodeTemplateEntry,
   SyncCodeTemplatesResult,
+  TemplatePreview,
+  TemplateSeed,
+  TemplateSeedOptions,
   TemplateSource,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
+  ZanixTemplateMessageAttrs,
 } from 'typings/templates-db.ts'
+export type { MessageCatalog, MessageTexts } from 'modules/templates/i18n.ts'
 export type { TemplatesControllerOptions } from 'typings/templates-api.ts'
 export type { Notifiers } from 'typings/general.ts'

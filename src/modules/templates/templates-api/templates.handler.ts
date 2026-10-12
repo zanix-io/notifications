@@ -1,10 +1,25 @@
 import type { HandlerContext, MiddlewareGuard } from '@zanix/server'
-import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
+import type {
+  MessageEntry,
+  TemplatePreview,
+  ZanixTemplateAttrs,
+  ZanixTemplateMessageAttrs,
+} from 'typings/templates-db.ts'
+import type { MessageCatalog } from '../i18n.ts'
 import type { TemplatesControllerOptions } from 'typings/templates-api.ts'
 
 import { Controller, Delete, Get, Guard, Post, Put, ZanixController } from '@zanix/server'
 import { TemplatesAdminService } from '../db/templates.service.ts'
-import { CreateTemplateRTO, TemplateParamsRTO, UpdateTemplateRTO } from './rtos/templates.rto.ts'
+import {
+  CreateTemplateRTO,
+  MessageEntriesSearchRTO,
+  MessageParamsRTO,
+  MessagesSearchRTO,
+  PreviewTemplateRTO,
+  SetMessageRTO,
+  TemplateParamsRTO,
+  UpdateTemplateRTO,
+} from './rtos/templates.rto.ts'
 
 // Re-exported for backward compatibility — `TemplatesControllerOptions` used to be declared
 // directly in this file; it now lives in `typings/templates-api.ts`, which only references
@@ -34,6 +49,30 @@ export interface TemplatesControllerInstance extends ZanixController<TemplatesAd
   remove(
     ctx: HandlerContext<{ params: TemplateParamsRTO }>,
   ): Promise<{ deactivated: string }>
+  /** `GET /messages?langs=es,en` — the message catalog, by language and then by key. */
+  messages(
+    ctx: HandlerContext<{ search: MessagesSearchRTO }>,
+  ): Promise<MessageCatalog>
+  /** `PUT /messages/:lang/:key` — sets the text of a key in a language. */
+  setMessage(
+    ctx: HandlerContext<{ params: MessageParamsRTO; body: SetMessageRTO }>,
+  ): Promise<ZanixTemplateMessageAttrs & Record<string, unknown>>
+  /** `DELETE /messages/:lang/:key` — removes the text of a key in a language. */
+  removeMessage(
+    ctx: HandlerContext<{ params: MessageParamsRTO }>,
+  ): Promise<{ removed: string }>
+  /** `GET /message-entries?langs=&q=` — the texts with their source, default and edit state. */
+  messageEntries(
+    ctx: HandlerContext<{ search: MessageEntriesSearchRTO }>,
+  ): Promise<{ entries: MessageEntry[] }>
+  /** `POST /messages/:lang/:key/reset` — puts a code text back to its default. */
+  resetMessage(
+    ctx: HandlerContext<{ params: MessageParamsRTO }>,
+  ): Promise<ZanixTemplateMessageAttrs & Record<string, unknown>>
+  /** `POST /:channel/:name/preview` — renders a template with the data and language given. */
+  preview(
+    ctx: HandlerContext<{ params: TemplateParamsRTO; body: PreviewTemplateRTO }>,
+  ): Promise<TemplatePreview & Record<string, unknown>>
 }
 
 /** Combines a guard list into ONE guard: runs each in order, short-circuiting on the first
@@ -148,6 +187,79 @@ export function createTemplatesController(
       const { channel, name } = ctx.payload.params
       await this.interactor.remove(channel, name, ctx.session?.id ?? 'unknown')
       return { deactivated: name }
+    }
+
+    // The message catalog (`{{t 'key'}}`): the texts by language, so a new language is a set of texts
+    // and no new template. A path of three segments (`messages/:lang/:key`) never meets
+    // `:channel/:name`, and the plain `messages` is the one a remote backend reads.
+    @Get('messages', { Search: MessagesSearchRTO })
+    @Guard(guard)
+    public messages(
+      ctx: HandlerContext<{ search: MessagesSearchRTO }>,
+    ): Promise<MessageCatalog> {
+      const langs = ctx.payload.search.langs?.split(',').map((lang) => lang.trim()).filter(Boolean)
+      return this.interactor.listMessages(langs)
+    }
+
+    @Put('messages/:lang/:key', { Params: MessageParamsRTO, Body: SetMessageRTO })
+    @Guard(guard)
+    public async setMessage(
+      ctx: HandlerContext<{ params: MessageParamsRTO; body: SetMessageRTO }>,
+    ): Promise<ZanixTemplateMessageAttrs & Record<string, unknown>> {
+      const { lang, key } = ctx.payload.params
+      return {
+        ...(await this.interactor.setMessage(
+          lang,
+          key,
+          ctx.payload.body.text,
+          ctx.session?.id ?? 'unknown',
+        )),
+      }
+    }
+
+    @Delete('messages/:lang/:key', { Params: MessageParamsRTO })
+    @Guard(guard)
+    public async removeMessage(
+      ctx: HandlerContext<{ params: MessageParamsRTO }>,
+    ): Promise<{ removed: string }> {
+      const { lang, key } = ctx.payload.params
+      await this.interactor.removeMessage(lang, key)
+      return { removed: `${lang}/${key}` }
+    }
+
+    // For a screen that edits the catalog. One segment on purpose: `message-entries` cannot meet
+    // `:channel/:name`. The plain `messages` stays what a remote backend reads.
+    @Get('message-entries', { Search: MessageEntriesSearchRTO })
+    @Guard(guard)
+    public async messageEntries(
+      ctx: HandlerContext<{ search: MessageEntriesSearchRTO }>,
+    ): Promise<{ entries: MessageEntry[] }> {
+      const { langs, q } = ctx.payload.search
+      return {
+        entries: await this.interactor.listMessageEntries({
+          langs: langs?.split(',').map((lang) => lang.trim()).filter(Boolean),
+          search: q,
+        }),
+      }
+    }
+
+    @Post('messages/:lang/:key/reset', { Params: MessageParamsRTO })
+    @Guard(guard)
+    public async resetMessage(
+      ctx: HandlerContext<{ params: MessageParamsRTO }>,
+    ): Promise<ZanixTemplateMessageAttrs & Record<string, unknown>> {
+      const { lang, key } = ctx.payload.params
+      return { ...(await this.interactor.resetMessage(lang, key, ctx.session?.id ?? 'unknown')) }
+    }
+
+    @Post(':channel/:name/preview', { Params: TemplateParamsRTO, Body: PreviewTemplateRTO })
+    @Guard(guard)
+    public async preview(
+      ctx: HandlerContext<{ params: TemplateParamsRTO; body: PreviewTemplateRTO }>,
+    ): Promise<TemplatePreview & Record<string, unknown>> {
+      const { channel, name } = ctx.payload.params
+      const { data, lang } = ctx.payload.body
+      return { ...(await this.interactor.preview(channel, name, data ?? {}, lang)) }
     }
   }
 

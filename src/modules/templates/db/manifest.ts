@@ -216,3 +216,28 @@ export const resetPreloadedDBTemplates = (
 ) => {
   preloadedDBTemplates = values
 }
+
+/**
+ * The texts of the message catalog already loaded for a worker, keyed `` `znx:msg:${lang}` `` — the
+ * counterpart of {@linkcode getPreloadedDBTemplates} for `{{t 'key'}}`: a one-time worker cannot open
+ * its own database connection, so `NotifierProvider.onDestroy()` loads the languages of the queued
+ * messages on the main thread and hands them over, once per invocation. A language with no texts is
+ * kept, as an empty object, so the worker does not go looking for it.
+ */
+let preloadedMessages = new Map<`znx:msg:${string}`, Record<string, string>>()
+
+/** Returns the shared cache of preloaded message texts. */
+export const getPreloadedMessages = (): Map<`znx:msg:${string}`, Record<string, string>> =>
+  preloadedMessages
+
+/**
+ * Replaces the shared cache of preloaded message texts — called once per one-time-worker invocation
+ * (see `sendBackgroundMessage()`), and in tests to reset state between cases.
+ *
+ * @param values The map to use as the new shared cache. Defaults to an empty map.
+ */
+export const resetPreloadedMessages = (
+  values = new Map<`znx:msg:${string}`, Record<string, string>>(),
+) => {
+  preloadedMessages = values
+}

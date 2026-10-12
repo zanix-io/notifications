@@ -1,7 +1,8 @@
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
-import type { MongoModelDefinition } from '@zanix/database'
+import type { AdaptedModel, MongoModelDefinition } from '@zanix/database'
 
 import { NOTIFIER_CHANNELS } from 'utils/constants.ts'
+import { ensureTemplatesSynced } from './local-backend.ts'
 
 /**
  * Builds the model definition backing the `ZanixTemplate` model — see `typings/templates-db.ts`
@@ -38,6 +39,17 @@ export function templateModelDefinition(): MongoModelDefinition<
       updatedBy: { type: String },
     },
     options: { timestamps: true },
+    // Brings the collection up to date the moment it is ready, at every connector start, with no call
+    // from the consumer: the code templates are synced (the library's own and the consumer's, see
+    // `registerTemplateSeeds`). `DATABASE_SEEDERS=false` skips it, and the first resolve syncs instead.
+    extensions: {
+      seeders: [{
+        handler: async (Model) => {
+          await ensureTemplatesSynced(Model as AdaptedModel<ZanixTemplateAttrs>)
+        },
+        options: { name: 'template-sync', verbose: false, runningMode: 'always' },
+      }],
+    },
     // Compound unique index on {channel, name} — expressed via the schema-instance callback since
     // it isn't part of the plain field definition itself.
     callback: (schema) => {

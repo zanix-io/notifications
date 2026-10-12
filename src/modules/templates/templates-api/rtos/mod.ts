@@ -11,4 +11,13 @@
  *
  * @module
  */
-export { CreateTemplateRTO, TemplateParamsRTO, UpdateTemplateRTO } from './templates.rto.ts'
+export {
+  CreateTemplateRTO,
+  MessageEntriesSearchRTO,
+  MessageParamsRTO,
+  MessagesSearchRTO,
+  PreviewTemplateRTO,
+  SetMessageRTO,
+  TemplateParamsRTO,
+  UpdateTemplateRTO,
+} from './templates.rto.ts'

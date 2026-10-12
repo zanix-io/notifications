@@ -36,8 +36,9 @@ Deno.test({
       provider.sendMessage('email', {
         from: Deno.env.get('TEST_EMAIL_FROM') ?? 'noreply@example.com',
         to: Deno.env.get('TEST_EMAIL_TO') as string,
-        subject: 'Welcome to Zanix',
+        // No `subject` and a `lang`: the subject is the library's text for `welcome`, in Spanish.
         zanixTemplate: 'welcome',
+        lang: 'es',
         data: { buttonText: 'Click here' },
         // content:'text'
       }, {

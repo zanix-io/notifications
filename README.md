@@ -42,6 +42,12 @@ It provides a unified and extensible system for:
 - Support for pre-defined templates (Handlebars-based), per channel
 - Native WhatsApp Business template messages (Meta/Twilio), for starting conversations outside the
   24h session window
+- Messages in several languages without a template per language: `lang` on the message, the `t`
+  helper in the template, and a message catalog by language (see
+  [Messages and languages](./docs/templates.md#messages-and-languages))
+- A consumer's own templates, texts and branded versions of the built-ins, seeded automatically with
+  `registerTemplateSeeds()` (see
+  [Seeding templates](./docs/templates.md#seeding-templates-from-the-consumer))
 - Optional worker for background, queued processing
 - Zero-config connector registration from environment variables
 - Easy integration with your application

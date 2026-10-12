@@ -622,3 +622,196 @@ Deno.test('toSyncCodeTemplateEntries: keeps only live, self-contained entries, i
     },
   ])
 })
+
+// ---- message catalog ----
+
+type MessageRow = { lang: string; key: string; text: string; version?: number; updatedBy?: string }
+
+function fakeMessagesThis(rows: MessageRow[]) {
+  const model = {
+    find: (query: { lang?: { $in: string[] } }) =>
+      Promise.resolve(query.lang ? rows.filter((r) => query.lang?.$in.includes(r.lang)) : rows),
+    findOneAndUpdate: (
+      { lang, key }: { lang: string; key: string },
+      { $set, $inc }: { $set: { text: string; updatedBy: string }; $inc: { version: number } },
+    ) => {
+      let row = rows.find((r) => r.lang === lang && r.key === key)
+      if (!row) rows.push(row = { lang, key, text: '', version: 0 })
+      Object.assign(row, $set)
+      row.version = (row.version ?? 0) + $inc.version
+      return Promise.resolve({ toJSON: () => ({ ...row }) })
+    },
+    deleteOne: ({ lang, key }: { lang: string; key: string }) => {
+      const at = rows.findIndex((r) => r.lang === lang && r.key === key)
+      if (at >= 0) rows.splice(at, 1)
+      return Promise.resolve()
+    },
+  }
+  const instance = Object.create(TemplatesAdminRepository.prototype)
+  Object.defineProperty(instance, 'database', {
+    value: { isReady: Promise.resolve(), getModel: () => model },
+  })
+  return instance
+}
+
+Deno.test('TemplatesAdminRepository.listMessages groups the texts by language and key', async () => {
+  const rows = [
+    { lang: 'es', key: 'a', text: 'uno' },
+    { lang: 'es', key: 'b', text: 'dos' },
+    { lang: 'en', key: 'a', text: 'one' },
+  ]
+  assertEquals(await repo.listMessages.call(fakeMessagesThis(rows)), {
+    es: { a: 'uno', b: 'dos' },
+    en: { a: 'one' },
+  })
+  assertEquals(await repo.listMessages.call(fakeMessagesThis(rows), ['en']), { en: { a: 'one' } })
+})
+
+Deno.test('TemplatesAdminRepository.setMessage creates a text, then replaces it and bumps the version', async () => {
+  const rows: MessageRow[] = []
+  const instance = fakeMessagesThis(rows)
+
+  const first = await repo.setMessage.call(instance, 'es', 'greet', 'Hola', 'admin-1')
+  assertEquals([first.text, first.version, first.updatedBy], ['Hola', 1, 'admin-1'])
+
+  const second = await repo.setMessage.call(instance, 'es', 'greet', 'Buenas', 'admin-2')
+  assertEquals([second.text, second.version, second.updatedBy], ['Buenas', 2, 'admin-2'])
+  assertEquals(rows.length, 1)
+})
+
+Deno.test('TemplatesAdminRepository.setMessage refuses a language that is not a tag, and an empty or slashed key', async () => {
+  const instance = fakeMessagesThis([])
+  for (const [lang, key] of [['español', 'k'], ['es', ''], ['es', 'a/b'], ['', 'k']]) {
+    // deno-lint-ignore no-await-in-loop
+    const error = await assertRejects(
+      () => repo.setMessage.call(instance, lang, key, 'x', 'admin'),
+      HttpError,
+    )
+    assertEquals(error.status.code, 'BAD_REQUEST')
+  }
+  // Tags with a region or script are fine.
+  await repo.setMessage.call(instance, 'es-MX', 'k', 'x', 'admin')
+  await repo.setMessage.call(instance, 'zh-Hant-TW', 'k', 'x', 'admin')
+})
+
+Deno.test('TemplatesAdminRepository.removeMessage drops a text, and a text that is not there is not an error', async () => {
+  const rows = [{ lang: 'es', key: 'a', text: 'uno' }]
+  const instance = fakeMessagesThis(rows)
+  await repo.removeMessage.call(instance, 'es', 'a')
+  await repo.removeMessage.call(instance, 'es', 'a')
+  assertEquals(rows, [])
+})
+
+// ---- message catalog, as a screen edits it ----
+
+type EntryRow = MessageRow & {
+  source: 'code' | 'database'
+  lastSyncedText?: string
+  version: number
+}
+
+function fakeEntriesThis(rows: EntryRow[]) {
+  const matches = (row: EntryRow, query: { lang?: unknown; key?: string }) =>
+    (!query.lang || (query.lang as { $in: string[] }).$in.includes(row.lang)) &&
+    (!query.key || row.key === query.key)
+  const model = {
+    find: (query: { lang?: unknown }) => ({
+      lean: () => Promise.resolve(rows.filter((row) => matches(row, query))),
+    }),
+    findOne: (query: { lang?: string; key?: string }) => ({
+      lean: () =>
+        Promise.resolve(
+          rows.find((row) => row.lang === query.lang && row.key === query.key) ?? null,
+        ),
+    }),
+    findOneAndUpdate: (
+      { lang, key }: { lang: string; key: string },
+      { $set, $inc }: { $set: { text: string; updatedBy: string }; $inc: { version: number } },
+    ) => {
+      const row = rows.find((r) => r.lang === lang && r.key === key) as EntryRow
+      Object.assign(row, $set)
+      row.version += $inc.version
+      return Promise.resolve({ toJSON: () => ({ ...row }) })
+    },
+  }
+  const instance = Object.create(TemplatesAdminRepository.prototype)
+  Object.defineProperty(instance, 'database', {
+    value: { isReady: Promise.resolve(), getModel: () => model },
+  })
+  return instance
+}
+
+const entryRows = (): EntryRow[] => [
+  { lang: 'es', key: 'b', text: 'dos', source: 'code', lastSyncedText: 'dos', version: 1 },
+  {
+    lang: 'es',
+    key: 'a',
+    text: 'Uno editado',
+    source: 'code',
+    lastSyncedText: 'uno',
+    version: 3,
+    updatedBy: 'admin-1',
+  },
+  { lang: 'en', key: 'a', text: 'one', source: 'database', version: 1 },
+]
+
+Deno.test('TemplatesAdminRepository.listMessageEntries says where each text comes from and whether it was edited', async () => {
+  const entries = await repo.listMessageEntries.call(fakeEntriesThis(entryRows()))
+
+  assertEquals(entries.map((e: { lang: string; key: string }) => `${e.key}/${e.lang}`), [
+    'a/en',
+    'a/es',
+    'b/es',
+  ])
+  assertEquals(entries[1], {
+    lang: 'es',
+    key: 'a',
+    text: 'Uno editado',
+    source: 'code',
+    edited: true,
+    defaultText: 'uno',
+    version: 3,
+    updatedBy: 'admin-1',
+  })
+  // A text created through the API is nobody's default, and untouched code text is not "edited".
+  assertEquals([entries[0].edited, 'defaultText' in entries[0]], [false, false])
+  assertEquals(entries[2].edited, false)
+})
+
+Deno.test('TemplatesAdminRepository.listMessageEntries filters by language and by a search on key or text', async () => {
+  const instance = fakeEntriesThis(entryRows())
+
+  assertEquals(
+    (await repo.listMessageEntries.call(instance, { langs: ['en'] })).length,
+    1,
+  )
+  assertEquals(
+    (await repo.listMessageEntries.call(instance, { search: 'EDITADO' })).map((
+      e: { key: string },
+    ) => e.key),
+    ['a'],
+  )
+  assertEquals((await repo.listMessageEntries.call(instance, { search: 'nothing' })).length, 0)
+})
+
+Deno.test('TemplatesAdminRepository.resetMessage puts a code text back to its default and bumps the version', async () => {
+  const rows = entryRows()
+  const reset = await repo.resetMessage.call(fakeEntriesThis(rows), 'es', 'a', 'admin-2')
+
+  assertEquals([reset.text, reset.version, reset.updatedBy], ['uno', 4, 'admin-2'])
+})
+
+Deno.test('TemplatesAdminRepository.resetMessage refuses a text that is not there and one with no default', async () => {
+  const instance = fakeEntriesThis(entryRows())
+
+  assertEquals(
+    (await assertRejects(() => repo.resetMessage.call(instance, 'fr', 'a', 'x'), HttpError)).status
+      .code,
+    'NOT_FOUND',
+  )
+  assertEquals(
+    (await assertRejects(() => repo.resetMessage.call(instance, 'en', 'a', 'x'), HttpError)).status
+      .code,
+    'BAD_REQUEST',
+  )
+})

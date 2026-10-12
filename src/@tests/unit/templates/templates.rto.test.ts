@@ -2,6 +2,11 @@ import { assert, assertEquals } from 'jsr:@std/assert@^1.0.15'
 import { classValidation } from '@zanix/validator'
 import {
   CreateTemplateRTO,
+  MessageEntriesSearchRTO,
+  MessageParamsRTO,
+  MessagesSearchRTO,
+  PreviewTemplateRTO,
+  SetMessageRTO,
   TemplateParamsRTO,
   UpdateTemplateRTO,
 } from 'modules/templates/templates-api/rtos/templates.rto.ts'
@@ -69,4 +74,23 @@ Deno.test('UpdateTemplateRTO rejects a non-boolean active value', async () => {
     threw = true
   }
   assert(threw)
+})
+
+Deno.test('the message RTOs validate the catalog routes', async () => {
+  assertEquals((await classValidation(MessagesSearchRTO, { langs: 'es,en' })).langs, 'es,en')
+  assertEquals((await classValidation(MessagesSearchRTO, {})).langs, undefined)
+
+  const params = await classValidation(MessageParamsRTO, { lang: 'es-MX', key: 'login-otp.title' })
+  assertEquals([params.lang, params.key], ['es-MX', 'login-otp.title'])
+  assertEquals((await classValidation(SetMessageRTO, { text: 'Hola {name}' })).text, 'Hola {name}')
+})
+
+Deno.test('the catalog-screen RTOs: message-entries search and the preview body', async () => {
+  const search = await classValidation(MessageEntriesSearchRTO, { langs: 'es,en', q: 'hola' })
+  assertEquals([search.langs, search.q], ['es,en', 'hola'])
+  assertEquals((await classValidation(MessageEntriesSearchRTO, {})).q, undefined)
+
+  const body = await classValidation(PreviewTemplateRTO, { data: { name: 'Ana' }, lang: 'es' })
+  assertEquals([body.data, body.lang], [{ name: 'Ana' }, 'es'])
+  assertEquals((await classValidation(PreviewTemplateRTO, {})).data, undefined)
 })

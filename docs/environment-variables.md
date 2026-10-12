@@ -97,6 +97,12 @@ mode-inference design, removed entirely with no dual-read. See
 | `TEMPLATES_BACKEND`    | No       | Selects the persisted-backend mode: `'local'` (Modes A/B, a `@zanix/datamaster`-backed collection) or `'remote'` (Mode C, over HTTP). **Unset (default): fully disabled** — pure code rendering, no database access at all. Any other value throws at boot. See [Templates](./templates.md#database-backed-templates). | `local`           |
 | `TEMPLATES_MODEL_NAME` | No       | Names the `ZanixTemplate` model — only consulted when `TEMPLATES_BACKEND=local`; optional even then, defaulting to `zanix-templates`. Requires a registered `@zanix/datamaster` `ZanixMongoConnector` (`MONGO_URI`). Setting this without `TEMPLATES_BACKEND=local` has no effect.                                     | `zanix-templates` |
 
+## Message language
+
+| Variable                     | Required | Description                                                                                                                                                                                                         | Example |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `NOTIFICATIONS_DEFAULT_LANG` | No       | The language a message uses when it names none, and the last one a missing text falls back to (`{{t 'key'}}`). A BCP 47 tag. Defaults to `en`. See [Messages and languages](./templates.md#messages-and-languages). | `es`    |
+
 ## Remote-only templates (Mode C)
 
 Only consulted when `TEMPLATES_BACKEND=remote` (see above) — setting any of these without also

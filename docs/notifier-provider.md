@@ -61,6 +61,23 @@ await provider.email({
 `subject` only applies to (and is required for) `email`; SMS/WhatsApp ignore it, along with `from`
 and `date`.
 
+## Language and subject of a template message
+
+A message sent from a template takes a `lang` (a BCP 47 tag) next to `zanixTemplate` and `data`: the
+language the template's `{{t 'key'}}` texts resolve in — see
+[Messages and languages](./templates.md#messages-and-languages). An email sent from a template may
+omit `subject`: it takes the text `<zanixTemplate>.subject` of the catalog, in the same language.
+`lang` is for the template and is never sent on to the channel.
+
+```ts
+await provider.email({
+  to: 'ana@example.com',
+  zanixTemplate: 'order-shipped', // a DB-backed template reading its words with {{t}}
+  lang: 'es',
+  data: { name: 'Ana' },
+}) // no `subject`: the text `order-shipped.subject`, in Spanish
+```
+
 ## Native WhatsApp provider templates
 
 WhatsApp has its own, separate template concept — a pre-approved Business template required to start

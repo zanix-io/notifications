@@ -1,5 +1,6 @@
 import type { Notifiers } from 'typings/general.ts'
 import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
+import type { MessageCatalog } from '../i18n.ts'
 
 /**
  * A source `TemplateProvider.resolve()` can fetch a persisted `ZanixTemplate` record from — a
@@ -42,4 +43,23 @@ export interface TemplateBackend {
     channel: Notifiers,
     name: string,
   ): Promise<ZanixTemplateAttrs | undefined>
+
+  /**
+   * Loads the message catalog (the texts a template reads with `{{t 'key'}}`) for `langs`.
+   *
+   * @param langs The languages to load, as a message's `langChain()`.
+   * @returns The texts by language and then by key; a language with none is absent. Any failure
+   * (network, auth, 5xx) must `throw`: `TemplateProvider` catches it and renders without texts.
+   */
+  messages(langs: string[]): Promise<MessageCatalog>
+
+  /**
+   * Loads the message catalog for `langs` on the main thread, for a background worker that cannot
+   * reach the source itself (see `preload()`).
+   *
+   * @param langs The languages to load.
+   * @returns The catalog, or `undefined` when the worker can reach the source on its own (a remote
+   * service) and there is nothing to hand over.
+   */
+  preloadMessages(langs: string[]): Promise<MessageCatalog | undefined>
 }

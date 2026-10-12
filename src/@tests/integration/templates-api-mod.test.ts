@@ -40,11 +40,15 @@ Deno.test(
     const registered = Object.values(routes).filter((route) => route.path.startsWith(`/${prefix}`))
 
     // list (GET), get (GET :channel/:name), create (POST), update (PUT :channel/:name), remove
-    // (DELETE :channel/:name) — every route `templates.handler.ts` declares.
-    assertEquals(registered.length, 5)
+    // (DELETE :channel/:name), and the message catalog: messages (GET messages), setMessage (PUT
+    // messages/:lang/:key), removeMessage (DELETE messages/:lang/:key), and what a screen that
+    // edits the catalog needs: messageEntries (GET message-entries), resetMessage (POST
+    // messages/:lang/:key/reset), preview (POST :channel/:name/preview) — every route
+    // `templates.handler.ts` declares.
+    assertEquals(registered.length, 11)
     assertEquals(
       registered.map((route) => route.httpMethod).sort(),
-      ['DELETE', 'GET', 'GET', 'POST', 'PUT'],
+      ['DELETE', 'DELETE', 'GET', 'GET', 'GET', 'GET', 'POST', 'POST', 'POST', 'PUT', 'PUT'],
     )
   },
 )

@@ -2,7 +2,13 @@ import type emailTemplates from 'modules/templates/transactional/email/mod.ts'
 import type smsTemplates from 'modules/templates/transactional/sms.ts'
 import type whatsappTemplates from 'modules/templates/transactional/whatsapp.ts'
 
-import type { MessageContentOf, NotifyMessage, TemplateDataOf } from 'typings/general.ts'
+import type {
+  MessageContentOf,
+  NotifyMessage,
+  TemplateContentOf,
+  TemplateDataOf,
+  TextContent,
+} from 'typings/general.ts'
 
 /**
  * Types derived from each channel's own compiled template registry (`modules/templates/
@@ -31,11 +37,16 @@ export type MessageContent<T extends DefaultTemplates> = MessageContentOf<
   T
 >
 
-/** Notify message options */
+/**
+ * Notify message options. A plain-text email needs its `subject`; one sent from a template may omit it
+ * and take the one the template carries (`ZanixTemplateAttrs.subject`), in the message's language.
+ */
 export type NotifyMessageWithTemplate<T extends DefaultTemplates> =
   & Omit<NotifyMessage, 'content' | 'subject'>
-  & { subject: string }
-  & MessageContent<T>
+  & (
+    | (TextContent & { subject: string })
+    | (TemplateContentOf<typeof emailTemplates, T> & { subject?: string })
+  )
 
 // --- SMS ---
 

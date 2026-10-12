@@ -2,17 +2,20 @@ import type { Model, ZanixMongoConnector } from '@zanix/database'
 import type { Notifiers } from 'typings/general.ts'
 import type {
   CreateTemplateInput,
+  MessageEntry,
   SyncCodeTemplateEntry,
   SyncCodeTemplatesResult,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
+  ZanixTemplateMessageAttrs,
 } from 'typings/templates-db.ts'
+import type { MessageCatalog } from '../i18n.ts'
 
 import { Provider, ZanixProvider } from '@zanix/server'
 import { HttpError } from '@zanix/errors'
 import { generateUUID, planCodeSync } from '@zanix/helpers'
 import { assertValidHandlebarsSyntax } from '../hbs-validation.ts'
-import { templatesModelName } from '../provider.ts'
+import { templatesMessagesModelName, templatesModelName } from '../provider.ts'
 import { DERIVED_TEMPLATES, isDuplicateKeyError, seedMissingDerivedTemplates } from './manifest.ts'
 import { DERIVED_FIELDS_VERSION, planUntouchedTemplateUpdates } from './sync.ts'
 
@@ -98,6 +101,12 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
   private async model(): Promise<Model<ZanixTemplateAttrs>> {
     await this.database.isReady
     return this.database.getModel<ZanixTemplateAttrs>(templatesModelName())
+  }
+
+  /** Resolves the message catalog `Model` once the connector is ready. */
+  private async messageModel(): Promise<Model<ZanixTemplateMessageAttrs>> {
+    await this.database.isReady
+    return this.database.getModel<ZanixTemplateMessageAttrs>(templatesMessagesModelName())
   }
 
   /** Returns every persisted template, optionally filtered to one `channel`. */
@@ -383,5 +392,134 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
       seeded: seededFlags.filter(Boolean).length + derivedSeeded,
       resynced: plan.toResync.length,
     }
+  }
+
+  // ---- message catalog (the texts a template reads with `{{t 'key'}}`) ----
+
+  /**
+   * Returns the message catalog: the texts by language and then by key.
+   *
+   * @param langs Only these languages; every language when omitted.
+   */
+  public async listMessages(langs?: string[]): Promise<MessageCatalog> {
+    const Model = await this.messageModel()
+    const rows = await Model.find(langs?.length ? { lang: { $in: langs } } : {}) as Pick<
+      ZanixTemplateMessageAttrs,
+      'lang' | 'key' | 'text'
+    >[]
+    const catalog: MessageCatalog = {}
+    for (const { lang, key, text } of rows) (catalog[lang] ??= {})[key] = text
+    return catalog
+  }
+
+  /**
+   * The message catalog with what a screen needs to edit it (see {@link MessageEntry}), one row per
+   * text, ordered by key then language.
+   *
+   * @param options `langs` limits the languages; `search` keeps the rows whose key or text contains it,
+   * ignoring case.
+   */
+  public async listMessageEntries(
+    options: { langs?: string[]; search?: string } = {},
+  ): Promise<MessageEntry[]> {
+    const { langs, search } = options
+    const Model = await this.messageModel()
+    const rows = await Model.find(langs?.length ? { lang: { $in: langs } } : {}).lean() as Pick<
+      ZanixTemplateMessageAttrs,
+      'lang' | 'key' | 'text' | 'source' | 'lastSyncedText' | 'version' | 'updatedBy'
+    >[]
+    const needle = search?.trim().toLowerCase()
+    return rows
+      .filter((row) =>
+        !needle || row.key.toLowerCase().includes(needle) || row.text.toLowerCase().includes(needle)
+      )
+      .map((row): MessageEntry => ({
+        lang: row.lang,
+        key: row.key,
+        text: row.text,
+        source: row.source,
+        edited: row.source === 'code' && row.text !== row.lastSyncedText,
+        ...(row.source === 'code' && row.lastSyncedText !== undefined &&
+          { defaultText: row.lastSyncedText }),
+        version: row.version,
+        ...(row.updatedBy && { updatedBy: row.updatedBy }),
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key) || a.lang.localeCompare(b.lang))
+  }
+
+  /**
+   * Puts a code text back to the text the code last synced in, dropping an operator's edit. The sync
+   * then follows the code again, so a later change in the code reaches it.
+   *
+   * @throws {HttpError} `NOT_FOUND` if the text does not exist.
+   * @throws {HttpError} `BAD_REQUEST` if it is not a code text: a `'database'` text has no default.
+   */
+  public async resetMessage(
+    lang: string,
+    key: string,
+    updatedBy: string,
+  ): Promise<ZanixTemplateMessageAttrs> {
+    const Model = await this.messageModel()
+    const current = await Model.findOne({ lang, key }).lean() as
+      | Pick<ZanixTemplateMessageAttrs, 'source' | 'lastSyncedText'>
+      | null
+    if (!current) throw new HttpError('NOT_FOUND', { meta: { lang, key } })
+    if (current.source !== 'code' || current.lastSyncedText === undefined) {
+      throw new HttpError('BAD_REQUEST', {
+        message: 'Only a text that comes from code has a default to go back to.',
+        meta: { source: 'zanix', method: 'TemplatesAdminRepository', lang, key },
+      })
+    }
+    const saved = await Model.findOneAndUpdate(
+      { lang, key },
+      { $set: { text: current.lastSyncedText, updatedBy }, $inc: { version: 1 } },
+      { new: true },
+    )
+    return saved?.toJSON() as ZanixTemplateMessageAttrs
+  }
+
+  /**
+   * Sets the text of `key` in `lang`, creating it or replacing the earlier one, and bumps its version.
+   * An edit through here marks the text as edited: a seed never overwrites it afterwards.
+   *
+   * @throws {HttpError} `BAD_REQUEST` if `lang` is not a BCP 47 tag, or `key` is empty or has a `/`.
+   */
+  public async setMessage(
+    lang: string,
+    key: string,
+    text: string,
+    updatedBy: string,
+  ): Promise<ZanixTemplateMessageAttrs> {
+    assertValidMessageAddress(lang, key)
+    const Model = await this.messageModel()
+    const saved = await Model.findOneAndUpdate(
+      { lang, key },
+      { $set: { text, updatedBy }, $inc: { version: 1 }, $setOnInsert: { source: 'database' } },
+      { new: true, upsert: true },
+    )
+    return saved?.toJSON() as ZanixTemplateMessageAttrs
+  }
+
+  /**
+   * Removes the text of `key` in `lang`. Idempotent: a text that is not there is not an error.
+   */
+  public async removeMessage(lang: string, key: string): Promise<void> {
+    const Model = await this.messageModel()
+    await Model.deleteOne({ lang, key })
+  }
+}
+
+/** A BCP 47 language tag: `es`, `en`, `es-MX`, `zh-Hant-TW`. */
+const LANG_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/
+
+function assertValidMessageAddress(lang: string, key: string): void {
+  if (!LANG_TAG.test(lang) || !key || key.includes('/')) {
+    throw new HttpError('BAD_REQUEST', {
+      meta: {
+        lang,
+        key,
+        message: 'A message needs a BCP 47 language tag and a non-empty key without "/".',
+      },
+    })
   }
 }

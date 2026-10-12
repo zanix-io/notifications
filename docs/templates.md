@@ -230,6 +230,139 @@ isn't accepted at all — there's no compiled CSS/schema behind a hand-created r
   since which record to edit depends on whether you want to change what it inherits or give it
   independent content.
 
+### Messages and languages
+
+A template does not need one copy per language. It reads its words with the `t` helper, and the
+words live in a **message catalog**, one text per `{lang, key}`, so a new language is a set of texts
+and no new template:
+
+```handlebars
+<h1>{{t 'login-otp.title'}}</h1>
+<p>{{{t 'login-otp.expires' ttl=ttl}}}</p>
+```
+
+```ts
+await notifier.email({
+  to: 'ana@example.com',
+  zanixTemplate: 'login-otp',
+  lang: 'es-MX', // the language of this message
+  data: { code: '123456', ttl: 10 },
+})
+```
+
+- **The language of a message** is its `lang` field (a BCP 47 tag such as `es` or `es-MX`). A text
+  is looked up in the language, then in its base (`es-MX` → `es`), then in
+  `NOTIFICATIONS_DEFAULT_LANG` (`en` when unset). A message with no `lang` uses only the default. A
+  key no language has shows as the key itself and is logged once; it is never sent as an empty
+  string.
+- **The text** may carry `{name}` placeholders, filled from the arguments of the call
+  (`{{t 'key' name=name}}`). With `count`, the plural form of the language is tried first
+  (`key.one`, `key.other`, ... from `Intl.PluralRules`), then the plain key. The text itself is
+  trusted markup (an operator wrote it); in an email the values are escaped as HTML, in an SMS or a
+  WhatsApp message they are not.
+- **The subject** of an email is one more text of the catalog: the key `<template name>.subject`
+  (for `login-otp`, `login-otp.subject`), filled with the message's data. An email sent from a
+  template with no `subject` of its own takes it, in its language; a `subject` on the message always
+  wins, and with no such text the email has none.
+- **Where the catalog is.** With `TEMPLATES_BACKEND=local`, in its own collection (the templates
+  collection's name plus `-messages`), edited through the same templates API
+  (`GET /templates/messages?langs=es,en`, `PUT`/`DELETE /templates/messages/:lang/:key`). With
+  `remote` (Mode C), it is read from the central service's `GET <prefix>/messages`, through the same
+  TTL cache as the templates; a central service older than the catalog answers `404` and is an empty
+  catalog. A template reads the catalog only when it uses `t`, once per message, and a failure
+  loading it falls back to the code registry like any other failure of the backend.
+- **For a screen that edits the texts**, the templates API adds three routes next to the catalog
+  ones (all behind the same guards): `GET /templates/message-entries?langs=&q=` answers
+  `{ entries }`, one row per text with
+  `{lang, key, text, source, edited, defaultText, version,
+  updatedBy}` (`edited` is a code text
+  changed after it was last synced in; `defaultText` is what it goes back to),
+  `POST /templates/messages/:lang/:key/reset` puts a code text back to its default (`400` for a text
+  created through the API, which has none), and `POST /templates/:channel/:name/preview` with
+  `{data?, lang?}` renders the template as a send would and answers `{body, subject?}`. The plain
+  `GET /templates/messages` stays what a remote backend reads.
+- **Background workers.** A one-time worker has no database: `NotifierProvider` loads the languages
+  of the queued messages on the main thread and hands them over, as it does the templates.
+- **The built-in templates read texts too.** The words of `welcome`, `password-changed`,
+  `password-recovery`, `login-otp` and `new-login` (email) and of the SMS and WhatsApp `otp` and
+  `new-login` are the catalog `LIBRARY_MESSAGES`, in English and Spanish: keys
+  `<name>.title|content|message|subject` for an email, `<channel>.<name>.content` for an SMS or
+  WhatsApp message, and `footer.rights`. The derived templates build their data from those keys
+  (`transform(data, t)`), so `lang` works on them with no database: the code registry reads the
+  library's catalog, a database-backed one reads the same texts synced into the collection
+  (`source: 'code'`) with the library's beneath as a fallback. A consumer overrides any key by
+  registering the same `{lang, key}` with `registerTemplateSeeds({ messages })` or `messagesDir`,
+  and keeps the layout it has in `email/generic`. The values an email fills into these texts are
+  escaped.
+
+### Seeding templates from the consumer
+
+A consumer that wants its own templates and texts in the collections — its transactional messages,
+its branded wording for a built-in — registers them once, at module level, before the app starts:
+
+```ts
+import { registerTemplateSeeds } from '@zanix/notifications'
+
+registerTemplateSeeds({
+  // Added when missing, kept up to date while nobody edits them. A name the library already has
+  // replaces the library's words, so a built-in can be branded.
+  templates: [
+    {
+      channel: 'email',
+      name: 'order-shipped',
+      hbs: '<h1>{{t "order-shipped.title" name=name}}</h1>',
+    },
+    { channel: 'sms', name: 'otp', hbs: 'My App: {{{code}}}' },
+  ],
+  // The catalog, by language and key; `<template>.subject` is the subject of an email.
+  messages: {
+    en: {
+      'order-shipped.title': 'On its way, {name}',
+      'order-shipped.subject': 'Your order shipped',
+    },
+    es: {
+      'order-shipped.title': 'Va en camino, {name}',
+      'order-shipped.subject': 'Tu pedido salió',
+    },
+  },
+})
+```
+
+Nothing new runs for them: they are **code templates and code texts**, one more source of the sync
+the library already does for its own built-ins (`planTemplateSync` for the templates, `planCodeSync`
+for the texts), so they follow the same rule and the same lifecycle, run by the models' own seeders
+when the collection is ready (and by the first `resolve()` when `DATABASE_SEEDERS=false`). No seeder
+name, hash or owner of their own is stored: a record carries `source: 'code'` and what was last
+synced in, like any built-in. Only the `local` backend has a collection, so with any other mode the
+registration has no effect. Registering the same `{channel, name}` or `{lang, key}` again replaces
+the earlier one.
+
+**An edit is never overwritten, and a second boot adds nothing.**
+
+| Record                                                          | What the sync does                                                         |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| No record                                                       | Adds it, `source: 'code'`                                                  |
+| Words (or text) changed in the consumer, record still as synced | Updates it and its `lastSynced…`, the version goes up                      |
+| Edited, through the admin API or the database                   | Left alone: the edit wins                                                  |
+| The consumer stopped registering it                             | Becomes `source: 'database'` and keeps its words, never deleted            |
+| Created through the admin API (`source: 'database'`)            | Never touched, and a registered one with the same name does not replace it |
+
+**Texts as files.** `messagesDir` takes a folder `<lang>/*.json`, each file a flat
+`{ "key": "text" }` (`messages/es/mail.json`), read when the texts sync and merged with `messages`
+(which wins on the same key):
+`registerTemplateSeeds({ templates, messagesDir: new URL('./messages', import.meta.url) })`.
+
+**Records written before the code owned them.** A record created through the admin API or by an
+older seeder is `source: 'database'`, so the sync leaves it alone, even when a registered template
+has its name. `adopt: (hbs) => boolean` lets the consumer recognize its own (for example by a marker
+it wrote in the `hbs`): those become `source: 'code'` with their current words as the last synced
+ones, and the sync updates them like any other. A record the predicate does not recognize is never
+touched.
+
+A template whose `hbs` is not valid Handlebars is skipped and logged, and never stops a boot.
+Replicas starting together are safe: an insert is atomic (`$setOnInsert`) and an update is
+conditioned on the version read.
+
 ### Behavior across multiple instances
 
 The sync memo and compiled-render cache are per-process, not shared across replicas — each instance

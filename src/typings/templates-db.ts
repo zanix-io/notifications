@@ -91,6 +91,53 @@ export interface ZanixTemplateAttrs {
 }
 
 /**
+ * One template a consumer provides to the templates collection, through {@link registerTemplateSeeds}:
+ * the same fields {@link CreateTemplateInput} takes.
+ */
+export type TemplateSeed =
+  & Pick<ZanixTemplateAttrs, 'channel' | 'name'>
+  & Required<Pick<ZanixTemplateAttrs, 'hbs'>>
+  & Partial<Pick<ZanixTemplateAttrs, 'description' | 'availableVariables'>>
+
+/** What a consumer registers with `registerTemplateSeeds`. */
+export interface TemplateSeedOptions {
+  /**
+   * The consumer's own templates, kept in the collection the way the library keeps its built-in ones
+   * (`source: 'code'`): added when missing, brought up to date when they change while nobody has edited
+   * the record, never over an edit. A name the library already has replaces the library's words, so a
+   * consumer can brand a built-in. A later registration of the same `{channel, name}` replaces an
+   * earlier one.
+   */
+  templates?: readonly TemplateSeed[]
+
+  /**
+   * Texts of the message catalog (`{{t 'key'}}`), by language and then by key, kept by the same rule as
+   * {@link templates}. The text `<template>.subject` is the subject of an email sent from that template
+   * with no `subject` of its own.
+   */
+  messages?: Readonly<Record<string, Readonly<Record<string, string>>>>
+
+  /**
+   * A folder with the same texts as files, `<folder>/<lang>/*.json`, each file a flat object
+   * `{ "key": "text" }` (`messages/es/mail.json`). Relative paths resolve from the working directory; a
+   * `URL` (`new URL('./messages', import.meta.url)`) from the file that wrote it. Read when the texts
+   * sync, not when registered, and merged with {@link messages} (which wins on the same key).
+   */
+  messagesDir?: string | URL
+
+  /**
+   * Hands over the record of a template this consumer wrote before the code owned it (created through
+   * the admin API or by an older seeder, so `source: 'database'`). Called with the `hbs` of each such
+   * record that has the `{channel, name}` of a registered template; when it answers `true`, the
+   * record becomes `source: 'code'` with its current words as the last synced ones, and the sync then
+   * brings it up to date like any other (an edit still wins, because only a record the predicate
+   * recognizes as the consumer's own, e.g. by a marker it wrote in the `hbs`, is handed over).
+   * Without it, such a record is never touched.
+   */
+  adopt?: (hbs: string) => boolean
+}
+
+/**
  * Fields accepted to create a new {@link ZanixTemplateAttrs} entry — derived from it so a caller
  * (`TemplatesAdminRepository.create`, `@zanix/admin`'s `TemplatesAdminClient`/`CreateTemplateRTO`)
  * never hand-re-declares this field list independently of the schema it targets.
@@ -136,4 +183,64 @@ export interface SyncCodeTemplateEntry {
 export type SyncCodeTemplatesResult = {
   seeded: number
   resynced: number
+}
+
+/**
+ * One text of the message catalog a template reads with `{{t 'key'}}`: the words for a key in one
+ * language, kept apart from the templates so a new language is a set of texts and no new template.
+ * The text may carry `{name}` placeholders, filled from the arguments of the `t` call, and HTML when
+ * the template is an email. A key with plural forms has one text per form (`key.one`, `key.other`).
+ */
+export interface ZanixTemplateMessageAttrs {
+  /** The language of the text, a BCP 47 tag (`es`, `en`, `es-MX`). */
+  lang: string
+
+  /** The key the template asks for. */
+  key: string
+
+  /** The words, with `{name}` placeholders. */
+  text: string
+
+  /** Bumped on each edit. */
+  version: number
+
+  /** Free-text actor id of the last edit. */
+  updatedBy?: string
+
+  /**
+   * `'code'` if the text is provided by a consumer's registered seed and kept in sync with it,
+   * `'database'` if it was created through the admin API — see {@link ZanixTemplateAttrs.source}.
+   */
+  source: TemplateSource
+
+  /** Only meaningful for `source: 'code'` — the text last synced in; a `text` that differs was edited since. */
+  lastSyncedText?: string
+}
+
+/** Fields accepted to set the text of a key in a language. */
+export type SetTemplateMessageInput = Pick<ZanixTemplateMessageAttrs, 'lang' | 'key' | 'text'>
+
+/**
+ * One text of the message catalog as the admin API lists it, with what a screen needs to edit it:
+ * where it comes from, whether an operator changed it, and the text to go back to.
+ */
+export interface MessageEntry {
+  lang: string
+  key: string
+  text: string
+  /** `'code'`: the library or the consumer's code owns it; `'database'`: it was created here. */
+  source: 'code' | 'database'
+  /** The text of a code text was changed after it was last synced in: the sync leaves it alone. */
+  edited: boolean
+  /** The text the code last synced in; what a reset goes back to. Absent for a `'database'` text. */
+  defaultText?: string
+  version: number
+  updatedBy?: string
+}
+
+/** What a template renders to for a given data and language, as the preview answers it. */
+export interface TemplatePreview {
+  body: string
+  /** An email's subject (`<template>.subject` of the catalog); absent when there is none. */
+  subject?: string
 }

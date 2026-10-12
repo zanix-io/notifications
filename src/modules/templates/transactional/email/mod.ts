@@ -63,7 +63,7 @@ const templates: {
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
-  welcome: (data?: WelcomeTemplateSchema) => Promise<string>
+  welcome: (data?: WelcomeTemplateSchema, lang?: string) => Promise<string>
 
   /**
    * Renders a password changed notification template.
@@ -72,7 +72,10 @@ const templates: {
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
-  'password-changed': (data?: PasswordChangedTemplateSchema) => Promise<string>
+  'password-changed': (
+    data?: PasswordChangedTemplateSchema,
+    lang?: string,
+  ) => Promise<string>
 
   /**
    * Renders a password recovery notification template.
@@ -85,6 +88,7 @@ const templates: {
    */
   'password-recovery': (
     data?: PasswordRecoveryTemplateSchema,
+    lang?: string,
   ) => Promise<string>
 
   /**
@@ -96,7 +100,7 @@ const templates: {
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
-  'login-otp': (data?: LoginWithOTPTemplateSchema) => Promise<string>
+  'login-otp': (data?: LoginWithOTPTemplateSchema, lang?: string) => Promise<string>
 
   /**
    * Renders a new-login (unrecognized device) security notification template.
@@ -106,7 +110,7 @@ const templates: {
    *
    * @returns {Promise<string>} A promise that resolves to the rendered template as a string.
    */
-  'new-login': (data: NewLoginEmailTemplateSchema) => Promise<string>
+  'new-login': (data: NewLoginEmailTemplateSchema, lang?: string) => Promise<string>
 
   /**
    * Renders an itemized-table document — an invoice, receipt, order confirmation, or quote.

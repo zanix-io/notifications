@@ -16,7 +16,8 @@ import type { ZanixTemplateAttrs } from 'typings/templates-db.ts'
 import type { CoreModules, WorkerDispatchMode } from '@zanix/server'
 
 import { InternalError } from '@zanix/errors'
-import { resetPreloadedDBTemplates } from '../templates/db/manifest.ts'
+import { resetPreloadedDBTemplates, resetPreloadedMessages } from '../templates/db/manifest.ts'
+import { langChain } from '../templates/i18n.ts'
 import { dispatchWorkerTask, ZanixProvider } from '@zanix/server'
 import { notifierConnectors } from '../mod.ts'
 import { TemplateProvider } from '../templates/provider.ts'
@@ -266,15 +267,23 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
         return
       }
 
-      const { zanixTemplate, data, content, ...messageData } =
+      const { zanixTemplate, data, content, lang, ...messageData } =
         message as AnyNotifyMessageWithTemplate
-      const body = zanixTemplate
-        ? await this.providers.get(TemplateProvider).resolve(
+      let body = content as string
+      if (zanixTemplate) {
+        const resolved = await this.providers.get(TemplateProvider).resolveMessage(
           notifier,
           zanixTemplate,
           data as Record<string, unknown>,
+          lang,
+          // An email with no subject takes the text `<template>.subject` of the catalog.
+          { subject: notifier === 'email' && !messageData.subject },
         )
-        : content as string
+        body = resolved.body
+        if (notifier === 'email' && !messageData.subject && resolved.subject) {
+          messageData.subject = resolved.subject
+        }
+      }
 
       await client.send({ content: body, ...messageData })
     } catch (e) {
@@ -310,12 +319,14 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
       ZanixTemplateAttrs | undefined
     >()
     const preloads: Promise<void>[] = []
+    const messages = new Map<`znx:msg:${string}`, Record<string, string>>()
+    const messageLangs = new Set<string>()
     const templateProvider = this.providers.get(TemplateProvider)
 
     let totalTimeout = 0
     // 'persisted' wins for the whole batch if any queued message asked for it — see `WithWorker`.
     let mode: WorkerDispatchMode = 'one-time'
-    const messages = this.#queue.map(
+    const queued = this.#queue.map(
       ({ callback, timeout, mode: itemMode, ...msg }) => {
         if (callback) callbacks.push(callback)
         if (itemMode === 'persisted') mode = 'persisted'
@@ -332,12 +343,19 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
               templates,
             ),
           )
+          // The worker has no database of its own: the texts its templates read are loaded here too.
+          for (
+            const lang of langChain((msg.message as AnyNotifyMessageWithTemplate).lang)
+          ) messageLangs.add(lang)
         }
         totalTimeout = +timeout
         return msg
       },
     )
 
+    if (messageLangs.size) {
+      preloads.push(templateProvider.preloadMessages([...messageLangs], messages))
+    }
     await Promise.all(preloads)
 
     dispatchWorkerTask(sendBackgroundMessage, {
@@ -348,7 +366,7 @@ export class NotifierProvider extends ZanixCoreNotificationsProvider {
         callbacks.forEach((callback) => callback(response))
       },
       timeout: totalTimeout,
-    })(messages, templates)
+    })(queued, templates, messages)
   }
 }
 
@@ -385,6 +403,7 @@ export async function sendBackgroundMessage(
     `znx:${Notifiers}:${string}`,
     ZanixTemplateAttrs | undefined
   >,
+  messages: Map<`znx:msg:${string}`, Record<string, string>> = new Map(),
 ) {
   const uniqueNotifiers = [
     ...new Set(
@@ -403,6 +422,7 @@ export async function sendBackgroundMessage(
   // branch that's the only thing reading this cache. There's nothing for it to (mis)set for that
   // kind of message, regardless of a batch's message order/mix.
   resetPreloadedDBTemplates(templates)
+  resetPreloadedMessages(messages)
 
   const provider = new NotifierProvider(crypto.randomUUID())
 

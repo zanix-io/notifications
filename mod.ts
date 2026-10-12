@@ -136,6 +136,7 @@ export {
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
+  templatesMessagesModelName,
   templatesModelName,
 } from 'modules/templates/provider.ts'
 
@@ -143,10 +144,38 @@ export type { TemplatesBackendMode } from 'modules/templates/provider.ts'
 
 export type {
   CreateTemplateInput,
+  MessageEntry,
+  SetTemplateMessageInput,
+  TemplatePreview,
+  TemplateSeed,
+  TemplateSeedOptions,
   TemplateSource,
   UpdateTemplateInput,
   ZanixTemplateAttrs,
+  ZanixTemplateMessageAttrs,
 } from 'typings/templates-db.ts'
+
+/**
+ * Message languages: the texts a template reads with `{{t 'key'}}` and the language a message asks
+ * for (`lang`), with the chain of languages tried for it (the language, its base, then
+ * `NOTIFICATIONS_DEFAULT_LANG`).
+ */
+export {
+  DEFAULT_LANG_ENV,
+  defaultLang,
+  langChain,
+  type MessageCatalog,
+  type MessageTexts,
+} from 'modules/templates/i18n.ts'
+export type { ResolvedTemplate } from 'modules/templates/provider.ts'
+
+/**
+ * Registers the templates a consumer wants in the templates collection (its own transactional
+ * messages, its branded versions of the built-ins), so they are there from the first boot with no
+ * call after start — see its own JSDoc for the rule: an edit is never overwritten and a second boot
+ * adds nothing. Only the `local` templates backend has a collection to seed.
+ */
+export { registerTemplateSeeds } from 'modules/templates/db/seeds.ts'
 
 /**
  * Data access and business logic for this package's own templates collection — the actual owner

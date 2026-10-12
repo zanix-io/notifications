@@ -14,9 +14,11 @@ import {
   assertTemplatesBackendConfigValid,
   TemplateProvider,
   templatesBackendMode,
+  templatesMessagesModelName,
   templatesModelName,
 } from './provider.ts'
 import { templateModelDefinition } from './db/schema.ts'
+import { templateMessageModelDefinition } from './db/messages-schema.ts'
 
 // Fail fast at boot on an invalid `TEMPLATES_BACKEND` value, or an incompletely-configured
 // `'remote'` selection — see `assertTemplatesBackendConfigValid()`'s own doc comment. Runs before
@@ -56,6 +58,7 @@ const zanixTemplateProvider: void = Provider({ lifetime: 'SCOPED' })(
 // never read unless `'local'` is actually selected — see `templatesBackendMode()`'s own doc.
 if (templatesBackendMode() === 'local') {
   registerModel({ name: templatesModelName(), ...templateModelDefinition() })
+  registerModel({ name: templatesMessagesModelName(), ...templateMessageModelDefinition() })
 }
 
 export default zanixTemplateProvider

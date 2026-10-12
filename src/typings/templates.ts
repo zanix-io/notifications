@@ -1,4 +1,5 @@
 import type { Notifiers } from 'typings/general.ts'
+import type { Translator } from 'modules/templates/i18n.ts'
 
 /**
  * A single "derived" template declaration — one that renders through `parent`'s content/parent
@@ -14,7 +15,11 @@ export interface DerivedTemplateDeclaration {
   channel: Notifiers
   name: string
   parent: string
-  transform: (data: never) => Record<string, unknown>
+  /**
+   * Maps the message's data to the parent's. The words come from `t`, so the same transform reads
+   * the language of the message (the library's own catalog, or the database one that includes it).
+   */
+  transform: (data: never, t: Translator) => Record<string, unknown>
 }
 
 /** Data accepted by the `sms/otp` transactional template. */

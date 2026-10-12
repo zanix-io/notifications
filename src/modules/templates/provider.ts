@@ -12,6 +12,8 @@ import whatsappTemplates from 'modules/templates/transactional/whatsapp.ts'
 
 import { CODE_TEMPLATES, DERIVED_TEMPLATES } from './db/manifest.ts'
 import { CODE_SOURCE } from './db/sync.ts'
+import { LIBRARY_MESSAGES, withLibraryTexts } from './library-messages.ts'
+import { createTranslator, findText, langChain, type MessageCatalog } from './i18n.ts'
 import { LocalTemplateBackend, resetLocalTemplateBackendState } from './db/local-backend.ts'
 import {
   RemoteTemplateBackend,
@@ -34,6 +36,7 @@ import {
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
+  templatesMessagesModelName,
   templatesModelName,
 } from './env.ts'
 
@@ -53,11 +56,12 @@ export {
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
+  templatesMessagesModelName,
   templatesModelName,
 } from './env.ts'
 export type { TemplatesBackendMode } from './env.ts'
 
-type TemplateRegistry = Record<string, (data: never) => Promise<string>>
+type TemplateRegistry = Record<string, (data: never, lang?: string) => Promise<string>>
 
 /** Picks the in-memory template registry that matches a given notifier channel. */
 function templatesFor(channel: Notifiers): TemplateRegistry {
@@ -69,8 +73,50 @@ function templatesFor(channel: Notifiers): TemplateRegistry {
 /** Compiled-render cache, keyed by `{channel}:{name}`, invalidated when the DB `hash` changes — module-level so it's shared across every `SCOPED` `TemplateProvider` instance, the same way `getSmtpPool()`'s pool is. */
 const renderCache = new Map<
   string,
-  { hash: string; render: (data: unknown) => string }
+  { hash: string; render: CompiledRender }
 >()
+
+/** The helpers one message renders with, as Handlebars takes them. */
+type RenderOptions = { helpers?: Record<string, (...args: never[]) => unknown> }
+
+/** A compiled Handlebars template: renders `data`, with the helpers (`t`) of one message. */
+type CompiledRender = (
+  data: unknown,
+  options?: RenderOptions,
+) => string
+
+/** What a template resolves to: the body to send and, for an email that asked for it, its subject. */
+export interface ResolvedTemplate {
+  body: string
+  subject?: string
+}
+
+/** Whether a Handlebars source reads message texts: `{{t 'key'}}` or `{{{t 'key'}}}`. */
+const USES_MESSAGES = /\{\{\{?\s*t\s/
+
+/**
+ * What one resolution renders with: the language chain of the message and a way to build its `{{t}}`
+ * helper. The catalog is loaded the first time a template that reads texts asks for it, never for one
+ * that does not.
+ */
+interface RenderContext {
+  /** The languages of the message, most specific first. */
+  chain: string[]
+  /** The catalog of those languages, loaded the first time it is asked for. */
+  catalog(): Promise<MessageCatalog>
+  helpers(): Promise<NonNullable<RenderOptions['helpers']>>
+}
+
+/** Text Handlebars must not escape again (it asks an object for `toHTML()`): what `{{t}}` returns. */
+class SafeText {
+  constructor(private readonly text: string) {}
+  public toString(): string {
+    return this.text
+  }
+  public toHTML(): string {
+    return this.text
+  }
+}
 
 /**
  * Data transform applied by `resolve()`'s database-backed parent-chain walk (`#resolveChain()`)
@@ -156,7 +202,11 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
       })
     }
 
-    return new LocalTemplateBackend(() => this.database, templatesModelName())
+    return new LocalTemplateBackend(
+      () => this.database,
+      templatesModelName(),
+      templatesMessagesModelName(),
+    )
   }
 
   /** Whether `{channel, name}` owns a real `.hbs` in code (see `db/manifest.ts`). */
@@ -172,8 +222,9 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
   async #renderCodeBacked(
     channel: Notifiers,
     name: string,
-    compile: (data: unknown) => string,
+    compile: CompiledRender,
     data: Record<string, unknown>,
+    options: RenderOptions,
   ): Promise<string> {
     const [{ default: dataSchema }, { styles }] = await Promise.all([
       import(`./handlebars/${channel}/${name}/schema.ts`),
@@ -182,7 +233,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     // deno-lint-ignore no-explicit-any
     const validated = dataSchema.parse(data) as any
     validated.styles.css = `\n${styles}\n${validated.styles.css}`
-    return compile(validated)
+    return compile(validated, options)
   }
 
   /** Compiles (or reuses the cached compile of) a database record's live `hbs`. */
@@ -279,20 +330,55 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     channel: Notifiers,
     name: string,
     data: Record<string, unknown>,
+    lang?: string,
   ): Promise<string> {
+    return (await this.resolveMessage(channel, name, data, lang)).body
+  }
+
+  /**
+   * Like {@linkcode resolve}, and with `options.subject` also resolves the subject of an email: the text
+   * `<name>.subject` of the message catalog, in `lang`, filled with `data`. `NotifierProvider` asks for it
+   * when a template-based email sets no subject of its own. A template of the code registry has no
+   * subject.
+   *
+   * The texts a template reads with `{{t 'key'}}` come from the backend's message catalog, for the
+   * languages of `lang` (the language, its base, then `NOTIFICATIONS_DEFAULT_LANG`). The catalog is
+   * loaded only when the template reads texts, and a failure loading it falls back to the code
+   * registry like any other failure of the backend.
+   *
+   * @param channel The notifier channel `name` belongs to.
+   * @param name The `zanixTemplate` name to resolve.
+   * @param data The data to render the template with.
+   * @param lang The language of the message, as a BCP 47 tag.
+   * @param options `subject`: also resolve the subject of an email.
+   * @throws As {@linkcode resolve}.
+   */
+  public async resolveMessage(
+    channel: Notifiers,
+    name: string,
+    data: Record<string, unknown>,
+    lang?: string,
+    options: { subject?: boolean } = {},
+  ): Promise<ResolvedTemplate> {
     assertTemplatesBackendConfigValid()
 
     const backend = this.#backend()
     if (backend) {
       try {
-        const rendered = await this.#resolveChain(
-          channel,
-          name,
-          data,
-          backend,
-          new Set(),
-        )
-        if (rendered !== undefined) return rendered
+        const context = this.#renderContext(backend, channel, lang)
+        const body = await this.#resolveChain(channel, name, data, backend, new Set(), context)
+        if (body !== undefined) {
+          // The subject is the text `<template>.subject` of the catalog, in the message's language.
+          const subject = options.subject
+            ? findText(
+              withLibraryTexts(await context.catalog()),
+              context.chain,
+              `${name}.subject`,
+              data,
+            )
+            : undefined
+          return { body, subject }
+        }
       } catch (error) {
         logger.warn(
           `[TemplateProvider] Database-backed template resolution failed for "${channel}/${name}"` +
@@ -312,7 +398,55 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
         meta: { channel, name },
       })
     }
-    return await render(data as never)
+    // The code registry has no database catalog, so the subject is the library's own text.
+    const subject = options.subject
+      ? findText(LIBRARY_MESSAGES, langChain(lang), `${name}.subject`, data, true)
+      : undefined
+    return { body: await render(data as never, lang), subject }
+  }
+
+  /**
+   * Builds the context one resolution renders with: how to get the `{{t}}` helper for the message's
+   * language. The catalog of the language chain is fetched once, the first time a template asks.
+   */
+  #renderContext(backend: TemplateBackend, channel: Notifiers, lang?: string): RenderContext {
+    const chain = langChain(lang)
+    let loaded: Promise<MessageCatalog> | undefined
+    const catalog = () => loaded ??= backend.messages(chain)
+    return {
+      chain,
+      catalog,
+      helpers: async () => {
+        const t = createTranslator(await catalog(), chain, channel === 'email')
+        return {
+          // Handlebars passes the call's `key=value` arguments as `options.hash`, and its own
+          // `options` object last. The text is trusted markup (an operator wrote it) and the
+          // values were escaped when it was filled, so the result is not escaped a second time.
+          t: function (key: string, options?: { hash?: Record<string, unknown> }) {
+            return new SafeText(t(key, options?.hash))
+          },
+        }
+      },
+    }
+  }
+
+  /**
+   * Preloads the message texts of `langs` into `cache`, on the main thread, for a background worker
+   * that cannot reach the catalog itself — see `NotifierProvider.onDestroy()`. A no-op if no
+   * persisted backend is configured, or one a worker reaches on its own (a remote service).
+   *
+   * @param langs The languages the queued messages use, as `langChain()` of each.
+   * @param cache The map to populate — keyed `znx:msg:<lang>`.
+   */
+  public async preloadMessages(
+    langs: string[],
+    cache: Map<`znx:msg:${string}`, Record<string, string>>,
+  ): Promise<void> {
+    const backend = this.#backend()
+    if (!backend) return
+    const catalog = await backend.preloadMessages(langs)
+    if (!catalog) return
+    for (const lang of langs) cache.set(`znx:msg:${lang}`, catalog[lang] ?? {})
   }
 
   /**
@@ -329,6 +463,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     data: Record<string, unknown>,
     backend: TemplateBackend,
     visited: Set<string>,
+    context: RenderContext,
   ): Promise<string | undefined> {
     if (visited.has(name)) return undefined
     visited.add(name)
@@ -343,24 +478,36 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
         record.hbs,
         record.hash,
       )
-      if (
-        record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)
-      ) {
-        return await this.#renderCodeBacked(channel, name, compile, data)
-      }
-      return compile(data)
+      // The helpers (and so the catalog) are built only for a template that reads texts.
+      const options: RenderOptions = USES_MESSAGES.test(record.hbs)
+        ? { helpers: await context.helpers() }
+        : {}
+
+      return record.source === CODE_SOURCE && this.#isCodeTemplate(channel, name)
+        ? await this.#renderCodeBacked(channel, name, compile, data, options)
+        : compile(data, options)
     }
 
     if (!record.parent) return undefined
 
     const transform = derivedTemplateTransforms.get(`${channel}:${name}`)
-    const parentData = transform ? transform(data as never) : data
+    const parentData = transform
+      ? transform(
+        data as never,
+        createTranslator(
+          withLibraryTexts(await context.catalog()),
+          context.chain,
+          channel === 'email',
+        ),
+      )
+      : data
     return await this.#resolveChain(
       channel,
       record.parent,
       parentData,
       backend,
       visited,
+      context,
     )
   }
 }
