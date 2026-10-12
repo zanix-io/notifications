@@ -109,6 +109,19 @@ interface RenderContext {
   helpers(): Promise<NonNullable<RenderOptions['helpers']>>
 }
 
+/**
+ * A copy of `catalog` with `texts` laid over the texts of `lang`. The catalog itself is never changed,
+ * since a backend may hand out a shared one. Without `texts` it is returned as it is.
+ */
+function overlayTexts(
+  catalog: MessageCatalog,
+  lang: string,
+  texts: Record<string, string> | undefined,
+): MessageCatalog {
+  if (!texts || Object.keys(texts).length === 0) return catalog
+  return { ...catalog, [lang]: { ...catalog[lang], ...texts } }
+}
+
 /** Text Handlebars must not escape again (it asks an object for `toHTML()`): what `{{t}}` returns. */
 class SafeText {
   constructor(private readonly text: string) {}
@@ -353,7 +366,10 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
    * @param name The `zanixTemplate` name to resolve.
    * @param data The data to render the template with.
    * @param lang The language of the message, as a BCP 47 tag.
-   * @param options `subject`: also resolve the subject of an email.
+   * @param options `subject`: also resolve the subject of an email. `texts`: draft message texts (key to
+   * text) that replace the catalog's text for that key in the first language of the chain (`lang`, or
+   * the default language when none), for this render only: the body, the derived built-ins and the
+   * `<name>.subject` lookup read them. Nothing is stored or cached, and no other language is touched.
    * @throws As {@linkcode resolve}.
    */
   public async resolveMessage(
@@ -361,14 +377,14 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     name: string,
     data: Record<string, unknown>,
     lang?: string,
-    options: { subject?: boolean } = {},
+    options: { subject?: boolean; texts?: Record<string, string> } = {},
   ): Promise<ResolvedTemplate> {
     assertTemplatesBackendConfigValid()
 
     const backend = this.#backend()
     if (backend) {
       try {
-        const context = this.#renderContext(backend, channel, lang)
+        const context = this.#renderContext(backend, channel, lang, options.texts)
         const body = await this.#resolveChain(channel, name, data, backend, new Set(), context)
         if (body !== undefined) {
           // The subject is the text `<template>.subject` of the catalog, in the message's language.
@@ -403,7 +419,13 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     }
     // The code registry has no database catalog, so the subject is the library's own text.
     const subject = options.subject
-      ? findText(LIBRARY_MESSAGES, langChain(lang), `${name}.subject`, data, true)
+      ? findText(
+        overlayTexts(LIBRARY_MESSAGES, langChain(lang)[0], options.texts),
+        langChain(lang),
+        `${name}.subject`,
+        data,
+        true,
+      )
       : undefined
     return { body: await render(data as never, lang), subject }
   }
@@ -411,11 +433,20 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
   /**
    * Builds the context one resolution renders with: how to get the `{{t}}` helper for the message's
    * language. The catalog of the language chain is fetched once, the first time a template asks.
+   * `texts` are draft texts laid over the first language of the chain, in a copy of the catalog.
    */
-  #renderContext(backend: TemplateBackend, channel: Notifiers, lang?: string): RenderContext {
+  #renderContext(
+    backend: TemplateBackend,
+    channel: Notifiers,
+    lang?: string,
+    texts?: Record<string, string>,
+  ): RenderContext {
     const chain = langChain(lang)
     let loaded: Promise<MessageCatalog> | undefined
-    const catalog = () => loaded ??= backend.messages(chain)
+    const catalog = () =>
+      loaded ??= backend.messages(chain).then((loadedCatalog) =>
+        overlayTexts(loadedCatalog, chain[0], texts)
+      )
     return {
       chain,
       catalog,

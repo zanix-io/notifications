@@ -310,5 +310,10 @@ Deno.test('TemplatesController.preview renders with the data and language of the
 
   assertEquals(await ask({ data: { n: 1 }, lang: 'es' }), { body: 'x' })
   await ask({})
-  assertEquals(calls, [['email', 'welcome', { n: 1 }, 'es'], ['email', 'welcome', {}, undefined]])
+  await ask({ texts: { 'welcome.title': 'Draft' } })
+  assertEquals(calls, [
+    ['email', 'welcome', { n: 1 }, 'es', undefined],
+    ['email', 'welcome', {}, undefined, undefined],
+    ['email', 'welcome', {}, undefined, { 'welcome.title': 'Draft' }],
+  ])
 })

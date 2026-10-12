@@ -69,7 +69,7 @@ export interface TemplatesControllerInstance extends ZanixController<TemplatesAd
   resetMessage(
     ctx: HandlerContext<{ params: MessageParamsRTO }>,
   ): Promise<ZanixTemplateMessageAttrs & Record<string, unknown>>
-  /** `POST /:channel/:name/preview` — renders a template with the data and language given. */
+  /** `POST /:channel/:name/preview` — renders a template with the data, language and draft texts given. */
   preview(
     ctx: HandlerContext<{ params: TemplateParamsRTO; body: PreviewTemplateRTO }>,
   ): Promise<TemplatePreview & Record<string, unknown>>
@@ -258,8 +258,8 @@ export function createTemplatesController(
       ctx: HandlerContext<{ params: TemplateParamsRTO; body: PreviewTemplateRTO }>,
     ): Promise<TemplatePreview & Record<string, unknown>> {
       const { channel, name } = ctx.payload.params
-      const { data, lang } = ctx.payload.body
-      return { ...(await this.interactor.preview(channel, name, data ?? {}, lang)) }
+      const { data, lang, texts } = ctx.payload.body
+      return { ...(await this.interactor.preview(channel, name, data ?? {}, lang, texts)) }
     }
   }
 

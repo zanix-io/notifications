@@ -76,11 +76,14 @@ export class MessageEntriesSearchRTO extends BaseRTO {
   accessor q: string | undefined
 }
 
-/** Body of `POST /templates/:channel/:name/preview`: the data to render with, and the language. */
+/** Body of `POST /templates/:channel/:name/preview`: the data to render with, the language, and draft message texts (key to text) that replace the catalog's for this render only. */
 export class PreviewTemplateRTO extends BaseRTO {
   @IsObject({ optional: true, expose: true })
   accessor data: Record<string, unknown> | undefined
 
   @IsString({ optional: true, expose: true })
   accessor lang: string | undefined
+
+  @IsObject({ optional: true, expose: true })
+  accessor texts: Record<string, string> | undefined
 }

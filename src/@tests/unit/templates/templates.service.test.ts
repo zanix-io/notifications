@@ -138,3 +138,42 @@ Deno.test('TemplatesAdminService.preview answers BAD_REQUEST when the template c
 
   assertEquals((error as { status?: { code: string } }).status?.code, 'BAD_REQUEST')
 })
+
+Deno.test('TemplatesAdminService.preview forwards the draft texts to the provider, and only when given', async () => {
+  const asked: unknown[][] = []
+  const service = previewService((...args) => (asked.push(args), Promise.resolve({ body: 'x' })))
+
+  await service.preview('email', 'welcome', {}, 'es', { 'welcome.title': 'Draft' })
+  await service.preview('email', 'welcome', {}, 'es')
+
+  assertEquals(asked[0][4], { subject: true, texts: { 'welcome.title': 'Draft' } })
+  assertEquals(asked[1][4], { subject: true })
+})
+
+Deno.test('TemplatesAdminService.preview bounds the draft texts: 200 keys, 200-char keys, 20000-char texts, strings only', async () => {
+  const asked: unknown[][] = []
+  const service = previewService((...args) => (asked.push(args), Promise.resolve({ body: 'x' })))
+  const status = async (texts: unknown) => {
+    const error = await assertRejects(
+      () => service.preview('email', 'welcome', {}, 'es', texts as Record<string, string>),
+      Error,
+    )
+    return (error as { status?: { code: string } }).status?.code
+  }
+  const keys = (count: number) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`k${i}`, 't']))
+
+  // At the limits: accepted.
+  await service.preview('email', 'welcome', {}, 'es', keys(200))
+  await service.preview('email', 'welcome', {}, 'es', { ['k'.repeat(200)]: 't'.repeat(20000) })
+  assertEquals(asked.length, 2)
+
+  assertEquals(await status(keys(201)), 'BAD_REQUEST')
+  assertEquals(await status({ ['k'.repeat(201)]: 't' }), 'BAD_REQUEST')
+  assertEquals(await status({ a: 't'.repeat(20001) }), 'BAD_REQUEST')
+  assertEquals(await status({ a: 1 }), 'BAD_REQUEST')
+  assertEquals(await status(['a']), 'BAD_REQUEST')
+  assertEquals(await status(null), 'BAD_REQUEST')
+  // A rejected draft never reaches the provider.
+  assertEquals(asked.length, 2)
+})

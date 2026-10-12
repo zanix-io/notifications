@@ -16,6 +16,39 @@ import { HttpError } from '@zanix/errors'
 import { TemplateProvider } from '../provider.ts'
 import { TemplatesAdminRepository } from './templates.repository.ts'
 
+/** The most draft texts a preview accepts. */
+export const PREVIEW_TEXTS_MAX_KEYS = 200
+/** The longest key of a draft text in a preview. */
+export const PREVIEW_TEXTS_MAX_KEY_LENGTH = 200
+/** The longest draft text in a preview. */
+export const PREVIEW_TEXTS_MAX_TEXT_LENGTH = 20000
+
+/** Rejects, as a `BAD_REQUEST`, draft texts that are not a map of strings within the preview bounds. */
+function assertPreviewTexts(texts: unknown, channel: Notifiers, name: string): void {
+  const reject = (message: string): never => {
+    throw new HttpError('BAD_REQUEST', {
+      message: `Invalid preview texts: ${message}`,
+      meta: { source: 'zanix', method: 'TemplatesAdminService', channel, name },
+    })
+  }
+  if (texts === null || typeof texts !== 'object' || Array.isArray(texts)) {
+    return reject('texts must be an object of strings.')
+  }
+  const entries = Object.entries(texts)
+  if (entries.length > PREVIEW_TEXTS_MAX_KEYS) {
+    return reject(`at most ${PREVIEW_TEXTS_MAX_KEYS} texts.`)
+  }
+  for (const [key, text] of entries) {
+    if (key.length > PREVIEW_TEXTS_MAX_KEY_LENGTH) {
+      return reject(`a key is longer than ${PREVIEW_TEXTS_MAX_KEY_LENGTH} characters.`)
+    }
+    if (typeof text !== 'string') return reject('every text must be a string.')
+    if (text.length > PREVIEW_TEXTS_MAX_TEXT_LENGTH) {
+      return reject(`a text is longer than ${PREVIEW_TEXTS_MAX_TEXT_LENGTH} characters.`)
+    }
+  }
+}
+
 /**
  * Business logic behind this package's own local `/templates` CRUD API — see
  * `../templates-api/templates.handler.ts`'s `createTemplatesController`. `@zanix/admin` composes a
@@ -124,22 +157,29 @@ export class TemplatesAdminService extends ZanixInteractor {
    * registry as the fallback), without sending anything: what a screen shows next to the text being
    * edited. An email also answers its subject.
    *
+   * `texts` are draft message texts (key to text) that replace the catalog's text for that key in
+   * the language of this render only, so a screen can show a text before it is saved. Nothing is
+   * stored. At most {@linkcode PREVIEW_TEXTS_MAX_KEYS} keys of {@linkcode PREVIEW_TEXTS_MAX_KEY_LENGTH}
+   * characters, each text of {@linkcode PREVIEW_TEXTS_MAX_TEXT_LENGTH} characters at most.
+   *
    * @throws {HttpError} `BAD_REQUEST` if the template cannot be rendered with that data (a code template
-   * validates it), or does not exist.
+   * validates it), or does not exist, or if `texts` is not a map of strings within those bounds.
    */
   public async preview(
     channel: Notifiers,
     name: string,
     data: Record<string, unknown>,
     lang?: string,
+    texts?: Record<string, string>,
   ): Promise<TemplatePreview> {
+    if (texts !== undefined) assertPreviewTexts(texts, channel, name)
     try {
       const { body, subject } = await this.providers.get(TemplateProvider).resolveMessage(
         channel,
         name,
         data,
         lang,
-        { subject: channel === 'email' },
+        { subject: channel === 'email', ...(texts && { texts }) },
       )
       return { body, ...(subject && { subject }) }
     } catch (error) {

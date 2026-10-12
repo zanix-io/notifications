@@ -89,6 +89,23 @@ Deno.test({
       })
       assertEquals(english, { body: '<h1>Hello Ana</h1>', subject: 'Welcome' })
 
+      // A draft text replaces the stored one for that render only, and writes nothing.
+      const drafted = await provider.resolveMessage('email', 'seed-t', { name: 'Ana' }, 'es-MX', {
+        subject: true,
+        texts: { 'seed.title': 'Borrador {name}', 'seed-t.subject': 'Asunto borrador' },
+      })
+      assertEquals(drafted, { body: '<h1>Borrador Ana</h1>', subject: 'Asunto borrador' })
+      assertEquals(
+        (await Messages.findOne({ lang: 'es', key: 'seed.title' }).lean())?.text,
+        'Hola {name}',
+      )
+      assertEquals(
+        await provider.resolveMessage('email', 'seed-t', { name: 'Ana' }, 'es-MX', {
+          subject: true,
+        }),
+        spanish,
+      )
+
       // 2. An edit survives new words in the consumer; what nobody edited is brought up to date.
       await Model.updateOne({ channel: 'email', name: 'seed-one' }, {
         $set: { hbs: '<p>EDITED</p>' },

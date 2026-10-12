@@ -93,4 +93,7 @@ Deno.test('the catalog-screen RTOs: message-entries search and the preview body'
   const body = await classValidation(PreviewTemplateRTO, { data: { name: 'Ana' }, lang: 'es' })
   assertEquals([body.data, body.lang], [{ name: 'Ana' }, 'es'])
   assertEquals((await classValidation(PreviewTemplateRTO, {})).data, undefined)
+  assertEquals((await classValidation(PreviewTemplateRTO, {})).texts, undefined)
+  const drafted = await classValidation(PreviewTemplateRTO, { texts: { 'welcome.title': 'Hi' } })
+  assertEquals(drafted.texts, { 'welcome.title': 'Hi' })
 })

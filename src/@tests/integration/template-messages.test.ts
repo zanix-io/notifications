@@ -183,6 +183,75 @@ Deno.test('template messages: a derived built-in reads its texts from the catalo
   }
 })
 
+Deno.test('template messages: draft texts replace the catalog in the body and the subject of one render only', async () => {
+  try {
+    const messages = fakeMessages(CATALOG)
+    const instance = provider(fakeTemplates([greeting()]), messages.model)
+    const texts = { 'greeting.title': 'Draft {name}', 'greeting.subject': 'Draft subject' }
+
+    const draft = await instance.resolveMessage('email', 'greeting', { name: 'Ana' }, 'es', {
+      subject: true,
+      texts,
+    })
+    assertEquals(draft.body, '<h1>Draft Ana</h1><p>Welcome <b>aboard</b>.</p>')
+    assertEquals(draft.subject, 'Draft subject')
+
+    // A later render without texts, in the same language, is the catalog's again.
+    const later = await instance.resolveMessage('email', 'greeting', { name: 'Ana' }, 'es', {
+      subject: true,
+    })
+    assertEquals(later.body, '<h1>Hola Ana</h1><p>Welcome <b>aboard</b>.</p>')
+    assertEquals(later.subject, 'Bienvenida')
+
+    // The draft is for the first language of the chain only: another language is untouched.
+    const en = await instance.resolveMessage('email', 'greeting', { name: 'Ana' }, 'en', {
+      subject: true,
+    })
+    assertEquals(en.subject, 'Welcome')
+    assertStringIncludes(en.body, 'Hello Ana')
+
+    // With no language, the draft lands on the default one.
+    const none = await instance.resolveMessage('email', 'greeting', { name: 'Ana' }, undefined, {
+      subject: true,
+      texts,
+    })
+    assertEquals(none.subject, 'Draft subject')
+    assertStringIncludes(none.body, 'Draft Ana')
+
+    // The draft never writes: the compiled template and the catalog stay as they were.
+    const again = await instance.resolveMessage('email', 'greeting', { name: 'Ana' }, 'es-MX')
+    assertStringIncludes(again.body, 'Qué onda Ana')
+  } finally {
+    cleanup()
+  }
+})
+
+Deno.test('template messages: a derived built-in picks the draft text, and the library texts fill the rest', async () => {
+  try {
+    const generic = greeting({
+      name: 'generic',
+      hbs: '<h1>{{title}}</h1><div>{{{content}}}</div>',
+      hash: 'g',
+    })
+    const welcome = greeting({ name: 'welcome', hbs: undefined, parent: 'generic', hash: 'w' })
+    const instance = provider(fakeTemplates([generic, welcome]), fakeMessages([]).model)
+
+    const draft = await instance.resolveMessage('email', 'welcome', {}, 'es', {
+      subject: true,
+      texts: { 'welcome.title': 'Titulo borrador', 'welcome.subject': 'Asunto borrador' },
+    })
+    assertStringIncludes(draft.body, '<h1>Titulo borrador</h1>')
+    assertStringIncludes(draft.body, 'Nos alegra tenerte en Zanix')
+    assertEquals(draft.subject, 'Asunto borrador')
+
+    const plain = await instance.resolveMessage('email', 'welcome', {}, 'es', { subject: true })
+    assert(!plain.body.includes('Titulo borrador'))
+    assertEquals(plain.subject !== 'Asunto borrador', true)
+  } finally {
+    cleanup()
+  }
+})
+
 Deno.test('template messages: resolve() still answers with the body alone', async () => {
   try {
     const instance = provider(fakeTemplates([greeting()]), fakeMessages(CATALOG).model)

@@ -279,8 +279,14 @@ await notifier.email({
   changed after it was last synced in; `defaultText` is what it goes back to),
   `POST /templates/messages/:lang/:key/reset` puts a code text back to its default (`400` for a text
   created through the API, which has none), and `POST /templates/:channel/:name/preview` with
-  `{data?, lang?}` renders the template as a send would and answers `{body, subject?}`. The plain
-  `GET /templates/messages` stays what a remote backend reads.
+  `{data?, lang?, texts?}` renders the template as a send would and answers `{body, subject?}`.
+  `texts` is a map of draft message texts (key to text) that replace the catalog's text for that key
+  in the language of that render (`lang`, or the default language), for the body, the derived
+  built-ins and the `<name>.subject` text, so an operator sees an edit before saving it. Nothing is
+  stored or cached. The texts are trusted markup like catalog texts; at most 200 keys of at most 200
+  characters, each text at most 20000 characters, otherwise `400`. The plain
+  `GET /templates/messages` stays what a remote backend reads. The same option exists in code:
+  `TemplateProvider.resolveMessage(channel, name, data, lang, { subject?, texts? })`.
 - **Background workers.** A one-time worker has no database: `NotifierProvider` loads the languages
   of the queued messages on the main thread and hands them over, as it does the templates.
 - **The built-in templates read texts too.** The words of `welcome`, `password-changed`,

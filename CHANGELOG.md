@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-12
+
+### Added
+
+- **The templates preview renders with draft message texts.** `TemplateProvider.resolveMessage()`
+  takes `options.texts` (key to text), which replace the catalog's text for that key in the first
+  language of the chain (the requested `lang`, or the default language) for that render only: the
+  body, the derived built-ins and the `<name>.subject` lookup read them. Nothing is stored, the
+  compiled-template cache is untouched, and a later render never sees the draft.
+  `POST <prefix>/:channel/:name/preview` takes `{ data?, lang?, texts? }`
+  (`PreviewTemplateRTO.texts`) and `TemplatesAdminService.preview()` a fifth argument `texts`: at
+  most 200 keys of at most 200 characters, each text at most 20000 characters, strings only,
+  otherwise `BAD_REQUEST`.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added
