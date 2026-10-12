@@ -6,18 +6,17 @@
     "jsr:@std/assert@0.217": "0.217.0",
     "jsr:@std/assert@0.224": "0.224.0",
     "jsr:@std/assert@^1.0.15": "1.0.19",
-    "jsr:@std/async@^1.0.0-rc.1": "1.5.0",
-    "jsr:@std/async@^1.0.15": "1.5.0",
+    "jsr:@std/async@^1.0.0-rc.1": "1.5.1",
+    "jsr:@std/async@^1.0.15": "1.5.1",
     "jsr:@std/cli@~0.224.7": "0.224.7",
     "jsr:@std/crypto@^1.1.0": "1.1.0",
-    "jsr:@std/data-structures@^1.0.9": "1.1.2",
+    "jsr:@std/data-structures@^1.0.9": "1.1.3",
     "jsr:@std/encoding@1": "1.0.11",
     "jsr:@std/encoding@1.0.0-rc.2": "1.0.0-rc.2",
     "jsr:@std/fmt@0.224": "0.224.0",
     "jsr:@std/fmt@1": "1.0.10",
     "jsr:@std/fmt@~0.225.4": "0.225.6",
     "jsr:@std/fs@1": "1.0.24",
-    "jsr:@std/fs@1.0.24": "1.0.24",
     "jsr:@std/fs@^1.0.19": "1.0.24",
     "jsr:@std/http@0.224": "0.224.5",
     "jsr:@std/internal@^1.0.12": "1.0.14",
@@ -32,15 +31,18 @@
     "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/streams@~0.224.5": "0.224.5",
     "jsr:@std/testing@1.0.16": "1.0.16",
-    "jsr:@zanix/auth@1": "1.0.0",
-    "jsr:@zanix/datamaster@^1.9.0": "1.9.0",
-    "jsr:@zanix/server@4": "4.1.0",
-    "jsr:@zanix/utils@4": "4.10.0",
-    "jsr:@zanix/utils@^4.1.0": "4.10.0",
-    "jsr:@zanix/utils@^4.10.0": "4.10.0",
-    "jsr:@zanix/utils@^4.7.0": "4.10.0",
+    "jsr:@zanix/auth@1": "1.7.0",
+    "jsr:@zanix/datamaster@^1.9.0": "1.12.3",
+    "jsr:@zanix/server@4": "4.4.1",
+    "jsr:@zanix/server@^4.2.3": "4.4.1",
+    "jsr:@zanix/utils@4": "4.11.0",
+    "jsr:@zanix/utils@^4.10.0": "4.11.0",
+    "jsr:@zanix/utils@^4.11.0": "4.11.0",
+    "jsr:@zanix/utils@^4.4.0": "4.11.0",
+    "jsr:@zanix/utils@^4.7.0": "4.11.0",
+    "jsr:@zanix/utils@^4.8.0": "4.11.0",
     "npm:handlebars@^4.7.8": "4.7.9",
-    "npm:mongoose@8": "8.24.4",
+    "npm:mongoose@8": "8.24.5",
     "npm:redis@^5.9.0": "5.12.1",
     "npm:zod@^4.1.13": "4.4.3"
   },
@@ -73,8 +75,8 @@
         "jsr:@std/internal@^1.0.12"
       ]
     },
-    "@std/async@1.5.0": {
-      "integrity": "4c1f22d287a17ad7d8643b1952bc5a4d21e5d8b68dc8c20d8268eecc69096e82"
+    "@std/async@1.5.1": {
+      "integrity": "c82455dc70cab29a0adf3ac8075db934785bffdd3902af5afcf25d21a74cfd86"
     },
     "@std/cli@0.224.7": {
       "integrity": "654ca6477518e5e3a0d3fabafb2789e92b8c0febf1a1d24ba4b567aba94b5977"
@@ -82,8 +84,8 @@
     "@std/crypto@1.1.0": {
       "integrity": "b8d6d0a6377a32b213af2661ed7bf1062d94feac0c57def5526a8e74a95c3ec8"
     },
-    "@std/data-structures@1.1.2": {
-      "integrity": "2471377c9e0051f9ec34e57d0ebd0ad133a5a889677446ec6ba9938e4e102918"
+    "@std/data-structures@1.1.3": {
+      "integrity": "a5ec67199e79ee5b29123474d93fa9a47701ec08a4ef3bd1b623a36476306c5b"
     },
     "@std/encoding@1.0.0-rc.2": {
       "integrity": "160d7674a20ebfbccdf610b3801fee91cf6e42d1c106dd46bbaf46e395cd35ef"
@@ -164,49 +166,35 @@
         "jsr:@std/path@^1.1.2"
       ]
     },
-    "@zanix/auth@1.0.0": {
-      "integrity": "b2a71f66f342d376b1c73b72b00454ed309703d7b45705e3f75367e832e19b8f",
+    "@zanix/auth@1.7.0": {
+      "integrity": "70d3e61b4f9fac33b71355fdc8b17bed316dbc0e1484d6f9d963fd99aa436cb4",
       "dependencies": [
+        "jsr:@std/http",
         "jsr:@zanix/datamaster",
-        "jsr:@zanix/server",
+        "jsr:@zanix/server@4",
         "jsr:@zanix/utils@4"
       ]
     },
-    "@zanix/datamaster@1.9.0": {
-      "integrity": "e0ab74db8211ad67f731a0798fb9ebfc1f4943271b1894af68a4a3f2efacc142",
+    "@zanix/datamaster@1.12.3": {
+      "integrity": "dd75ff868a465b224f12245794533d4d93111aba216c71763ce167b50c0e8181",
       "dependencies": [
         "jsr:@db/sqlite",
-        "jsr:@zanix/server",
-        "jsr:@zanix/utils@4",
+        "jsr:@zanix/server@^4.2.3",
+        "jsr:@zanix/utils@^4.4.0",
         "npm:mongoose",
         "npm:redis"
       ]
     },
-    "@zanix/server@4.1.0": {
-      "integrity": "3ff98b49ec2d84cc8bd0db7be40175248e79d04f247664c209b37a4b9c92c518",
+    "@zanix/server@4.4.1": {
+      "integrity": "9836a2944678db0d0ee8ded9bc94787e69de0311ef7399e93a385c6afe37df42",
       "dependencies": [
         "jsr:@std/http",
         "jsr:@std/path@0.224",
-        "jsr:@zanix/utils@^4.1.0"
+        "jsr:@zanix/utils@^4.8.0"
       ]
     },
-    "@zanix/utils@4.1.0": {
-      "integrity": "3b223433ddbfac0a33edf1a985092f5ea947ccaed0142f016495bec4e42dce9b",
-      "dependencies": [
-        "jsr:@std/fmt@0.224",
-        "jsr:@std/path@0.224"
-      ]
-    },
-    "@zanix/utils@4.9.0": {
-      "integrity": "56071e48e063e264eb2b3fe4aa2cd44e34f74d0484d3c00980738cc7272a6fd5",
-      "dependencies": [
-        "jsr:@std/crypto",
-        "jsr:@std/fmt@0.224",
-        "jsr:@std/path@0.224"
-      ]
-    },
-    "@zanix/utils@4.10.0": {
-      "integrity": "4bc379b77bb050d7ee5e253c4e47a613a741dd2eacb45d3f9bceaa5c7a8b28d8",
+    "@zanix/utils@4.11.0": {
+      "integrity": "3c13cc1f24816d1e149d71bcf0997626532f812c489995f01465e6c8249055aa",
       "dependencies": [
         "jsr:@std/crypto",
         "jsr:@std/fmt@0.224",
@@ -215,8 +203,8 @@
     }
   },
   "npm": {
-    "@mongodb-js/saslprep@1.5.0": {
-      "integrity": "sha512-Hk1SKJCMcCos38+vqDnZzlIo4XRj9yCGzYkjB4LcqpeXRIYfia1UWTz+VrueLxoU+uSRJzgkufxoRZg8gi52YA==",
+    "@mongodb-js/saslprep@1.6.0": {
+      "integrity": "sha512-19jGXfpctLDJUELLUZGJ5BllcLT7rHdF+gTTaN2jzqu0bGkUhpdcYtgK2Vux+g3zuBAa0TM/W666QMIjYhYujw==",
       "dependencies": [
         "sparse-bitfield"
       ]
@@ -309,8 +297,8 @@
         "mongodb-connection-string-url"
       ]
     },
-    "mongoose@8.24.4": {
-      "integrity": "sha512-DoV8hYy5ssoh/j99rhYzeS2BLLcLJZ+EGQYfe/Ln+yMorBy0wgKdlwJBj59zJ1N0MnEKQypbeqUYFB0FVThmYg==",
+    "mongoose@8.24.5": {
+      "integrity": "sha512-S1cvmzLhw5Xthv450UjInCBq2JreRvvyfGSA3FmDw8yThPxUbPAyJqtXMz0dNm8BBFm2ctRBOBKJxDPqM2sG0w==",
       "dependencies": [
         "bson",
         "kareem",
@@ -398,6 +386,7 @@
       "jsr:@zanix/server@4",
       "jsr:@zanix/utils@4",
       "jsr:@zanix/utils@^4.10.0",
+      "jsr:@zanix/utils@^4.11.0",
       "jsr:@zanix/utils@^4.7.0",
       "npm:handlebars@^4.7.8",
       "npm:zod@^4.1.13"

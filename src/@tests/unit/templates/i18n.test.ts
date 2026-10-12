@@ -3,7 +3,6 @@ import {
   createTranslator,
   DEFAULT_LANG_ENV,
   defaultLang,
-  escapeHtml,
   interpolate,
   langChain,
 } from 'modules/templates/i18n.ts'
@@ -48,10 +47,6 @@ Deno.test('i18n: interpolate fills placeholders and leaves a missing one visible
 })
 
 Deno.test('i18n: with escape on, the values are escaped and the text is not', () => {
-  assertEquals(
-    escapeHtml(`<b>"x" & 'y'</b>`),
-    '&lt;b&gt;&quot;x&quot; &amp; &#x27;y&#x27;&lt;/b&gt;',
-  )
   assertEquals(
     interpolate('<strong>{name}</strong>', { name: '<script>' }, true),
     '<strong>&lt;script&gt;</strong>',

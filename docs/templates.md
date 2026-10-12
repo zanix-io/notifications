@@ -301,6 +301,34 @@ await notifier.email({
   and keeps the layout it has in `email/generic`. The values an email fills into these texts are
   escaped.
 
+#### Using the translator outside a send
+
+The `t` helper's lookup is exported as the light subpath `@zanix/notifications/i18n`, with no
+Handlebars, database or server in its module graph, so a console or a browser that previews a
+catalog reuses it instead of copying it (the root exports the same names):
+
+```ts
+import { createTranslator, langChain } from '@zanix/notifications/i18n'
+
+const catalog = {
+  es: {
+    'inbox.count.one': '{count} mensaje nuevo',
+    'inbox.count.other': '{count} mensajes nuevos',
+  },
+  en: { 'inbox.title': 'Inbox' },
+}
+const t = createTranslator(catalog, langChain('es-MX'), false)
+
+t('inbox.count', { count: 2 }) // '2 mensajes nuevos'
+t('inbox.title') // 'Inbox' (not in `es`, found in the default language)
+t('inbox.missing') // 'inbox.missing', warned once through `console.warn`
+```
+
+The subpath also exports `findText()` (the same lookup, returning `undefined` for a missing key),
+`interpolate()`, `defaultLang()`, `DEFAULT_LANG_ENV` and the types `MessageCatalog`, `MessageTexts`,
+`TranslateValues` and `Translator`. `createTranslator()` takes a fourth argument, `warn`, to route
+the missing-key warning elsewhere (default `console.warn`); the root exports the same functions.
+
 ### Seeding templates from the consumer
 
 A consumer that wants its own templates and texts in the collections — its transactional messages,

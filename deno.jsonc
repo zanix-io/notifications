@@ -1,6 +1,6 @@
 {
   "name": "@zanix/notifications",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "compilerOptions": {
     "strict": true,
     "noImplicitAny": true
@@ -60,6 +60,8 @@
     "@zanix/auth": "jsr:@zanix/auth@^1.0.0",
     "@zanix/types": "jsr:@zanix/utils@^4.0.0/types",
     "@zanix/helpers": "jsr:@zanix/utils@^4.10.0/helpers",
+    // `escapeHtml` alone, from a module with no imports: the `./i18n` subpath must stay light, and `helpers` is not.
+    "@zanix/html": "jsr:@zanix/utils@^4.11.0/html",
     "@zanix/workers": "jsr:@zanix/utils@^4.0.0/workers",
     "@zanix/logger": "jsr:@zanix/utils@^4.0.0/logger",
     "@zanix/errors": "jsr:@zanix/utils@^4.0.0/errors",
@@ -81,6 +83,7 @@
     "./templates-api": "./src/modules/templates/templates-api/mod.ts",
     "./templates-api/rtos": "./src/modules/templates/templates-api/rtos/mod.ts",
     "./templates-env": "./src/modules/templates-env.ts", // `TEMPLATES_BACKEND`/`TEMPLATES_MODEL_NAME`/`TEMPLATES_SERVICE_*` selection (`isTemplatesResourceEnabled()`, etc.), without `TemplateProvider`/Handlebars — root, `./core`, and `./templates-api` all reach it.
+    "./i18n": "./src/modules/i18n.ts", // The `{{t}}` translation primitives (`createTranslator()`, `langChain()`, `findText()`, ...) with no Handlebars, database or server in the graph — the root reaches them too.
     "./templates-types": "./src/modules/templates-types.ts" // Pure `ZanixTemplateAttrs`/`CreateTemplateInput`/`TemplatesControllerOptions`-shaped data types, without `TemplatesAdminService`/`TemplatesAdminRepository`/Handlebars — root, `./core`, and `./templates-api` all reach those.
   },
   "nodeModulesDir": "auto",

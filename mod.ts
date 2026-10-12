@@ -162,12 +162,17 @@ export type {
  * `NOTIFICATIONS_DEFAULT_LANG`).
  */
 export {
+  createTranslator,
   DEFAULT_LANG_ENV,
   defaultLang,
+  findText,
+  interpolate,
   langChain,
   type MessageCatalog,
   type MessageTexts,
-} from 'modules/templates/i18n.ts'
+  type TranslateValues,
+  type Translator,
+} from 'modules/templates/translate.ts'
 export type { ResolvedTemplate } from 'modules/templates/provider.ts'
 
 /**
