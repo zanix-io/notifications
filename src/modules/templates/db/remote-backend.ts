@@ -152,6 +152,12 @@ export interface RemoteTemplateBackendConfig {
    * whatever `ServiceAuthClient` you inject. Ignored entirely when `token` is set.
    */
   authClient?: ServiceAuthClient
+  /**
+   * Whether to ask the central service to pull this service's code templates (`POST <prefix>/sync`).
+   * `false` for a service that only renders from the central catalog — see `TEMPLATES_SERVICE_SYNC`.
+   * @default true
+   */
+  syncCodeTemplates?: boolean
   /** TTL (ms) for the local `{hbs,hash}` fetch cache — see `TEMPLATES_SERVICE_CACHE_TTL_MS`. */
   cacheTtlMs?: number
 }
@@ -202,6 +208,7 @@ function isUnknownServiceError(error: unknown): boolean {
  */
 export class RemoteTemplateBackend extends RestClient implements TemplateBackend {
   #cacheTtlMs: number
+  #syncCodeTemplates: boolean
   #serviceId: string
   #staticToken?: string
   #authClient?: ServiceAuthClient
@@ -222,6 +229,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
     })
 
     this.#cacheTtlMs = config.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
+    this.#syncCodeTemplates = config.syncCodeTemplates ?? true
     this.#serviceId = config.serviceId
     this.#staticToken = config.token
     this.#pathPrefix = config.pathPrefix ?? DEFAULT_PATH_PREFIX
@@ -284,6 +292,7 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
    * keep working off the code-registry fallback.
    */
   async #sync(): Promise<void> {
+    if (!this.#syncCodeTemplates) return
     try {
       await this.http.post(`${this.#pathPrefix}/sync`, {
         body: JSON.stringify({ serviceId: this.#serviceId }),

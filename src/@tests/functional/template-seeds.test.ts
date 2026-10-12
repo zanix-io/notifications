@@ -138,6 +138,29 @@ Deno.test({
           hash: 'h',
         },
         {
+          // The code already owns it, but an older seeder rewrote it: `hbs` differs from what was last
+          // synced in, so without `adopt` the sync takes it for an operator's edit.
+          channel: 'sms',
+          name: 'legacy-rewritten',
+          hbs: '{{!-- mine --}}rewritten by the old seeder',
+          lastSyncedHbs: 'what the library last synced',
+          source: 'code',
+          active: true,
+          version: 2,
+          hash: 'h',
+        },
+        {
+          // The same shape, but an operator's own edit (no marker): never handed over.
+          channel: 'sms',
+          name: 'legacy-edited',
+          hbs: 'edited by an operator',
+          lastSyncedHbs: 'what the library last synced',
+          source: 'code',
+          active: true,
+          version: 2,
+          hash: 'h',
+        },
+        {
           channel: 'sms',
           name: 'legacy-theirs',
           hbs: 'someone else',
@@ -151,6 +174,8 @@ Deno.test({
       registerTemplateSeeds({
         templates: [
           { channel: 'sms', name: 'legacy-mine', hbs: 'new' },
+          { channel: 'sms', name: 'legacy-rewritten', hbs: 'new' },
+          { channel: 'sms', name: 'legacy-edited', hbs: 'new' },
           { channel: 'sms', name: 'legacy-theirs', hbs: 'new' },
         ],
         adopt: (hbs) => hbs.startsWith('{{!-- mine --}}'),
@@ -159,6 +184,10 @@ Deno.test({
       await ensureTemplatesSynced(Model)
       const mine = await Model.findOne({ channel: 'sms', name: 'legacy-mine' }).lean()
       assertEquals([mine?.hbs, mine?.source], ['new', 'code'])
+      const rewritten = await Model.findOne({ channel: 'sms', name: 'legacy-rewritten' }).lean()
+      assertEquals([rewritten?.hbs, rewritten?.source], ['new', 'code'])
+      const edited = await Model.findOne({ channel: 'sms', name: 'legacy-edited' }).lean()
+      assertEquals(edited?.hbs, 'edited by an operator')
       const theirs = await Model.findOne({ channel: 'sms', name: 'legacy-theirs' }).lean()
       assertEquals([theirs?.hbs, theirs?.source], ['someone else', 'database'])
 

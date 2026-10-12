@@ -484,6 +484,11 @@ Deno.env.set('TEMPLATES_SERVICE_TOKEN', myPreIssuedApiToken)
   Deno.env.set('TEMPLATES_SERVICE_AUTH_ID', 'billing-service')
   Deno.env.set('JWK_PRI_billing-service', btoa(privateKey)) // from generateRSAKeys()
   ```
+- **`TEMPLATES_SERVICE_SYNC`** — optional; `false` stops this service asking the central service to
+  pull its code templates (`POST <prefix>/sync`). Set it on a service that only renders from the
+  central catalog and is deliberately not in the central registry (its code templates are the
+  library's own, which the central service already has): without it, a message sent from a one-time
+  worker asks once per message and the central service answers `UNKNOWN_SERVICE` every time.
 - **`TEMPLATES_SERVICE_CACHE_TTL_MS`** — optional, overrides the default 45-second local cache TTL
   on top of the remote fetch (separate from the compiled-render cache described above, which is
   unaffected). A remote outage or latency spike doesn't turn every `resolve()` call into a blocking

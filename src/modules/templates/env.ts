@@ -155,6 +155,15 @@ export const TEMPLATES_SERVICE_AUTH_ID_ENV = 'TEMPLATES_SERVICE_AUTH_ID'
 export const TEMPLATES_SERVICE_CACHE_TTL_ENV = 'TEMPLATES_SERVICE_CACHE_TTL_MS'
 
 /**
+ * Env var that turns off the code-template sync a `RemoteTemplateBackend` asks the central service for
+ * (`POST <prefix>/sync`) when set to `false`. For a service that only renders from the central catalog
+ * and publishes no templates of its own (it is not in the central registry): without this it asks once
+ * per process, which for a message sent from a one-time worker is once per message. Only meaningful under
+ * `TEMPLATES_BACKEND=remote`; unset or any other value keeps the sync on.
+ */
+export const TEMPLATES_SERVICE_SYNC_ENV = 'TEMPLATES_SERVICE_SYNC'
+
+/**
  * Env var overriding the route prefix `RemoteTemplateBackend` calls at `TEMPLATES_SERVICE_URL` —
  * see `db/remote-backend.ts`'s `DEFAULT_PATH_PREFIX`. Optional; defaults to `'admin/templates'`,
  * matching a plain `@zanix/core`-based service's own local admin API (`admin: true`, see

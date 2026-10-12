@@ -22,9 +22,18 @@ export async function adoptRegisteredRecords(
   const adopters = registeredAdopters()
   if (!adopters.length || !entries.length) return
 
+  // Two kinds of record are the consumer's own and not yet in the code's hands: one created before the
+  // code owned it (`source: 'database'`), and one the code already owns but that was rewritten by an
+  // earlier seeder, so its `hbs` no longer equals what was last synced in and the sync would take it
+  // for an operator's edit, never updating it.
   const candidates = await Model.find({
-    source: 'database',
     $or: entries.map(({ channel, name }) => ({ channel, name })),
+    $and: [{
+      $or: [
+        { source: 'database' },
+        { source: CODE_SOURCE, $expr: { $ne: ['$hbs', '$lastSyncedHbs'] } },
+      ],
+    }],
   }).lean()
 
   await Promise.all(

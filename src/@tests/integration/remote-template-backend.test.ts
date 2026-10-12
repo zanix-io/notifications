@@ -357,6 +357,38 @@ Deno.test(
 )
 
 Deno.test(
+  'RemoteTemplateBackend: with syncCodeTemplates off the central service is never asked to pull, and resolve() still works',
+  async () => {
+    const posts: string[] = []
+    await withFakeFetch(
+      (url, init) => {
+        if (init?.method === 'POST') {
+          posts.push(String(url))
+          return new Response('should not be called', { status: 500 })
+        }
+        return new Response(JSON.stringify(record), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+      async () => {
+        resetRemoteTemplateBackendCache()
+        resetRemoteTemplateBackendSyncState()
+        const backend = new RemoteTemplateBackend({
+          url: 'https://templates.internal.example',
+          serviceId: 'only-renders',
+          token: 'service-token',
+          syncCodeTemplates: false,
+        })
+        assertEquals(await backend.resolve('email', 'welcome'), record)
+        assertEquals(await backend.resolve('email', 'welcome'), record)
+      },
+    )
+    assertEquals(posts, [])
+  },
+)
+
+Deno.test(
   'RemoteTemplateBackend: resolve() does not retry the sync POST on a later call after it failed once',
   async () => {
     let postCalls = 0

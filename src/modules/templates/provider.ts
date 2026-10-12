@@ -33,6 +33,7 @@ import {
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
   TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_PATH_PREFIX_ENV,
+  TEMPLATES_SERVICE_SYNC_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
@@ -53,6 +54,7 @@ export {
   TEMPLATES_SERVICE_CACHE_TTL_ENV,
   TEMPLATES_SERVICE_ID_ENV,
   TEMPLATES_SERVICE_PATH_PREFIX_ENV,
+  TEMPLATES_SERVICE_SYNC_ENV,
   TEMPLATES_SERVICE_TOKEN_ENV,
   TEMPLATES_SERVICE_URL_ENV,
   templatesBackendMode,
@@ -199,6 +201,7 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
           : undefined,
         cacheTtlMs: Number(Deno.env.get(TEMPLATES_SERVICE_CACHE_TTL_ENV)) ||
           undefined,
+        syncCodeTemplates: Deno.env.get(TEMPLATES_SERVICE_SYNC_ENV) !== 'false',
       })
     }
 

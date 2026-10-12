@@ -126,13 +126,15 @@ export interface TemplateSeedOptions {
   messagesDir?: string | URL
 
   /**
-   * Hands over the record of a template this consumer wrote before the code owned it (created through
-   * the admin API or by an older seeder, so `source: 'database'`). Called with the `hbs` of each such
-   * record that has the `{channel, name}` of a registered template; when it answers `true`, the
-   * record becomes `source: 'code'` with its current words as the last synced ones, and the sync then
-   * brings it up to date like any other (an edit still wins, because only a record the predicate
-   * recognizes as the consumer's own, e.g. by a marker it wrote in the `hbs`, is handed over).
-   * Without it, such a record is never touched.
+   * Hands over to the code the records this consumer wrote before the code owned them: one created
+   * through the admin API or by an older seeder (`source: 'database'`), and one the code already owns
+   * but an older seeder rewrote (its `hbs` no longer equals what was last synced in, so the sync would
+   * take it for an operator's edit and never update it). Called with the `hbs` of each such record that
+   * has the `{channel, name}` of a registered template; when it answers `true`, the record becomes
+   * `source: 'code'` with its current words as the last synced ones, and the sync then brings it up to
+   * date like any other (an edit still wins, because only a record the predicate recognizes as the
+   * consumer's own, e.g. by a marker it wrote in the `hbs`, is handed over). Without it, such a record
+   * is never touched.
    */
   adopt?: (hbs: string) => boolean
 }
