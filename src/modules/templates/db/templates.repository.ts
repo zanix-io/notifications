@@ -13,7 +13,7 @@ import type { MessageCatalog } from '../i18n.ts'
 
 import { Provider, ZanixProvider } from '@zanix/server'
 import { HttpError } from '@zanix/errors'
-import { generateUUID, planCodeSync } from '@zanix/helpers'
+import { generateUUID, isLangTag, planCodeSync } from '@zanix/helpers'
 import { assertValidHandlebarsSyntax } from '../hbs-validation.ts'
 import { templatesMessagesModelName, templatesModelName } from '../provider.ts'
 import { DERIVED_TEMPLATES, isDuplicateKeyError, seedMissingDerivedTemplates } from './manifest.ts'
@@ -509,11 +509,8 @@ export class TemplatesAdminRepository extends ZanixProvider<{ database: ZanixMon
   }
 }
 
-/** A BCP 47 language tag: `es`, `en`, `es-MX`, `zh-Hant-TW`. */
-const LANG_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/
-
 function assertValidMessageAddress(lang: string, key: string): void {
-  if (!LANG_TAG.test(lang) || !key || key.includes('/')) {
+  if (!isLangTag(lang) || !key || key.includes('/')) {
     throw new HttpError('BAD_REQUEST', {
       meta: {
         lang,

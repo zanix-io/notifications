@@ -28,7 +28,8 @@ export const welcomeToGeneric = (
   data: WelcomeTemplateSchema = {},
   t: Translator = defaultT,
 ): GenericTemplateSchema => {
-  const { app = 'Zanix', html = { title: 'Welcome Email' }, ...content } = data
+  const { app = 'Zanix', html = { title: 'Welcome Email', lang: t('lang.code') }, ...content } =
+    data
   return {
     title: t('welcome.title'),
     content: t('welcome.content', { app }),
@@ -47,7 +48,8 @@ export const passwordChangedToGeneric = (
   data: PasswordChangedTemplateSchema = {},
   t: Translator = defaultT,
 ): GenericTemplateSchema => {
-  const { app = 'Zanix', html = { title: 'Password Changed' }, ...content } = data
+  const { app = 'Zanix', html = { title: 'Password Changed', lang: t('lang.code') }, ...content } =
+    data
   return {
     title: t('password-changed.title'),
     content: t('password-changed.content'),
@@ -74,7 +76,7 @@ export const newLoginToGeneric = (
 ): GenericTemplateSchema => {
   const {
     app = 'Zanix',
-    html = { title: 'New Login Detected' },
+    html = { title: 'New Login Detected', lang: t('lang.code') },
     device,
     time,
     location,
@@ -107,7 +109,7 @@ export const loginWithOTPToGeneric = (
   data: LoginWithOTPTemplateSchema = { code: '123456', ttl: 5 },
   t: Translator = defaultT,
 ): GenericTemplateSchema => {
-  const { app = 'Zanix', html = { title: 'Login OTP' }, ...content } = data
+  const { app = 'Zanix', html = { title: 'Login OTP', lang: t('lang.code') }, ...content } = data
   return {
     title: t('login-otp.title'),
     content: t('login-otp.content'),
@@ -134,7 +136,8 @@ export const passwordRecoveryToGeneric = (
   data: PasswordRecoveryTemplateSchema = { code: '123456', ttl: 5 },
   t: Translator = defaultT,
 ): GenericTemplateSchema => {
-  const { app = 'Zanix', html = { title: 'Password Recovery' }, ...content } = data
+  const { app = 'Zanix', html = { title: 'Password Recovery', lang: t('lang.code') }, ...content } =
+    data
   return {
     title: t('password-recovery.title'),
     content: t('password-recovery.content'),

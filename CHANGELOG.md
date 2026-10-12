@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-10-12
+
+### Changed
+
+- The language tag of a message text is checked with `isLangTag` from `@zanix/utils` (≥ 4.10.0)
+  instead of a regex of this package's own. Same shape, now shared with `@zanix/iam` and
+  `@zanix/space`; a tag with more than three subtags is no longer accepted.
+
+### Fixed
+
+- **The built-in derived emails (`welcome`, `password-changed`, `password-recovery`, `login-otp`,
+  `new-login`) render `<html lang>` in the message's language.** The `html` data they pass to
+  `email/generic` always ended up with the schema default `en`, even for a message sent with `es`.
+  They now default `html` to `{ title, lang }` with `lang` read from the new `lang.code` library
+  message (`en` / `es`). A caller-supplied `html` still replaces it entirely.
+
 ## [1.3.0] - 2026-10-12
 
 ### Added

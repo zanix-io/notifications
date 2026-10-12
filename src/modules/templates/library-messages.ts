@@ -17,6 +17,7 @@ import { createTranslator, langChain, type MessageCatalog, type Translator } fro
  */
 export const LIBRARY_MESSAGES: MessageCatalog = {
   en: {
+    'lang.code': 'en',
     'footer.rights': '© {year} {app}. All rights reserved.',
 
     'welcome.subject': 'Welcome',
@@ -61,6 +62,7 @@ export const LIBRARY_MESSAGES: MessageCatalog = {
       "Your {app}verification code is {code}. It expires in {ttl} minutes. Don't share this code with anyone.",
   },
   es: {
+    'lang.code': 'es',
     'footer.rights': '© {year} {app}. Todos los derechos reservados.',
 
     'welcome.subject': 'Te damos la bienvenida',

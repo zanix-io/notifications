@@ -35,9 +35,10 @@
     "jsr:@zanix/auth@1": "1.0.0",
     "jsr:@zanix/datamaster@^1.9.0": "1.9.0",
     "jsr:@zanix/server@4": "4.1.0",
-    "jsr:@zanix/utils@4": "4.9.0",
-    "jsr:@zanix/utils@^4.1.0": "4.9.0",
-    "jsr:@zanix/utils@^4.7.0": "4.9.0",
+    "jsr:@zanix/utils@4": "4.10.0",
+    "jsr:@zanix/utils@^4.1.0": "4.10.0",
+    "jsr:@zanix/utils@^4.10.0": "4.10.0",
+    "jsr:@zanix/utils@^4.7.0": "4.10.0",
     "npm:handlebars@^4.7.8": "4.7.9",
     "npm:mongoose@8": "8.24.4",
     "npm:redis@^5.9.0": "5.12.1",
@@ -198,6 +199,14 @@
     },
     "@zanix/utils@4.9.0": {
       "integrity": "56071e48e063e264eb2b3fe4aa2cd44e34f74d0484d3c00980738cc7272a6fd5",
+      "dependencies": [
+        "jsr:@std/crypto",
+        "jsr:@std/fmt@0.224",
+        "jsr:@std/path@0.224"
+      ]
+    },
+    "@zanix/utils@4.10.0": {
+      "integrity": "4bc379b77bb050d7ee5e253c4e47a613a741dd2eacb45d3f9bceaa5c7a8b28d8",
       "dependencies": [
         "jsr:@std/crypto",
         "jsr:@std/fmt@0.224",
@@ -388,6 +397,7 @@
       "jsr:@zanix/datamaster@^1.9.0",
       "jsr:@zanix/server@4",
       "jsr:@zanix/utils@4",
+      "jsr:@zanix/utils@^4.10.0",
       "jsr:@zanix/utils@^4.7.0",
       "npm:handlebars@^4.7.8",
       "npm:zod@^4.1.13"

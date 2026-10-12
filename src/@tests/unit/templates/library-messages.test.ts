@@ -19,6 +19,16 @@ Deno.test('library messages: a built-in email renders in English by default and 
   assertStringIncludes(await emailTemplates['password-changed']({}, 'fr'), 'Password Successfully')
 })
 
+Deno.test('library messages: a built-in email sets <html lang> from the message language, unless html is supplied', async () => {
+  assertStringIncludes(await emailTemplates['welcome']({}, 'es'), '<html lang="es"')
+  assertStringIncludes(await emailTemplates['welcome'](), '<html lang="en"')
+  assertStringIncludes(await emailTemplates['login-otp'](undefined, 'es'), '<html lang="es"')
+  assertStringIncludes(
+    await emailTemplates['password-changed']({ html: { title: 'T', lang: 'fr' } }, 'es'),
+    '<html lang="fr"',
+  )
+})
+
 Deno.test('library messages: the values an email fills in are escaped, the location line is markup', async () => {
   const html = await emailTemplates['new-login']({
     device: '<b>Pwn</b>',
