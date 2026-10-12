@@ -168,6 +168,20 @@ function realHttpStatus(error: unknown): number | undefined {
   return error instanceof RestClientError ? error.realHttpStatus : undefined
 }
 
+/** The stable code the central service answers a sync for a `serviceId` its registry does not list. */
+const UNKNOWN_SERVICE_CODE = 'UNKNOWN_SERVICE'
+
+/**
+ * Whether `error` is the central service saying it has no registered service with this
+ * `serviceId`: a service that only renders from the central catalog (and is deliberately not in its
+ * registry) gets this on every sync, which is configuration, not a fault.
+ */
+function isUnknownServiceError(error: unknown): boolean {
+  if (!(error instanceof RestClientError)) return false
+  const detail = (error.cause as { message?: string } | undefined)?.message ?? ''
+  return detail.includes(`"code":"${UNKNOWN_SERVICE_CODE}"`)
+}
+
 /**
  * `TemplateBackend` for Mode C (remote-only templates, no local Mongo access at all) — see
  * `docs/templates.md#mode-c-remote-only-templates`. Calls the central Notification/Template
@@ -276,6 +290,15 @@ export class RemoteTemplateBackend extends RestClient implements TemplateBackend
         headers: await this.#authHeaders(),
       })
     } catch (error) {
+      if (isUnknownServiceError(error)) {
+        // Expected for a service that only renders: nothing to pull, nothing wrong.
+        logger.info(
+          `[RemoteTemplateBackend] "${this.#serviceId}" is not in the central service's registry: ` +
+            `its code templates are not pulled, and it renders from the central catalog.`,
+          'noSave',
+        )
+        return
+      }
       logger.warn(
         `[RemoteTemplateBackend] Code-template sync trigger failed — continuing without it. ` +
           `${(error as Error).message}`,

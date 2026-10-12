@@ -1,3 +1,4 @@
+import logger from '@zanix/logger'
 import { HttpError } from '@zanix/errors'
 import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.15'
 import { FakeTime } from '@std/testing/time'
@@ -318,6 +319,40 @@ Deno.test(
         assertEquals(result, record)
       },
     )
+  },
+)
+
+Deno.test(
+  'RemoteTemplateBackend: a service the central registry does not list is logged as information, not as a failure',
+  async () => {
+    const logs: string[] = []
+    const { warn, info } = logger
+    logger.warn = ((message: string) => logs.push(`warn:${message}`)) as never
+    logger.info = ((message: string) => logs.push(`info:${message}`)) as never
+    try {
+      await withFakeFetch(
+        (_, init) => {
+          if (init?.method === 'POST') {
+            return new Response(
+              JSON.stringify({ name: 'InternalError', code: 'UNKNOWN_SERVICE', message: 'x' }),
+              { status: 500, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+          return new Response(JSON.stringify(record), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        },
+        async () => {
+          assertEquals(await freshBackend().resolve('email', 'welcome'), record)
+        },
+      )
+    } finally {
+      logger.warn = warn
+      logger.info = info
+    }
+    assertEquals(logs.length, 1)
+    assertEquals(logs[0].startsWith('info:'), true)
   },
 )
 

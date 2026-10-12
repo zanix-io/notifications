@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-10-12
+
+### Changed
+
+- **A service the central registry does not list is no longer a warning.** In Mode C, the first
+  `resolve()` asks the central service to pull this service's code templates (`POST <prefix>/sync`).
+  A service that only renders from the central catalog and is deliberately not in the central
+  registry got `UNKNOWN_SERVICE` on every start and logged `Code-template sync trigger failed`. That
+  answer is now logged as information (nothing to pull, nothing wrong); any other failure is still a
+  warning.
+
 ## [1.3.1] - 2026-10-12
 
 ### Changed
