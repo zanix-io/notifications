@@ -132,7 +132,10 @@ starter: {
   `createRenderHelpers()`.
 - **Where it is exposed.** The `GET /templates/:channel/:name` response includes `starterHbs` for a
   record with no `hbs` of its own whose name is a declared derived template. It is generated on
-  every read; it is never stored, and create, update and sync never write or accept it.
+  every read from the body the parent record holds at that moment (an app's branded `generic`, say),
+  so a body started from it keeps that brand; when the parent cannot be read or has no body, from
+  the parent's code source. It is never stored, and create, update and sync never write or accept
+  it.
 - **What saving a body does.** Setting `hbs` on the record makes it independent: `resolve()` stops
   walking to `parent`, the transform is not applied, and the body receives the send's raw data.
   Edits to `generic` no longer reach that template.

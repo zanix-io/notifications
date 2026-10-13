@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-10-12
+
+### Fixed
+
+- The `starterHbs` of a derived template is generated from the body its parent record holds now, not
+  always from the parent's code source. An app that brands `generic` (its own `email/generic`) got a
+  starter with the library's default look, so a body started from it lost the brand; it now keeps
+  it. A parent that cannot be read, or has no body, still falls back to the code source.
+
 ## [1.7.0] - 2026-10-12
 
 ### Added

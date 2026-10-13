@@ -76,11 +76,17 @@ export class TemplatesAdminService extends ZanixInteractor {
    * See {@link TemplatesAdminRepository.get}. A record with no `hbs` of its own whose name is a
    * declared derived template that has a starter body (`DerivedTemplateDeclaration.starter`)
    * also carries it as `starterHbs`, computed here from the declaration on every read; it is not
-   * stored and no write path accepts it.
+   * stored and no write path accepts it. It is generated from the body the parent record holds now,
+   * so an app that brands `generic` gets a starter with its brand; a parent that cannot be read
+   * leaves it to the parent's code source.
    */
   public async get(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs> {
     const record = await this.repository.get(channel, name)
-    const starterHbs = record.hbs ? undefined : await starterHbsFor(channel, name)
+    if (record.hbs) return record
+    const parent = record.parent
+      ? await this.repository.get(channel, record.parent).catch(() => undefined)
+      : undefined
+    const starterHbs = await starterHbsFor(channel, name, parent?.hbs)
     return starterHbs ? { ...record, starterHbs } : record
   }
 

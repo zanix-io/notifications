@@ -164,3 +164,42 @@ Deno.test('render helpers: currentYear, defaultTo and withSuffix', () => {
   assertEquals(helpers.withSuffix(undefined, ' '), '')
   assertEquals(helpers.withSuffix('', ' '), '')
 })
+
+Deno.test('TemplatesAdminService.get generates the starter from the body the parent holds now, not from its code source', async () => {
+  const branded =
+    "<main data-brand='presenza'><h1>{{title}}</h1>{{#if buttonText}}<b>{{buttonText}}</b>{{/if}}</main>"
+  const parent = record({ name: 'generic', parent: undefined, hbs: branded })
+  const service = fakeService({
+    get: (_channel: string, name: string) =>
+      Promise.resolve(name === 'generic' ? parent : record({})),
+  })
+
+  const { starterHbs } = await service.get('email', 'login-otp')
+
+  assertEquals(
+    starterHbs,
+    "<main data-brand='presenza'><h1>{{t 'login-otp.title'}}</h1>{{#if code}}<b>{{code}}</b>{{/if}}</main>",
+  )
+  // The library's own `generic` is not in it.
+  assertEquals(starterHbs?.includes('class="container"'), false)
+})
+
+Deno.test('TemplatesAdminService.get falls back to the parent code source when the parent cannot be read or has no body', async () => {
+  const unreadable = fakeService({
+    get: (_channel: string, name: string) =>
+      name === 'generic' ? Promise.reject(new Error('not found')) : Promise.resolve(record({})),
+  })
+  assertEquals(
+    (await unreadable.get('email', 'login-otp')).starterHbs,
+    await starterHbsFor('email', 'login-otp'),
+  )
+
+  const bodiless = fakeService({
+    get: (_channel: string, name: string) =>
+      Promise.resolve(record(name === 'generic' ? { name: 'generic', parent: undefined } : {})),
+  })
+  assertEquals(
+    (await bodiless.get('email', 'login-otp')).starterHbs,
+    await starterHbsFor('email', 'login-otp'),
+  )
+})

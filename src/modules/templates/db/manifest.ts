@@ -71,14 +71,20 @@ export const DERIVED_TEMPLATES: ReadonlyArray<DerivedTemplateDeclaration> = [
  *
  * @param channel The notifier channel `name` belongs to.
  * @param name The `zanixTemplate` name.
+ * @param parentHbs The body the parent record holds now; the starter is generated from it instead of
+ * from the parent's code source (see {@linkcode starterFor}).
  * @returns The starter, or `undefined` when `{channel, name}` is not a declared derived template or
  * declares no `starter`.
  */
-export async function starterHbsFor(channel: Notifiers, name: string): Promise<string | undefined> {
+export async function starterHbsFor(
+  channel: Notifiers,
+  name: string,
+  parentHbs?: string,
+): Promise<string | undefined> {
   const declaration = DERIVED_TEMPLATES.find((entry) =>
     entry.channel === channel && entry.name === name
   )
-  return declaration && await starterFor(declaration)
+  return declaration && await starterFor(declaration, parentHbs)
 }
 
 /**

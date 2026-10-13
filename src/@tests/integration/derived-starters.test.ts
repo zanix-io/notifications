@@ -260,3 +260,50 @@ Deno.test('derived starter: a body that calls only currentYear or defaultTo, wit
     cleanup()
   }
 })
+
+Deno.test('derived starter: with a branded parent it renders as the derived template does through that parent', async () => {
+  // An app's own `generic` (here a small branded layout) replaces the library's; the starter is
+  // generated from it, so a body started from the starter keeps the brand.
+  const branded = '<main data-brand="app"><h1>{{title}}</h1><div>{{{content}}}</div>' +
+    '{{#if buttonText}}<b class="code">{{buttonText}}</b>{{/if}}' +
+    '{{#if message}}<p>{{message}}</p>{{/if}}<footer>{{{footer}}}</footer></main>'
+  const generic: ZanixTemplateAttrs = {
+    channel: 'email',
+    name: 'generic',
+    hbs: branded,
+    source: 'database',
+    active: true,
+    version: 1,
+    hash: 'branded-generic',
+  }
+  const starter = await starterHbsFor('email', 'login-otp', branded)
+  assert(starter?.includes('data-brand="app"'))
+  assertEquals(starter?.includes('class="container"'), false)
+  try {
+    const throughParent = provider([generic, {
+      channel: 'email',
+      name: 'login-otp',
+      parent: 'generic',
+      source: 'database',
+      active: true,
+      version: 1,
+      hash: 'derived-login-otp',
+    }])
+    const rendered = new Map<string, string>()
+    for (const lang of ['en', 'es']) {
+      // deno-lint-ignore no-await-in-loop
+      rendered.set(lang, await throughParent.resolve('email', 'login-otp', OTP_APP, lang))
+    }
+    cleanup()
+
+    const independent = provider([{ ...generic, name: 'login-otp', hbs: starter, hash: 'own' }])
+    for (const lang of ['en', 'es']) {
+      // deno-lint-ignore no-await-in-loop
+      const fromStarter = await independent.resolve('email', 'login-otp', OTP_APP, lang)
+      assertEquals(normalize(fromStarter), normalize(rendered.get(lang) as string), lang)
+      assert(fromStarter.includes('data-brand="app"') && fromStarter.includes('482913'))
+    }
+  } finally {
+    cleanup()
+  }
+})

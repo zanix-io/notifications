@@ -89,11 +89,15 @@ const PARENT_SOURCES: Record<Notifiers, { hbs: string; css: string }> = {
  * from its parent's source on each call; never stored.
  *
  * @param declaration The derived template's declaration.
+ * @param parentHbs The body the parent record holds now (an app's branded `generic`, say). The
+ * starter is generated from it so it reproduces what the template renders today; without it, from
+ * the parent's code source.
  * @returns The starter, or `undefined` when the declaration has no `starter` map or its parent is
  * not one of the code templates this module reads.
  */
 export async function starterFor(
   declaration: DerivedTemplateDeclaration,
+  parentHbs?: string,
 ): Promise<string | undefined> {
   if (!declaration.starter || declaration.parent !== 'generic') return undefined
   const { channel, parent } = declaration
@@ -101,5 +105,8 @@ export async function starterFor(
   const { styleDefaults } = await import(`../handlebars/${channel}/${parent}/main.js`) as {
     styleDefaults: Record<string, string>
   }
-  return buildStarterHbs({ ...source, classDefaults: styleDefaults }, declaration.starter)
+  return buildStarterHbs(
+    { ...source, hbs: parentHbs?.trim() ? parentHbs : source.hbs, classDefaults: styleDefaults },
+    declaration.starter,
+  )
 }
