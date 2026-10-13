@@ -61,6 +61,11 @@ await provider.email({
 `subject` only applies to (and is required for) `email`; SMS/WhatsApp ignore it, along with `from`
 and `date`.
 
+`headers` (email only) adds header fields such as `List-Unsubscribe` after `Date`:
+`headers: { 'List-Unsubscribe': '<https://app.example/u?t=...>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }`.
+A name the connector sets itself (`Subject`, `From`, `To`, `Date`, `MIME-Version`, `Content-Type`,
+`Content-Transfer-Encoding`) and a value with a line break are refused (`SMTP_INVALID_HEADER`).
+
 ## Language and subject of a template message
 
 A message sent from a template takes a `lang` (a BCP 47 tag) next to `zanixTemplate` and `data`: the

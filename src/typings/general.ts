@@ -32,6 +32,13 @@ export interface NotifyMessage {
    */
   subject?: string
 
+  /**
+   * Extra header fields of the message, such as `List-Unsubscribe`. Email-specific; other channels
+   * ignore it. A name the connector sets itself (`Subject`, `From`, `To`, `Date`, `MIME-Version`,
+   * `Content-Type`, `Content-Transfer-Encoding`) is refused, and so is a value with a line break.
+   */
+  headers?: Record<string, string>
+
   /** Body content of the message (HTML or plain text) */
   content: string
 }

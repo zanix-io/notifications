@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-10-13
+
+### Added
+
+- **A message can carry extra header fields (`headers`).** An email takes
+  `headers: { 'List-Unsubscribe': '<https://...>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }`
+  and the SMTP connector writes each as a `Name: value` line after `Date`. A name the connector sets
+  itself (`Subject`, `From`, `To`, `Date`, `MIME-Version`, `Content-Type`,
+  `Content-Transfer-Encoding`) or one that is not a plain header name is refused, and so is a value
+  with a line break (`SMTP_INVALID_HEADER`). Other channels ignore the field.
+
 ## [1.7.1] - 2026-10-12
 
 ### Fixed

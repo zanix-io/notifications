@@ -88,14 +88,14 @@ export const LIBRARY_MESSAGES: MessageCatalog = {
     'login-otp.content':
       '<p>Recibimos una solicitud para iniciar sesión en tu cuenta. Para completarla, usa este código de un solo uso:</p>',
     'login-otp.message':
-      'Este código vale {ttl} minutos. Si no solicitaste este acceso, ignora este correo.\nPor seguridad, no compartas este código con nadie.',
+      'Este código es válido por {ttl} minutos. Si no solicitaste este acceso, ignora este correo.\nPor seguridad, no compartas este código con nadie.',
 
     'password-recovery.subject': 'Recupera tu contraseña',
     'password-recovery.title': 'Recuperación de contraseña',
     'password-recovery.content':
       '<p>Recibimos una solicitud para restablecer tu contraseña. Usa este código para continuar:</p>',
     'password-recovery.message':
-      'Este código vale {ttl} minutos. Si no solicitaste este cambio, ignora este correo.\nPor seguridad, no compartas este código con nadie.',
+      'Este código es válido por {ttl} minutos. Si no solicitaste este cambio, ignora este correo.\nPor seguridad, no compartas este código con nadie.',
 
     'sms.otp.content':
       'Tu código de verificación de {app}es {code}. Vence en {ttl} minutos. No lo compartas con nadie.',

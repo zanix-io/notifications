@@ -6,6 +6,7 @@ import { SMTP_RESPONSE_CODE } from 'utils/constants.ts'
 import { ZanixNotifierConnector } from '../base.ts'
 import { getSmtpPool, SmtpConnection, SmtpConnectionClosedError } from './pool.ts'
 import { assertNoCrlf } from '@zanix/helpers'
+import { serializeExtraHeaders } from './headers.ts'
 import { InternalError } from '@zanix/errors'
 import logger from '@zanix/logger'
 
@@ -163,6 +164,8 @@ export class SmtpClient extends ZanixNotifierConnector {
     if (email.subject) assertNoCrlf('subject', email.subject)
     assertNoCrlf('date', date)
 
+    const extraHeaders = serializeExtraHeaders(email.headers)
+
     const [fromAddr, fromFull] = this.#parseEmail(fromInput)
     const [toAddr, toFull] = this.#parseEmail(email.to)
 
@@ -174,6 +177,7 @@ export class SmtpClient extends ZanixNotifierConnector {
     await session.sendCommand(`From: ${fromFull}`)
     await session.sendCommand(`To: ${toFull}`)
     await session.sendCommand(`Date: ${date}`)
+    if (extraHeaders.length) await session.sendCommand(extraHeaders.join('\r\n'))
     await session.sendCommand('MIME-Version: 1.0')
     await session.sendCommand('Content-Type: text/html;charset=utf-8\r\n')
     await session.sendCommand(email.content)
