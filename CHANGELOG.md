@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) and this project
 adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-10-12
+
+### Added
+
+- `@zanix/notifications/i18n` also exports `createRenderHelpers()`, `RenderHelpers` and `SafeText`,
+  the helpers an independent template renders with (`t`, `currentYear`, `defaultTo`, `withSuffix`),
+  so a console previews a template, a starter body included, the way a send renders it.
+- **Starter bodies for the derived templates.** `DerivedTemplateDeclaration` takes an optional
+  `starter`: the parent's variables the template assigns, as Handlebars over the send's raw data.
+  The starter body is generated from the parent's real `main.hbs` and `styles.css` with those
+  variables replaced, a self-contained source that, rendered as an independent template with the
+  send's raw data, produces the same message as the derived template (email `welcome`,
+  `password-changed`, `password-recovery`, `login-otp`, `new-login`; SMS `otp`, `new-login`;
+  WhatsApp `otp`). `GET /templates/:channel/:name` returns it as `starterHbs` for a record with no
+  `hbs` of its own whose name is a declared derived template; it is generated on every read and
+  never stored. `ZanixTemplateAttrs` (and so `@zanix/notifications/templates-types`) gains the
+  response-only `starterHbs?: string`. Writing an `hbs` on that record detaches it from `parent` and
+  from the transform. See `docs/template-inheritance.md#starter-bodies`.
+- **Render helpers `currentYear`, `defaultTo` and `withSuffix`** for database templates, next to
+  `t`: the footer's year, a default value and an optional prefix, which the starter bodies use to
+  reproduce what the transforms compute. Template syntax validation knows them.
+
+### Changed
+
+- A database template that calls `currentYear`, `defaultTo` or `withSuffix` without `t` also gets
+  the render helpers. A data field with one of these three names is read as `{{this.name}}`.
+
 ## [1.6.0] - 2026-10-12
 
 ### Added

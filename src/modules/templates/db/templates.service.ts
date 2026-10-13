@@ -14,6 +14,7 @@ import type {
 import { Interactor, ZanixInteractor } from '@zanix/server'
 import { HttpError } from '@zanix/errors'
 import { TemplateProvider } from '../provider.ts'
+import { starterHbsFor } from './manifest.ts'
 import { TemplatesAdminRepository } from './templates.repository.ts'
 
 /** The most draft texts a preview accepts. */
@@ -71,9 +72,16 @@ export class TemplatesAdminService extends ZanixInteractor {
     return this.repository.list(channel)
   }
 
-  /** See {@link TemplatesAdminRepository.get}. */
-  public get(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs> {
-    return this.repository.get(channel, name)
+  /**
+   * See {@link TemplatesAdminRepository.get}. A record with no `hbs` of its own whose name is a
+   * declared derived template that has a starter body (`DerivedTemplateDeclaration.starter`)
+   * also carries it as `starterHbs`, computed here from the declaration on every read; it is not
+   * stored and no write path accepts it.
+   */
+  public async get(channel: Notifiers, name: string): Promise<ZanixTemplateAttrs> {
+    const record = await this.repository.get(channel, name)
+    const starterHbs = record.hbs ? undefined : await starterHbsFor(channel, name)
+    return starterHbs ? { ...record, starterHbs } : record
   }
 
   /** See {@link TemplatesAdminRepository.create}. */

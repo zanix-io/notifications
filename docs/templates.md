@@ -260,6 +260,11 @@ await notifier.email({
   (`key.one`, `key.other`, ... from `Intl.PluralRules`), then the plain key. The text itself is
   trusted markup (an operator wrote it); in an email the values are escaped as HTML, in an SMS or a
   WhatsApp message they are not.
+- **Helpers beside `t`.** `{{currentYear}}`, `{{defaultTo value 'text'}}` (the value, or the text
+  when it is absent or empty) and `{{withSuffix value 'text'}}` (the value followed by the text, or
+  nothing when it is absent) are available to any database template, so a body can build a footer
+  year, a default name or an optional prefix from the send's data alone. See
+  [Starter bodies](./template-inheritance.md#starter-bodies).
 - **The subject** of an email is one more text of the catalog: the key `<template name>.subject`
   (for `login-otp`, `login-otp.subject`), filled with the message's data. An email sent from a
   template with no `subject` of its own takes it, in its language; a `subject` on the message always

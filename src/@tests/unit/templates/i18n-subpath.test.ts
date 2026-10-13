@@ -7,6 +7,8 @@ Deno.test('i18n subpath: exports the translation primitives', () => {
     Object.keys(subpath).sort(),
     [
       'DEFAULT_LANG_ENV',
+      'SafeText',
+      'createRenderHelpers',
       'createTranslator',
       'defaultLang',
       'findText',
@@ -18,6 +20,7 @@ Deno.test('i18n subpath: exports the translation primitives', () => {
   assertStrictEquals(root.langChain, subpath.langChain)
   // One translator, not two with the same name: the root re-exports the subpath's.
   assertStrictEquals(root.createTranslator, subpath.createTranslator)
+  assertEquals(typeof subpath.createRenderHelpers, 'function')
 })
 
 Deno.test('i18n subpath: renders plurals, falls back, and warns through `warn`', () => {

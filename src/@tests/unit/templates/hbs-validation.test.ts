@@ -27,3 +27,9 @@ Deno.test('assertValidHandlebarsSyntax: a template with {{t}} and a real syntax 
 Deno.test('assertValidHandlebarsSyntax: only t is stood in for, any other helper is still unknown', async () => {
   await assertRejects(() => assertValidHandlebarsSyntax('{{unknownHelper "a"}}'))
 })
+
+Deno.test('assertValidHandlebarsSyntax: the render helpers currentYear, defaultTo and withSuffix are known', async () => {
+  await assertValidHandlebarsSyntax(
+    "{{t 'footer.rights' year=(currentYear) app=(defaultTo app 'Zanix')}}{{withSuffix app ' '}}{{currentYear}}",
+  )
+})

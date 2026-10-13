@@ -5,6 +5,7 @@ import type {
   NewLoginEmailTemplateSchema,
   PasswordChangedTemplateSchema,
   PasswordRecoveryTemplateSchema,
+  StarterVariable,
   WelcomeTemplateSchema,
 } from 'typings/templates.ts'
 
@@ -14,6 +15,17 @@ import { execTemplate } from '../../mod.ts'
 import { libraryTranslator } from '../../library-messages.ts'
 
 const defaultT = libraryTranslator('email')
+
+/**
+ * What every email transform here assigns to `generic`'s document variables (see
+ * `DerivedTemplateDeclaration.starter`), over the send's raw `app` and `html`: the language and
+ * title of the document, defaulting as the transforms do, and the rights footer.
+ */
+const documentVariables = (documentTitle: string): Record<string, StarterVariable> => ({
+  'html.lang': "defaultTo html.lang (t 'lang.code')",
+  'html.title': `defaultTo html.title '${documentTitle}'`,
+  footer: "t 'footer.rights' year=(currentYear) app=(defaultTo app 'Zanix')",
+})
 
 const rights = (t: Translator, app: string) =>
   t('footer.rights', { year: new Date().getFullYear(), app })
@@ -166,29 +178,63 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
     name: 'welcome',
     parent: 'generic',
     transform: welcomeToGeneric,
+    starter: {
+      ...documentVariables('Welcome Email'),
+      title: "t 'welcome.title'",
+      content: "t 'welcome.content' app=(defaultTo app 'Zanix')",
+    },
   },
   {
     channel: 'email',
     name: 'password-changed',
     parent: 'generic',
     transform: passwordChangedToGeneric,
+    starter: {
+      ...documentVariables('Password Changed'),
+      title: "t 'password-changed.title'",
+      content: "t 'password-changed.content'",
+    },
   },
   {
     channel: 'email',
     name: 'password-recovery',
     parent: 'generic',
     transform: passwordRecoveryToGeneric,
+    starter: {
+      ...documentVariables('Password Recovery'),
+      title: "t 'password-recovery.title'",
+      content: "t 'password-recovery.content'",
+      buttonText: 'code',
+      message: "t 'password-recovery.message' ttl=ttl",
+    },
   },
   {
     channel: 'email',
     name: 'login-otp',
     parent: 'generic',
     transform: loginWithOTPToGeneric,
+    starter: {
+      ...documentVariables('Login OTP'),
+      title: "t 'login-otp.title'",
+      content: "t 'login-otp.content'",
+      buttonText: 'code',
+      message: "t 'login-otp.message' ttl=ttl",
+    },
   },
   {
     channel: 'email',
     name: 'new-login',
     parent: 'generic',
     transform: newLoginToGeneric,
+    starter: {
+      ...documentVariables('New Login Detected'),
+      title: "t 'new-login.title'",
+      // The transform joins three texts, the second only when the send has a location.
+      content: {
+        fragment: "{{{t 'new-login.content' device=device time=time}}}" +
+          "{{#if location}}{{{t 'new-login.location' location=location}}}{{/if}}" +
+          "{{{t 'new-login.outro'}}}",
+      },
+    },
   },
 ]

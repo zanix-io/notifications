@@ -13,6 +13,7 @@ import whatsappTemplates from 'modules/templates/transactional/whatsapp.ts'
 import { CODE_TEMPLATES, DERIVED_TEMPLATES } from './db/manifest.ts'
 import { CODE_SOURCE } from './db/sync.ts'
 import { LIBRARY_MESSAGES, withLibraryTexts } from './library-messages.ts'
+import { createRenderHelpers } from './render-helpers.ts'
 import { createTranslator, findText, langChain, type MessageCatalog } from './i18n.ts'
 import { LocalTemplateBackend, resetLocalTemplateBackendState } from './db/local-backend.ts'
 import {
@@ -81,7 +82,7 @@ const renderCache = new Map<
 /** The helpers one message renders with, as Handlebars takes them. */
 type RenderOptions = { helpers?: Record<string, (...args: never[]) => unknown> }
 
-/** A compiled Handlebars template: renders `data`, with the helpers (`t`) of one message. */
+/** A compiled Handlebars template: renders `data`, with the helpers (`t`, `currentYear`...) of one message. */
 type CompiledRender = (
   data: unknown,
   options?: RenderOptions,
@@ -93,8 +94,13 @@ export interface ResolvedTemplate {
   subject?: string
 }
 
-/** Whether a Handlebars source reads message texts: `{{t 'key'}}` or `{{{t 'key'}}}`. */
-const USES_MESSAGES = /\{\{\{?\s*t\s/
+/**
+ * Whether a Handlebars source calls one of the render helpers (`t`, `currentYear`, `defaultTo`, `withSuffix` — see
+ * `createRenderHelpers()`), as a mustache (`{{t 'key'}}`, `{{{t 'key'}}}`, `{{currentYear}}`) or inside a
+ * subexpression (`(defaultTo app 'Zanix')`).
+ */
+const USES_HELPERS =
+  /\{\{\{?\s*(?:t|currentYear|defaultTo|withSuffix)[\s}]|\(\s*(?:t|currentYear|defaultTo|withSuffix)[\s)]/
 
 /**
  * What one resolution renders with: the language chain of the message and a way to build its `{{t}}`
@@ -120,17 +126,6 @@ function overlayTexts(
 ): MessageCatalog {
   if (!texts || Object.keys(texts).length === 0) return catalog
   return { ...catalog, [lang]: { ...catalog[lang], ...texts } }
-}
-
-/** Text Handlebars must not escape again (it asks an object for `toHTML()`): what `{{t}}` returns. */
-class SafeText {
-  constructor(private readonly text: string) {}
-  public toString(): string {
-    return this.text
-  }
-  public toHTML(): string {
-    return this.text
-  }
 }
 
 /**
@@ -450,17 +445,8 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
     return {
       chain,
       catalog,
-      helpers: async () => {
-        const t = createTranslator(await catalog(), chain, channel === 'email')
-        return {
-          // Handlebars passes the call's `key=value` arguments as `options.hash`, and its own
-          // `options` object last. The text is trusted markup (an operator wrote it) and the
-          // values were escaped when it was filled, so the result is not escaped a second time.
-          t: function (key: string, options?: { hash?: Record<string, unknown> }) {
-            return new SafeText(t(key, options?.hash))
-          },
-        }
-      },
+      helpers: async () =>
+        createRenderHelpers(createTranslator(await catalog(), chain, channel === 'email')),
     }
   }
 
@@ -512,8 +498,8 @@ export class TemplateProvider extends ZanixProvider<{ database: ZanixMongoConnec
         record.hbs,
         record.hash,
       )
-      // The helpers (and so the catalog) are built only for a template that reads texts.
-      const options: RenderOptions = USES_MESSAGES.test(record.hbs)
+      // The helpers (and so the catalog) are built only for a template that calls one.
+      const options: RenderOptions = USES_HELPERS.test(record.hbs)
         ? { helpers: await context.helpers() }
         : {}
 

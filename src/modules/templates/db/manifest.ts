@@ -6,6 +6,7 @@ import type { DerivedTemplateDeclaration } from 'typings/templates.ts'
 import { derivedTemplates as smsDerivedTemplates } from '../transactional/sms.ts'
 import { derivedTemplates as whatsappDerivedTemplates } from '../transactional/whatsapp.ts'
 import { derivedTemplates as emailDerivedTemplates } from '../transactional/email/auth.ts'
+import { starterFor } from '../transactional/starter.ts'
 import { CODE_TEMPLATES } from './code-templates.generated.ts'
 
 /**
@@ -62,6 +63,23 @@ export const DERIVED_TEMPLATES: ReadonlyArray<DerivedTemplateDeclaration> = [
   ...whatsappDerivedTemplates,
   ...emailDerivedTemplates,
 ]
+
+/**
+ * The starter body of the derived template `{channel, name}` (see `DerivedTemplateDeclaration.starter`):
+ * a Handlebars source generated from the parent's real source that renders, as an independent template from the send's raw data, the same
+ * message the derived template does. Computed from the declaration on each call and never persisted.
+ *
+ * @param channel The notifier channel `name` belongs to.
+ * @param name The `zanixTemplate` name.
+ * @returns The starter, or `undefined` when `{channel, name}` is not a declared derived template or
+ * declares no `starter`.
+ */
+export async function starterHbsFor(channel: Notifiers, name: string): Promise<string | undefined> {
+  const declaration = DERIVED_TEMPLATES.find((entry) =>
+    entry.channel === channel && entry.name === name
+  )
+  return declaration && await starterFor(declaration)
+}
 
 /**
  * Loads every entry in {@link CODE_TEMPLATES} from its compiled `main.js` (the `source`/`styles`

@@ -88,6 +88,16 @@ export interface ZanixTemplateAttrs {
 
   /** Free-text actor id — `'system:bootstrap-sync'` for automated syncs, an admin identifier for manual edits. */
   updatedBy?: string
+
+  /**
+   * Response-only: never stored and never accepted by a create, update or sync. Present on the
+   * templates API's `GET :channel/:name` for a record with no `hbs` of its own whose name is a
+   * built-in derived template (`welcome`, `login-otp`, the SMS `otp`...): a self-contained
+   * Handlebars source that, saved as the record's `hbs`, renders the same message from the send's
+   * raw data. Saving a body detaches the record from its `parent` and from the data transform, so
+   * the body then receives the raw data of the send. See `docs/template-inheritance.md`.
+   */
+  starterHbs?: string
 }
 
 /**

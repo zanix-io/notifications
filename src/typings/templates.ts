@@ -20,7 +20,29 @@ export interface DerivedTemplateDeclaration {
    * the language of the message (the library's own catalog, or the database one that includes it).
    */
   transform: (data: never, t: Translator) => Record<string, unknown>
+  /**
+   * What this derived template assigns to its parent's variables, keyed by the parent's variable
+   * name (`title`, `content`, `buttonText`, `html.lang`...): the same mapping `transform` computes,
+   * written as Handlebars over the send's raw data (`{{t 'key' name=value}}` for catalog texts).
+   *
+   * From it the template's **starter body** is generated: the parent's real `main.hbs` and
+   * `styles.css` with those variables replaced and the rest kept, a self-contained source that,
+   * rendered as an independent template with the send's raw data, produces the same message as this
+   * derived template. A variable not listed keeps reading the send's raw data. The templates API's
+   * `GET :channel/:name` returns the result as `starterHbs` for a record with no `hbs`; writing a
+   * body of its own detaches the record from `parent` and from `transform`. Absent when no
+   * faithful starter exists.
+   */
+  starter?: Record<string, StarterVariable>
 }
+
+/**
+ * What a derived template assigns to one variable of its parent in its starter body: a Handlebars
+ * expression (`"t 'login-otp.title'"`, `'code'`), used wherever the parent prints the variable
+ * (`{{x}}`, `{{{x}}}`) or tests it (`{{#if x}}`), or a `{ fragment }` of Handlebars that replaces the
+ * parent's whole `{{{x}}}` when one expression cannot express the value (a conditional text).
+ */
+export type StarterVariable = string | { fragment: string }
 
 /** Data accepted by the `sms/otp` transactional template. */
 export type OTPTemplateSchema = {

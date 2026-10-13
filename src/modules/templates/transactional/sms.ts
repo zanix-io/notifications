@@ -69,8 +69,32 @@ export const newLogin = (data: NewLoginTemplateSchema, lang?: string): Promise<s
  * derived SMS template only ever needs an entry here, not a separate registration elsewhere.
  */
 export const derivedTemplates: DerivedTemplateDeclaration[] = [
-  { channel: 'sms', name: 'otp', parent: 'generic', transform: otpToGeneric },
-  { channel: 'sms', name: 'new-login', parent: 'generic', transform: newLoginToGeneric },
+  {
+    channel: 'sms',
+    name: 'otp',
+    parent: 'generic',
+    transform: otpToGeneric,
+    starter: {
+      content: "t 'sms.otp.content' app=(withSuffix app ' ') code=code ttl=ttl",
+    },
+  },
+  {
+    channel: 'sms',
+    name: 'new-login',
+    parent: 'generic',
+    transform: newLoginToGeneric,
+    starter: {
+      // The transform fills `location` with a second text, present only when the send has one.
+      content: {
+        fragment: '{{#if location}}' +
+          "{{{t 'sms.new-login.content' app=(withSuffix app ' ') device=device time=time " +
+          "location=(t 'sms.new-login.location' location=location)}}}" +
+          '{{else}}' +
+          "{{{t 'sms.new-login.content' app=(withSuffix app ' ') device=device time=time location=''}}}" +
+          '{{/if}}',
+      },
+    },
+  },
 ]
 
 /**

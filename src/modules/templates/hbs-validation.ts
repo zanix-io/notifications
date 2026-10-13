@@ -1,3 +1,5 @@
+import { createRenderHelpers } from './render-helpers.ts'
+
 /**
  * Throws if `hbs` isn't syntactically valid Handlebars. Does not validate variable/data shape —
  * only that the template string itself parses.
@@ -24,8 +26,9 @@ export async function assertValidHandlebarsSyntax(hbs: string): Promise<void> {
   // materialization. Revisit if `templates.repository.ts` (or this function) is ever exposed from
   // a narrow subpath that doesn't already reach `provider.ts`'s template registries.
   const { default: Handlebars } = await import('handlebars')
-  // The `t` helper (`{{t 'key'}}`, the message texts) exists only while a message renders, bound to
-  // its language: here a stand-in, so a template that reads texts is not rejected for a helper it will
-  // have when it is sent.
-  Handlebars.compile(hbs)({}, { helpers: { t: () => '' } })
+  // The render helpers (`t`, the message texts, and `currentYear`/`defaultTo`/`withSuffix`) exist only while a
+  // message renders, `t` bound to its language: here the same helpers over a translator that answers
+  // an empty text, so a template that calls them is not rejected for a helper it will have when it is
+  // sent.
+  Handlebars.compile(hbs)({}, { helpers: createRenderHelpers(() => '') })
 }

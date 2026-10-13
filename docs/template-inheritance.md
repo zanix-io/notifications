@@ -79,6 +79,10 @@ Which one to edit depends on what you're trying to change:
   name — see
   [Promoting a derived template to a base template](#promoting-a-derived-template-to-a-base-template)
   below).
+- **To start from what the derived template renders today**, read the record through the templates
+  API (`GET /templates/:channel/:name`): a built-in derived record with no `hbs` carries a
+  `starterHbs` field (see [Starter bodies](#starter-bodies) below), a body to edit and save as the
+  record's own `hbs`.
 - **Don't bother setting `hash` on a derived template's own record just to "force" a refresh** —
   until it has real `hbs` of its own, its `hash` field is never read for cache invalidation at all
   (see
@@ -86,6 +90,59 @@ Which one to edit depends on what you're trying to change:
   below). Only the ancestor's `hash` matters.
 - **Deactivating or deleting** a fallback record — see the next section; it's the one case that
   doesn't self-heal automatically.
+
+## Starter bodies
+
+A derived template has no content of its own, so an operator who wants to give it a body cannot
+start from the parent's `hbs`: the parent's variables (`title`, `buttonText`, `message`,
+`footer`...) are what the data transform produces, not what the send carries. Each built-in derived
+template declares a **starter** (`starter` in its `DerivedTemplateDeclaration`): the map of the
+parent's variables it assigns, written as Handlebars over the send's raw data. From the map the
+**starter body** is generated: the parent's real `main.hbs` and `styles.css` with those variables
+replaced, a self-contained source that, rendered as an independent template with the send's **raw**
+data, produces the same message as the derived template.
+
+```ts
+starter: {
+  title: "t 'login-otp.title'", // {{title}} -> {{t 'login-otp.title'}}
+  buttonText: 'code', // {{#if buttonText}}/{{buttonText}} -> {{#if code}}/{{code}}
+  message: "t 'login-otp.message' ttl=ttl",
+}
+```
+
+- **How it is generated.** `buildStarterHbs()` (`transactional/starter.ts`) replaces, by name, the
+  printed (`{{x}}`, `{{{x}}}`) and conditional (`{{#if x}}`, `{{#unless x}}`, `{{else if x}}`) uses
+  of each assigned variable, inlines `styles.css` for `{{styles.css}}` and the default class names
+  for `{{styles.xClass}}`, and keeps everything else. The parent's files are read as text, so a
+  change in `main.hbs` or `styles.css` reaches the starter without editing any declaration. A
+  variable the declaration does not list keeps reading the send's raw data, as the transform's
+  pass-through of the rest of the data does. An assignment that one expression cannot express (a
+  text present only when the send has a `location`) is written as `{ fragment }`, which replaces the
+  whole printed variable.
+- **Why the stylesheet is inlined.** An independent database template is compiled and rendered as it
+  is; only a `source: 'code'` template gets its `styles.css` and default class names injected at
+  render time.
+- **Helpers it relies on.** `{{currentYear}}` (the footer's year), `{{defaultTo value 'text'}}` (the
+  `app` default `Zanix`, the document defaults) and `{{withSuffix value 'text'}}` (the SMS and
+  WhatsApp `app` prefix, present only when `app` is sent) are render helpers next to `t`, available
+  to every database template and also inside subexpressions. They are needed because Handlebars has
+  no way to read the clock, default a value or build an optional prefix. A mustache with one of
+  those names calls the helper; `{{this.currentYear}}` reads a data field of that name. Every render
+  of a database template, the templates API's preview included, builds them in
+  `createRenderHelpers()`.
+- **Where it is exposed.** The `GET /templates/:channel/:name` response includes `starterHbs` for a
+  record with no `hbs` of its own whose name is a declared derived template. It is generated on
+  every read; it is never stored, and create, update and sync never write or accept it.
+- **What saving a body does.** Setting `hbs` on the record makes it independent: `resolve()` stops
+  walking to `parent`, the transform is not applied, and the body receives the send's raw data.
+  Edits to `generic` no longer reach that template.
+- **What a starter does not reproduce.** A partial `html` override keeps the starter's own default
+  for the missing half. Values that contain `&`, `<` or quotes are escaped by the parent's template
+  (`{{title}}`) and not by `{{t}}`.
+- **Equivalence is tested.** `src/@tests/integration/derived-starters.test.ts` renders each derived
+  template through its transactional wrapper and its starter as an independent database template, in
+  `en` and `es`, with and without the optional fields, and compares the outputs after collapsing
+  whitespace runs and dropping whitespace beside tag boundaries.
 
 ## Deleting or deactivating a fallback record
 
@@ -178,12 +235,15 @@ into an existing template's data shape and renders through that one (see
    independently of rendering.
 2. Add it to that channel's registry object, same as
    [Templates' "Adding a custom template", part A, step 3](./templates.md#a-a-base-template-owns-its-own-hbs).
-3. Add one `{ channel, name, parent, transform }` entry to **that same file's own exported
+3. Add one `{ channel, name, parent, transform, starter }` entry to **that same file's own exported
    `derivedTemplates` array** (see `typings/templates.ts`'s `DerivedTemplateDeclaration`) — this is
    the _only_ registration step; `db/manifest.ts`'s `DERIVED_TEMPLATES` (which
    `LocalTemplateBackend`'s seeding reads) and `provider.ts`'s transform lookup (which `resolve()`'s
    chain walk reads) both aggregate from every `transactional/*` module's `derivedTemplates` array
    automatically — nothing to touch in either of those two files.
+
+   `starter` is optional but expected: list the parent's variables the transform assigns (see
+   [Starter bodies](#starter-bodies)) and add the template to the equivalence test.
 
 Skipping step 3 means the database path never learns this template exists at all — a plain code-only
 wrapper, `parent` chain and all. There's no "half-registered" state possible: `parent` and

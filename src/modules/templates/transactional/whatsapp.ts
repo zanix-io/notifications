@@ -46,6 +46,9 @@ export const derivedTemplates: DerivedTemplateDeclaration[] = [
     name: 'otp',
     parent: 'generic',
     transform: otpToGeneric,
+    starter: {
+      content: "t 'whatsapp.otp.content' app=(withSuffix app ' ') code=code ttl=ttl",
+    },
   },
 ]
 
